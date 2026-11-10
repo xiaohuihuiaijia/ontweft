@@ -1,0 +1,89 @@
+{
+  "connector" : "postgresql",
+  "topic" : "source.public.items",
+  "kafka_partition" : null,
+  "timestamp" : 111,
+  "source_partition" : {
+    "server" : "source"
+  },
+  "source_offset" : {
+    "lsn" : 9007199254740995,
+    "lsn_proc" : 10
+  },
+  "key" : {
+    "schema" : {
+      "type" : "struct",
+      "fields" : [ {
+        "type" : "int64",
+        "optional" : false,
+        "field" : "id"
+      }, {
+        "type" : "string",
+        "optional" : false,
+        "field" : "标签"
+      } ],
+      "optional" : false,
+      "name" : "key"
+    },
+    "payload" : {
+      "id" : 9007199254740993,
+      "标签" : "中文"
+    }
+  },
+  "value" : {
+    "schema" : {
+      "type" : "struct",
+      "fields" : [ {
+        "type" : "string",
+        "optional" : false,
+        "field" : "op"
+      }, {
+        "type" : "bytes",
+        "optional" : false,
+        "name" : "org.apache.kafka.connect.data.Decimal",
+        "version" : 1,
+        "parameters" : {
+          "scale" : "18"
+        },
+        "field" : "amount"
+      }, {
+        "type" : "bytes",
+        "optional" : false,
+        "field" : "bytes"
+      }, {
+        "type" : "int64",
+        "optional" : false,
+        "field" : "ts_ms"
+      } ],
+      "optional" : false,
+      "name" : "value"
+    },
+    "payload" : {
+      "op" : "u",
+      "amount" : "AY7pD/bAXmMY4gDzTg==",
+      "bytes" : "AP8=",
+      "ts_ms" : 1
+    }
+  },
+  "headers" : [ {
+    "key" : "repeat",
+    "schema" : {
+      "type" : "string",
+      "optional" : false
+    },
+    "value" : "a"
+  }, {
+    "key" : "repeat",
+    "schema" : {
+      "type" : "string",
+      "optional" : false
+    },
+    "value" : "b"
+  } ],
+  "event_kind" : "data",
+  "operation" : "u",
+  "transaction" : null,
+  "snapshot" : null,
+  "identity_material" : "{\"event_kind\":\"data\",\"generation\":\"00000000-0000-0000-0000-000000000001\",\"identity_version\":1,\"key_payload\":{\"id\":9007199254740993,\"标签\":\"中文\"},\"operation\":\"u\",\"snapshot\":null,\"source_partition\":{\"server\":\"source\"},\"source_position\":{\"lsn\":9007199254740995},\"topic\":\"source.public.items\",\"transaction\":null}",
+  "event_id" : "3332a1a686e4b17b99b3e82c549a10643facd3268ea5a06aebf766e536fc3909"
+}

@@ -1,0 +1,233 @@
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy import select, update
+
+from ontology.core.domain import (
+    active_definition,
+    compare_and_swap,
+    row_dict,
+    scoped_record,
+    validation_report,
+)
+from ontology.core.errors import DomainError, conflict
+from ontology.core.schemas import RevisionInput
+from ontology.identity.models import Membership, Project, User
+from ontology.identity.security import ROLES, access, allowed_field, audit, authenticated
+from ontology.modeling.models import ChangeSet, Release
+from ontology.modeling.schemas import ChangeSetInput, ChangeSetUpdate
+from ontology.modeling.templates import starter_templates
+
+router = APIRouter()
+
+
+@router.get("/ontology/templates")
+def templates(request: Request, project_id: str, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        access(session, user, project_id, "ontology:write")
+        items = starter_templates()
+        return {"items": items, "total": len(items)}
+
+
+@router.get("/ontology/definition")
+def definition(request: Request, project_id: str, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        ctx = access(session, user, project_id)
+        if not ({"ontology:write", "ontology:approve", "ontology:publish"} & ctx.permissions):
+            raise DomainError(403, "forbidden", "无权查看完整管理定义")
+        return {
+            "definition": active_definition(session, ctx.project),
+            "release_id": ctx.project.active_release_id,
+            "version": ctx.project.version,
+        }
+
+
+@router.get("/ontology/types")
+def types(request: Request, project_id: str, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        ctx = access(session, user, project_id)
+        items = active_definition(session, ctx.project)["types"]
+        visible = [
+            {**t, "properties": [p for p in t.get("properties", []) if allowed_field(p, ctx.role)]}
+            for t in items
+        ]
+        return {
+            "items": visible,
+            "total": len(visible),
+            "release_id": ctx.project.active_release_id,
+            "version": ctx.project.version,
+        }
+
+
+@router.get("/changesets")
+def changesets(request: Request, project_id: str, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        ctx = access(session, user, project_id)
+        if not ({"ontology:write", "ontology:approve", "ontology:publish"} & ctx.permissions):
+            raise DomainError(403, "forbidden", "无权查看本体变更")
+        items = session.scalars(
+            select(ChangeSet)
+            .where(ChangeSet.tenant_id == user.tenant_id, ChangeSet.project_id == project_id)
+            .order_by(ChangeSet.created_at.desc())
+        ).all()
+        return {"items": [row_dict(x) for x in items], "total": len(items)}
+
+
+@router.post("/changesets", status_code=201)
+def create_changeset(data: ChangeSetInput, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        ctx = access(session, user, data.project_id, "ontology:write")
+        if ctx.project.active_release_id != data.expected_baseline_release_id:
+            conflict("草稿所依据的发布版已改变，请刷新完整定义再创建变更集")
+        change = ChangeSet(
+            tenant_id=user.tenant_id,
+            project_id=data.project_id,
+            title=data.title,
+            definition=data.definition.model_dump(),
+            author_id=user.id,
+            baseline_release_id=ctx.project.active_release_id,
+        )
+        session.add(change)
+        session.flush()
+        audit(session, user, data.project_id, "ontology.drafted", change.id)
+        return row_dict(change)
+
+
+@router.get("/changesets/{change_id}")
+def get_changeset(change_id: str, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        change = scoped_record(session, ChangeSet, change_id, user)
+        ctx = access(session, user, change.project_id)
+        if not ({"ontology:write", "ontology:approve", "ontology:publish"} & ctx.permissions):
+            raise DomainError(403, "forbidden", "无权查看本体变更")
+        return row_dict(change)
+
+
+@router.patch("/changesets/{change_id}")
+def edit_changeset(change_id: str, data: ChangeSetUpdate, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        change = scoped_record(session, ChangeSet, change_id, user)
+        access(session, user, change.project_id, "ontology:write")
+        if change.status == "published":
+            conflict("已发布版本不可修改，请创建新的变更集")
+        values = {"status": "draft", "validation": {}, "approved_by": None}
+        if data.definition is not None:
+            values["definition"] = data.definition.model_dump()
+        if data.title is not None:
+            values["title"] = data.title
+        compare_and_swap(session, change, data.expected_revision, values)
+        audit(session, user, change.project_id, "ontology.edited", change.id, {"revision": change.revision})
+        return row_dict(change)
+
+
+@router.post("/changesets/{change_id}/{operation}")
+def transition(
+    change_id: str, operation: str, data: RevisionInput, request: Request, user=Depends(authenticated)
+):
+    permission = {
+        "validate": "ontology:write",
+        "approve": "ontology:approve",
+        "publish": "ontology:publish",
+    }.get(operation)
+    if permission is None:
+        raise DomainError(404, "not_found", "操作不存在")
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        change = scoped_record(session, ChangeSet, change_id, user)
+        # Membership changes use the same project lock. Acquire participating
+        # user locks in one order before access() so disabling an approver cannot
+        # race the final release commit, including across different projects.
+        session.scalar(
+            select(Project)
+            .where(Project.id == change.project_id, Project.tenant_id == user.tenant_id)
+            .with_for_update()
+        )
+        session.refresh(change)
+        participants = sorted({user.id, change.approved_by} - {None})
+        list(
+            session.scalars(
+                select(User)
+                .where(User.id.in_(participants), User.tenant_id == user.tenant_id)
+                .order_by(User.id)
+                .with_for_update(key_share=True)
+            )
+        )
+        ctx = access(session, user, change.project_id, permission)
+        if change.revision != data.expected_revision or change.status == "published":
+            conflict()
+        if change.baseline_release_id != ctx.project.active_release_id:
+            conflict("本体基线已改变，请基于最新发布版重新创建变更集")
+        report = validation_report(session, ctx, change.definition)
+        values = {"validation": report}
+        if operation == "validate":
+            values.update(status="validated" if report["valid"] else "draft", approved_by=None)
+        else:
+            if not report["valid"]:
+                raise DomainError(422, "validation_failed", "本体或现有数据不满足发布约束", report)
+            if operation == "approve":
+                if change.status != "validated":
+                    conflict("请先完成当前修订的校验")
+                values.update(status="approved", approved_by=user.id)
+            else:
+                if change.status != "approved" or not change.approved_by:
+                    conflict("请先审批当前修订")
+                reviewer = session.get(User, change.approved_by)
+                membership = session.scalar(
+                    select(Membership).where(
+                        Membership.tenant_id == user.tenant_id,
+                        Membership.project_id == change.project_id,
+                        Membership.user_id == change.approved_by,
+                    )
+                )
+                if (
+                    not reviewer
+                    or not reviewer.active
+                    or not membership
+                    or "ontology:approve" not in ROLES.get(membership.role, set())
+                ):
+                    conflict("审批者的当前权限已失效，请重新校验并审批该变更集")
+                release = Release(
+                    tenant_id=user.tenant_id,
+                    project_id=change.project_id,
+                    version=ctx.project.version + 1,
+                    definition=change.definition,
+                    changeset_id=change.id,
+                    published_by=user.id,
+                )
+                session.add(release)
+                session.flush()
+                query = (
+                    update(Project)
+                    .where(
+                        Project.id == ctx.project.id,
+                        Project.tenant_id == user.tenant_id,
+                        Project.version == ctx.project.version,
+                    )
+                    .values(active_release_id=release.id, version=release.version)
+                )
+                if session.execute(query).rowcount != 1:
+                    conflict("发布基线已变化")
+                from ontology.objects.contributions.decisions import recheck_decisions_after_publish
+
+                session.refresh(ctx.project)
+                recheck_decisions_after_publish(session, ctx)
+                values.update(status="published", release_id=release.id)
+        compare_and_swap(session, change, data.expected_revision, values)
+        audit(
+            session,
+            user,
+            change.project_id,
+            f"ontology.{operation}",
+            change.id,
+            {"revision": change.revision},
+        )
+        return row_dict(change)
+
+
+@router.get("/releases")
+def releases(request: Request, project_id: str, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        access(session, user, project_id)
+        rows = session.scalars(
+            select(Release)
+            .where(Release.tenant_id == user.tenant_id, Release.project_id == project_id)
+            .order_by(Release.version.desc())
+        ).all()
+        return {"items": [row_dict(row, exclude=("definition",)) for row in rows], "total": len(rows)}

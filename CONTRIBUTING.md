@@ -1,0 +1,52 @@
+# 贡献说明
+
+欢迎报告可复现问题、改进文档和提交小范围 PR。先说明业务问题、实际行为、预期行为与版本；示例仅使用合成数据。
+
+提交贡献前，请确保有权按本项目 Apache-2.0 许可证提交相关代码。引入第三方文件时保留其原许可证、来源、固定版本及修改说明；不把研究参考自动当作可复制代码。
+
+## 验证
+
+按照 README 安装依赖，然后运行：
+
+```sh
+uv run --locked --extra dev python scripts/test_backend.py backend/tests -q
+npm --prefix frontend test -- --maxWorkers=2
+npm --prefix frontend run build
+```
+
+真实 PostgreSQL、连接器和外部来源测试需要显式环境，未配置时跳过不代表通过。独立 PostgreSQL 合同工具需要 Docker 已启动且本地已有 `postgres:17` 镜像：
+
+```sh
+uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-graph
+```
+
+浏览器检查在独立临时数据目录运行，不使用开发账号。下面把测试工具安装到忽略目录，不修改应用锁文件：
+
+```sh
+npm install --prefix var/browser-tools --no-save playwright@1.60.0
+node var/browser-tools/node_modules/playwright/cli.js install chromium
+```
+
+PowerShell：
+
+```powershell
+$env:PLAYWRIGHT_MODULE = (Resolve-Path var/browser-tools/node_modules/playwright).Path
+node scripts/verify_model_starters.cjs
+node scripts/verify_graph_scale.cjs
+```
+
+POSIX shell：
+
+```sh
+PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_model_starters.cjs
+PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_graph_scale.cjs
+```
+
+## 维护边界
+
+- 保留 `ontology.api:create_app`、CLI、worker 和 parse_task 入口。
+- 新 ORM 类加入 `core/registry.py`；历史 Alembic revision 不重写。
+- `backend/ontology/functions/runtime.py` 是已发布的 v1 源码哈希载体，不能自动格式化或改换行符；函数行为变更通过新版本及审批发布。
+- 跨测试辅助代码放入 `backend/tests/support`，不能从其他 `test_*.py` 或 `conftest.py` 导入。
+- 不以截图替代权限、持久化或并发合同测试；不把模拟与局部通过描述为真实外部集成通过。
+- 凭据、运行数据、客户资料、未明确许可的图片/权重不得提交。

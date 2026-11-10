@@ -1,0 +1,160 @@
+{
+  "purpose": "Research references, not copied application source or licensing approval",
+  "sources_copied_into_product": false,
+  "entries": [
+    {
+      "name": "Open Foundry",
+      "repository": "syzygyhack/open-foundry",
+      "commit": "5e7fa9bde5c5600536aafc5f38b5c6aad1209586",
+      "adoption_mode": "selective_port_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "Utopia",
+      "repository": "deeplethe/utopia",
+      "commit": "7ecf9915545a56ad485c16fc658ed6bdb41889b2",
+      "adoption_mode": "selective_port_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "AWS Context Ontology Accelerator",
+      "repository": "aws/context-ontology-accelerator",
+      "commit": "76e50f461768725321772135e2b1f09bcf94f0c3",
+      "adoption_mode": "selective_port_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "BKN Foundry",
+      "repository": "openbkn-ai/bkn-foundry",
+      "commit": "b9e82638e9746b105190fb7599c195b94ffaad9c",
+      "adoption_mode": "independent_behavior",
+      "source_code_copied": false
+    },
+    {
+      "name": "BKN Studio",
+      "repository": "openbkn-ai/bkn-studio",
+      "commit": "6c379dfbc0ce11a49f02ac3bc2413bd0ba8a335e",
+      "adoption_mode": "independent_behavior",
+      "source_code_copied": false
+    },
+    {
+      "name": "Open Ontologies",
+      "repository": "fabio-rovai/open-ontologies",
+      "commit": "9e73d95126ce959fd87c779096fb95eeeae1d656",
+      "adoption_mode": "selective_port_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "OpenMetadata",
+      "repository": "open-metadata/OpenMetadata",
+      "commit": "3e14a88747128ecb043e28f981530cb415f55b51",
+      "adoption_mode": "selective_port_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "Kestra",
+      "repository": "kestra-io/kestra",
+      "commit": "8670aa6fb4a1d02799ebcb562dec409af9d1ab35",
+      "adoption_mode": "selective_port_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "NocoBase",
+      "repository": "nocobase/nocobase",
+      "commit": "fa2db5166197dff6f5ace9b444ee4a7070d586e2",
+      "adoption_mode": "independent_behavior",
+      "source_code_copied": false
+    },
+    {
+      "name": "ObjectStack",
+      "repository": "objectstack-ai/objectstack",
+      "commit": "cb8988ee149ae20fc6017793451098d83d2228a8",
+      "adoption_mode": "selective_port_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "SeaTunnel Web",
+      "repository": "apache/seatunnel-web",
+      "commit": "9aa95c6fed009441143da65baa0cb0bf3b118778",
+      "adoption_mode": "independent_behavior",
+      "source_code_copied": false
+    },
+    {
+      "name": "Helix Foundry",
+      "repository": "HelixDB/helix-foundry",
+      "commit": "ed93e1580adb5f938647f58b8a15d3714a74ac27",
+      "adoption_mode": "adapter_integration_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "SeaTunnel",
+      "repository": "apache/seatunnel",
+      "commit": "403efeee0b3806c77e55c38368abdd41fbf828bd",
+      "adoption_mode": "adapter_integration_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "Debezium Server / Debezium connectors",
+      "repository": "debezium/debezium-server",
+      "commit": "896f8447575630eb618e9b4c278d060ff473061d",
+      "adoption_mode": "adapter_integration_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "Docling",
+      "repository": "docling-project/docling",
+      "commit": "b3b2cd976c5a0db3c82738a0297a838e73818acb",
+      "adoption_mode": "adapter_integration_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "Unstructured",
+      "repository": "Unstructured-IO/unstructured",
+      "commit": "e8a5fb5710c2c1249e87cababadfe4c9f5c1d882",
+      "adoption_mode": "adapter_integration_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "PaddleOCR + PaddleX",
+      "repository": "PaddlePaddle/PaddleOCR",
+      "commit": "dab3fe35379033fdcb2d0e9572fac0b36c9a9ebf",
+      "adoption_mode": "adapter_integration_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "RAGFlow",
+      "repository": "infiniflow/ragflow",
+      "commit": "acd6d887a548494c907e16e86e700ae6447953e2",
+      "adoption_mode": "adapter_integration_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "Tesseract / tessdata_fast",
+      "repository": "tesseract-ocr/tesseract",
+      "commit": "a95faa0078bcbb59357468f81e079814f8f28e74",
+      "adoption_mode": "adapter_integration_candidate",
+      "source_code_copied": false
+    },
+    {
+      "name": "MinerU",
+      "repository": "opendatalab/MinerU",
+      "commit": "b7f3dd0c5f6e6d66a298239ffd02b328b873918e",
+      "adoption_mode": "conditional_plugin_only",
+      "source_code_copied": false
+    },
+    {
+      "name": "llm_wiki",
+      "repository": "nashsu/llm_wiki",
+      "commit": "e08cfce65aad8b76b13546a081c1a8d4422b70c3",
+      "adoption_mode": "independent_behavior",
+      "source_code_copied": false
+    },
+    {
+      "name": "NVIDIA auto-ontology",
+      "repository": "NVIDIA/auto-ontology",
+      "commit": "eb8dd0621d07db3033fe3fddc68f62ff72614610",
+      "adoption_mode": "selective_port_candidate",
+      "source_code_copied": false
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+import { useEffect, useState } from 'react';
+import { scoped, write } from '../../shared/api/api';
+import { Empty, ErrorNotice, Field, Loading, PageTitle, Status } from '../../shared/ui/components';
+import { useResource } from '../../shared/hooks/hooks';
+import type { ListResult, Session } from '../../shared/model/types';
+
+interface User { id: string; username?: string | null; email: string; display_name: string; active: boolean; admin: boolean }
+interface Member { id: string; user_id: string; display_name: string; email: string; role: string }
+const roles = [['owner', '项目管理员'], ['modeler', '建模人员'], ['reviewer', '审核人员'], ['operator', '业务操作员'], ['member', '普通成员'], ['auditor', '审计人员']];
+
+export function SettingsPage({ session, projectId, onDirty, onSessionRefresh }: { session: Session; projectId: string; onDirty: (dirty: boolean) => void; onSessionRefresh: () => Promise<void> }) {
+  const project = session.projects.find(p => p.id === projectId);
+  const permissions = project?.permissions ?? [];
+  const canManage = permissions.includes('members:manage');
+  const users = useResource<ListResult<User>>(session.user.admin ? '/users' : null);
+  const members = useResource<ListResult<Member>>(canManage ? scoped('/members', projectId) : null);
+  const [userForm, setUserForm] = useState({ username: '', email: '', display_name: '', password: '' });
+  const [projectName, setProjectName] = useState('');
+  const [memberId, setMemberId] = useState(''); const [role, setRole] = useState('member');
+  const [busy, setBusy] = useState(false); const [error, setError] = useState<unknown>(); const [message, setMessage] = useState('');
+  const dirty = Boolean(Object.values(userForm).some(Boolean) || projectName || memberId);
+  useEffect(() => { onDirty(dirty); return () => onDirty(false); }, [dirty, onDirty]);
+  const perform = async (operation: () => Promise<void>) => { setBusy(true); setError(undefined); setMessage(''); try { await operation(); } catch (e) { setError(e); } finally { setBusy(false); } };
+  return <><PageTitle title="设置" description="管理企业账号和项目成员。权限由服务端在每次请求时重新验证。" /><ErrorNotice error={error} />{message && <div className="notice success" role="status">{message}</div>}
+    <section className="settings-card"><h2>当前账号与项目</h2><dl><dt>企业</dt><dd>{session.tenant.name}</dd><dt>姓名</dt><dd>{session.user.display_name}</dd><dt>用户名</dt><dd>{session.user.username || session.user.email}</dd><dt>邮箱</dt><dd>{session.user.email}</dd><dt>当前角色</dt><dd>{roles.find(([key]) => key === project?.role)?.[1] ?? project?.role}</dd></dl><h3>当前项目权限</h3><div className="node-chips">{permissions.map(p => <code className="badge" key={p}>{p}</code>)}</div><p className="muted">企业管理员身份与项目业务权限分别管理。当前界面不提供尚未实现的 SSO、部门策略和模型凭据配置。</p></section>
+    {canManage && <section className="settings-card settings-section"><h2>项目成员</h2>{members.loading ? <Loading /> : members.error ? <ErrorNotice error={members.error} onRetry={members.reload} /> : !members.data?.items.length ? <Empty title="没有项目成员" /> : <div className="table-wrap"><table><thead><tr><th>成员</th><th>角色</th><th /></tr></thead><tbody>{members.data.items.map(m => <tr key={m.id}><td>{m.display_name}<small className="row-id">{m.email}</small></td><td>{roles.find(([key]) => key === m.role)?.[1] ?? m.role}</td><td><button className="text-button" disabled={busy} onClick={() => { setMemberId(m.user_id); setRole(m.role); }}>调整角色</button></td></tr>)}</tbody></table></div>}
+      <form className="settings-form" onSubmit={e => { e.preventDefault(); void perform(async () => { await write('/members', { project_id: projectId, user_id: memberId, role }); setMemberId(''); setRole('member'); members.reload(); await onSessionRefresh(); setMessage('项目成员角色已更新。'); }); }}><div className="form-grid"><Field label="成员账号" hint={session.user.admin ? undefined : '项目管理员可填写已存在的同企业用户 ID。'}>{session.user.admin ? <select required value={memberId} disabled={busy} onChange={e => { setMemberId(e.target.value);  }}><option value="">选择企业用户</option>{users.data?.items.filter(u => u.active).map(u => <option key={u.id} value={u.id}>{u.display_name} · {u.email}</option>)}</select> : <input required value={memberId} disabled={busy} onChange={e => { setMemberId(e.target.value);  }} />}</Field><Field label="授予项目角色"><select value={role} disabled={busy} onChange={e => { setRole(e.target.value);  }}>{roles.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field></div><p className="muted">保存会立即更新该用户在当前项目的访问与操作权限。</p><button disabled={busy || !memberId}>保存成员角色</button></form>
+    </section>}
+    {session.user.admin && <><section className="settings-card settings-section"><h2>企业账号</h2><ErrorNotice error={users.error} onRetry={users.reload} />{users.loading ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>账号</th><th>状态</th><th /></tr></thead><tbody>{users.data?.items.map(u => <tr key={u.id}><td>{u.display_name}<small className="row-id">{u.username || u.email}</small></td><td><Status value={u.active ? 'active' : 'disabled'} /></td><td>{u.active && u.id !== session.user.id && <button className="danger-link" disabled={busy} onClick={() => { if (window.confirm(`停用 ${u.email} 并使其现有会话失效？`)) void perform(async () => { await write(`/users/${encodeURIComponent(u.id)}/disable`, {}); users.reload(); setMessage('用户已停用，会话已撤销。'); }); }}>停用账号</button>}</td></tr>)}</tbody></table></div>}
+      <details><summary>创建企业账号</summary><form onSubmit={e => { e.preventDefault(); void perform(async () => { await write('/users', userForm); setUserForm({ username: '', email: '', display_name: '', password: '' }); users.reload(); setMessage('企业账号已创建。请按需要分配项目角色。'); }); }}>{(['display_name', 'username', 'email', 'password'] as const).map((field, i) => <Field key={field} label={['姓名', '用户名', '邮箱', '初始密码（至少 12 位）'][i]} hint={field === 'username' ? '3–64 位字母、数字、点、下划线或短横线，企业内唯一' : undefined}><input required type={field === 'password' ? 'password' : field === 'email' ? 'email' : 'text'} minLength={field === 'password' ? 12 : field === 'username' ? 3 : undefined} maxLength={field === 'username' ? 64 : undefined} pattern={field === 'username' ? '[a-zA-Z0-9][a-zA-Z0-9._\\-]*' : undefined} autoComplete={field === 'password' ? 'new-password' : 'off'} disabled={busy} value={userForm[field]} onChange={e => { setUserForm(v => ({ ...v, [field]: e.target.value }));  }} /></Field>)}<button disabled={busy}>创建账号</button></form></details></section>
+      <section className="settings-card settings-section"><h2>新建项目</h2><form onSubmit={e => { e.preventDefault(); void perform(async () => { await write('/projects', { name: projectName }); setProjectName(''); await onSessionRefresh(); setMessage('项目已创建，可在顶部切换。'); }); }}><Field label="项目名称"><input required maxLength={200} value={projectName} disabled={busy} onChange={e => { setProjectName(e.target.value);  }} /></Field><button disabled={busy || !projectName.trim()}>创建项目</button></form></section></>}
+  </>;
+}
+

@@ -1,0 +1,13 @@
+.product-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-forest);
+  flex-shrink: 0;
+}
+.product-brand--inverse { color: var(--color-surface); }
+.product-brand__mark { display: block; width: 44px; height: 44px; flex: none; }
+.product-brand__wordmark { display: flex; flex-direction: column; gap: 2px; }
+.product-brand__wordmark strong { font-size: var(--text-xl); font-weight: 600; line-height: 1.25; }
+.product-brand__wordmark > span { font-size: var(--text-xs); line-height: 1.4; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.product-brand--inverse .product-brand__wordmark > span { color: var(--color-mint); }

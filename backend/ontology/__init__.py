@@ -1,0 +1,1 @@
+"""Enterprise ontology platform."""

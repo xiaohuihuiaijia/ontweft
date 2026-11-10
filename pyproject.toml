@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "enterprise-ontology"
+version = "0.1.0"
+description = "Enterprise ontology, evidence and governed actions"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.6,<3",
+  "sqlalchemy>=2.0.36,<2.1",
+  "alembic>=1.14,<2",
+  "pg8000>=1.31,<2",
+  "PyMySQL>=1.1,<2",
+  "argon2-cffi>=23.1,<26",
+  "cryptography>=50.0.2,<51",
+  "httpx>=0.28,<1",
+  "python-multipart>=0.0.20,<1",
+  "pymongo>=4.10,<5",
+  "rdflib>=7.1,<8",
+  "neo4j>=5.27,<7",
+  "pypdf>=6.21.4,<7",
+  "openpyxl>=3.1,<4",
+  "defusedxml>=0.7,<1",
+  "jieba==0.42.1",
+  "lark-oapi==1.7.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "ruff>=0.9,<1"]
+docling = ["docling-slim[convert-core,format-docx,format-xlsx,format-pdf-pypdfium2]==2.143.1"]
+
+[project.scripts]
+ontology = "ontology.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/ontology"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Form", "fastapi.File"]
+
+[tool.ruff.format]
+# This existing published function artifact is addressed by its exact source hash.
+exclude = ["backend/ontology/functions/runtime.py"]
+

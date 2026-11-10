@@ -1,0 +1,2 @@
+# Published v1 artifact: preserve exact bytes across Git checkouts.
+backend/ontology/functions/runtime.py -text

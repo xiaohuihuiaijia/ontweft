@@ -1,0 +1,12 @@
+.graph-canvas { position: relative; }
+.graph-budget { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.graph-budget select { width: auto; min-width: 104px; }
+.graph-budget .muted { margin: 0; }
+.graph-self-loops { position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden; }
+.graph-self-loop { outline: none; }
+.graph-self-loop .loop-hit { pointer-events: stroke; cursor: pointer; }
+.graph-self-loop .loop-line, .graph-self-loop .loop-arrow { pointer-events: none; }
+.graph-self-loop .loop-halo { stroke: transparent; stroke-width: 8; pointer-events: none; }
+.graph-self-loop:focus .loop-halo, .graph-self-loop:hover .loop-halo { stroke: var(--color-selection, #dbeee5); }
+.graph-self-loop .loop-label { font: 12px sans-serif; fill: var(--color-text, #273f48); stroke: var(--color-surface, #fff); stroke-width: 5px; paint-order: stroke; stroke-linejoin: round; pointer-events: none; opacity: 0; }
+.graph-self-loop.show-label .loop-label, .graph-self-loop:hover .loop-label, .graph-self-loop:focus .loop-label { opacity: 1; }

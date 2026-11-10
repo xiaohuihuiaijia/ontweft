@@ -1,0 +1,2251 @@
+{
+  "provenance": {
+    "source": "self-owned synthetic integration test, PostgreSQL 17.9",
+    "runtime": "Debezium 3.3.2.Final",
+    "scope": "native events captured through real WAL and Python durable inbox; no user data or credentials"
+  },
+  "events": [
+    {
+      "event_id": "d48b66e6eaf8a5ea76bc54cdc2551c75722dc0593ea056acdaa35fefd6fdc233",
+      "identity_material": "{\"event_kind\":\"data\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":{\"id\":1},\"operation\":\"r\",\"snapshot\":\"first\",\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26479696,\"snapshot\":\"INITIAL\",\"ts_usec\":1793183460426231,\"txId\":748},\"topic\":\"ontology_test.public.items\",\"transaction\":null}",
+      "event_kind": "data",
+      "connector": "postgresql",
+      "topic": "ontology_test.public.items",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "last_snapshot_record": false,
+        "lsn": 26479696,
+        "txId": 748,
+        "ts_usec": 1793183460426231,
+        "snapshot": "INITIAL",
+        "snapshot_completed": false
+      },
+      "key": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "int64",
+              "optional": false,
+              "field": "id"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Key"
+        },
+        "payload": {
+          "id": 1
+        }
+      },
+      "value": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "before"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "after"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "version"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "connector"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "ts_ms"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "name": "io.debezium.data.Enum",
+                  "version": 1,
+                  "parameters": {
+                    "allowed": "true,first,first_in_data_collection,last_in_data_collection,last,false,incremental"
+                  },
+                  "default": "false",
+                  "field": "snapshot"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "db"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "sequence"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_us"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_ns"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "schema"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "table"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "txId"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "lsn"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "xmin"
+                }
+              ],
+              "optional": false,
+              "name": "io.debezium.connector.postgresql.Source",
+              "version": 1,
+              "field": "source"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "total_order"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "data_collection_order"
+                }
+              ],
+              "optional": true,
+              "name": "event.block",
+              "version": 1,
+              "field": "transaction"
+            },
+            {
+              "type": "string",
+              "optional": false,
+              "field": "op"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ms"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_us"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ns"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Envelope",
+          "version": 2
+        },
+        "payload": {
+          "before": null,
+          "after": {
+            "id": 1,
+            "name": "初始",
+            "amount": "AY7pD/bAXmMY4gDzTg==",
+            "raw": "AP8=",
+            "optional": null
+          },
+          "source": {
+            "version": "3.3.2.Final",
+            "connector": "postgresql",
+            "name": "ontology_test",
+            "ts_ms": 1793183460426,
+            "snapshot": "first",
+            "db": "ontology_test",
+            "sequence": "[null,\"26479696\"]",
+            "ts_us": 1793183460426231,
+            "ts_ns": 1793183460426231000,
+            "schema": "public",
+            "table": "items",
+            "txId": 748,
+            "lsn": 26479696,
+            "xmin": null
+          },
+          "transaction": null,
+          "op": "r",
+          "ts_ms": 1793183460835,
+          "ts_us": 1793183460835401,
+          "ts_ns": 1793183460835401375
+        }
+      },
+      "headers": [
+        {
+          "key": "__debezium.context.connectorLogicalName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "ontology_test"
+        },
+        {
+          "key": "__debezium.context.taskId",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "0"
+        },
+        {
+          "key": "__debezium.context.connectorName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "postgresql"
+        }
+      ],
+      "operation": "r",
+      "transaction": null,
+      "snapshot": "first"
+    },
+    {
+      "event_id": "93fdc748b26ae49dca4d5ea95f1355a2a00e052c852998e96da94cf11339ff21",
+      "identity_material": "{\"event_kind\":\"data\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":{\"id\":2},\"operation\":\"r\",\"snapshot\":\"last\",\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26479696,\"snapshot\":\"INITIAL\",\"ts_usec\":1793183460426231,\"txId\":748},\"topic\":\"ontology_test.public.items\",\"transaction\":null}",
+      "event_kind": "data",
+      "connector": "postgresql",
+      "topic": "ontology_test.public.items",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "last_snapshot_record": true,
+        "lsn": 26479696,
+        "txId": 748,
+        "ts_usec": 1793183460426231,
+        "snapshot": "INITIAL",
+        "snapshot_completed": true
+      },
+      "key": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "int64",
+              "optional": false,
+              "field": "id"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Key"
+        },
+        "payload": {
+          "id": 2
+        }
+      },
+      "value": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "before"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "after"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "version"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "connector"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "ts_ms"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "name": "io.debezium.data.Enum",
+                  "version": 1,
+                  "parameters": {
+                    "allowed": "true,first,first_in_data_collection,last_in_data_collection,last,false,incremental"
+                  },
+                  "default": "false",
+                  "field": "snapshot"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "db"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "sequence"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_us"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_ns"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "schema"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "table"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "txId"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "lsn"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "xmin"
+                }
+              ],
+              "optional": false,
+              "name": "io.debezium.connector.postgresql.Source",
+              "version": 1,
+              "field": "source"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "total_order"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "data_collection_order"
+                }
+              ],
+              "optional": true,
+              "name": "event.block",
+              "version": 1,
+              "field": "transaction"
+            },
+            {
+              "type": "string",
+              "optional": false,
+              "field": "op"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ms"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_us"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ns"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Envelope",
+          "version": 2
+        },
+        "payload": {
+          "before": null,
+          "after": {
+            "id": 2,
+            "name": "保留",
+            "amount": null,
+            "raw": null,
+            "optional": "x"
+          },
+          "source": {
+            "version": "3.3.2.Final",
+            "connector": "postgresql",
+            "name": "ontology_test",
+            "ts_ms": 1793183460426,
+            "snapshot": "last",
+            "db": "ontology_test",
+            "sequence": "[null,\"26479696\"]",
+            "ts_us": 1793183460426231,
+            "ts_ns": 1793183460426231000,
+            "schema": "public",
+            "table": "items",
+            "txId": 748,
+            "lsn": 26479696,
+            "xmin": null
+          },
+          "transaction": null,
+          "op": "r",
+          "ts_ms": 1793183460841,
+          "ts_us": 1793183460841938,
+          "ts_ns": 1793183460841938254
+        }
+      },
+      "headers": [
+        {
+          "key": "__debezium.context.connectorLogicalName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "ontology_test"
+        },
+        {
+          "key": "__debezium.context.taskId",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "0"
+        },
+        {
+          "key": "__debezium.context.connectorName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "postgresql"
+        }
+      ],
+      "operation": "r",
+      "transaction": null,
+      "snapshot": "last"
+    },
+    {
+      "event_id": "38822913db48d5954541f0ce498dbeb6e45a4a777c8d37cbc26e6703e83152c5",
+      "identity_material": "{\"event_kind\":\"transaction\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":{\"id\":\"749:26479736\"},\"operation\":null,\"snapshot\":null,\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26479736,\"messageType\":\"BEGIN\",\"ts_usec\":1793183461555894,\"txId\":749},\"topic\":\"ontology_test.transaction\",\"transaction\":{\"data_collections\":null,\"event_count\":null,\"id\":\"749:26479736\",\"status\":\"BEGIN\",\"ts_ms\":1793183461555}}",
+      "event_kind": "transaction",
+      "connector": "postgresql",
+      "topic": "ontology_test.transaction",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "transaction_id": "749",
+        "lsn_proc": 26479696,
+        "messageType": "BEGIN",
+        "lsn": 26479736,
+        "txId": 749,
+        "ts_usec": 1793183461555894
+      },
+      "key": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "string",
+              "optional": false,
+              "field": "id"
+            }
+          ],
+          "optional": false,
+          "name": "io.debezium.connector.common.TransactionMetadataKey",
+          "version": 1
+        },
+        "payload": {
+          "id": "749:26479736"
+        }
+      },
+      "value": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "string",
+              "optional": false,
+              "field": "status"
+            },
+            {
+              "type": "string",
+              "optional": false,
+              "field": "id"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "event_count"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "struct",
+                "fields": [
+                  {
+                    "type": "string",
+                    "optional": false,
+                    "field": "data_collection"
+                  },
+                  {
+                    "type": "int64",
+                    "optional": false,
+                    "field": "event_count"
+                  }
+                ],
+                "optional": true,
+                "name": "event.collection",
+                "version": 1
+              },
+              "optional": true,
+              "field": "data_collections"
+            },
+            {
+              "type": "int64",
+              "optional": false,
+              "field": "ts_ms"
+            }
+          ],
+          "optional": false,
+          "name": "io.debezium.connector.common.TransactionMetadataValue",
+          "version": 1
+        },
+        "payload": {
+          "status": "BEGIN",
+          "id": "749:26479736",
+          "event_count": null,
+          "data_collections": null,
+          "ts_ms": 1793183461555
+        }
+      },
+      "headers": [],
+      "operation": null,
+      "transaction": {
+        "status": "BEGIN",
+        "id": "749:26479736",
+        "event_count": null,
+        "data_collections": null,
+        "ts_ms": 1793183461555
+      },
+      "snapshot": null
+    },
+    {
+      "event_id": "2b9fecefffc760d99324238ce90f45239ed0371fd0304a68ac5b3ff55e7b092b",
+      "identity_material": "{\"event_kind\":\"data\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":{\"id\":1},\"operation\":\"u\",\"snapshot\":\"false\",\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26479736,\"messageType\":\"UPDATE\",\"ts_usec\":1793183461555894,\"txId\":749},\"topic\":\"ontology_test.public.items\",\"transaction\":{\"data_collection_order\":1,\"id\":\"749:26479736\",\"total_order\":1}}",
+      "event_kind": "data",
+      "connector": "postgresql",
+      "topic": "ontology_test.public.items",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "transaction_id": "749",
+        "lsn_proc": 26479736,
+        "messageType": "UPDATE",
+        "lsn": 26479736,
+        "txId": 749,
+        "ts_usec": 1793183461555894,
+        "transaction_data_collection_order_public.items": 1
+      },
+      "key": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "int64",
+              "optional": false,
+              "field": "id"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Key"
+        },
+        "payload": {
+          "id": 1
+        }
+      },
+      "value": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "before"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "after"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "version"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "connector"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "ts_ms"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "name": "io.debezium.data.Enum",
+                  "version": 1,
+                  "parameters": {
+                    "allowed": "true,first,first_in_data_collection,last_in_data_collection,last,false,incremental"
+                  },
+                  "default": "false",
+                  "field": "snapshot"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "db"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "sequence"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_us"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_ns"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "schema"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "table"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "txId"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "lsn"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "xmin"
+                }
+              ],
+              "optional": false,
+              "name": "io.debezium.connector.postgresql.Source",
+              "version": 1,
+              "field": "source"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "total_order"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "data_collection_order"
+                }
+              ],
+              "optional": true,
+              "name": "event.block",
+              "version": 1,
+              "field": "transaction"
+            },
+            {
+              "type": "string",
+              "optional": false,
+              "field": "op"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ms"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_us"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ns"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Envelope",
+          "version": 2
+        },
+        "payload": {
+          "before": {
+            "id": 1,
+            "name": "初始",
+            "amount": "AY7pD/bAXmMY4gDzTg==",
+            "raw": "AP8=",
+            "optional": null
+          },
+          "after": {
+            "id": 1,
+            "name": "更新一次",
+            "amount": "AY7pD/bAXmMY4gDzTg==",
+            "raw": "AP8=",
+            "optional": null
+          },
+          "source": {
+            "version": "3.3.2.Final",
+            "connector": "postgresql",
+            "name": "ontology_test",
+            "ts_ms": 1793183461555,
+            "snapshot": "false",
+            "db": "ontology_test",
+            "sequence": "[null,\"26479736\"]",
+            "ts_us": 1793183461555894,
+            "ts_ns": 1793183461555894000,
+            "schema": "public",
+            "table": "items",
+            "txId": 749,
+            "lsn": 26479736,
+            "xmin": null
+          },
+          "transaction": {
+            "id": "749:26479736",
+            "total_order": 1,
+            "data_collection_order": 1
+          },
+          "op": "u",
+          "ts_ms": 1793183461618,
+          "ts_us": 1793183461618834,
+          "ts_ns": 1793183461618834470
+        }
+      },
+      "headers": [
+        {
+          "key": "__debezium.context.connectorLogicalName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "ontology_test"
+        },
+        {
+          "key": "__debezium.context.taskId",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "0"
+        },
+        {
+          "key": "__debezium.context.connectorName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "postgresql"
+        }
+      ],
+      "operation": "u",
+      "transaction": {
+        "id": "749:26479736",
+        "total_order": 1,
+        "data_collection_order": 1
+      },
+      "snapshot": "false"
+    },
+    {
+      "event_id": "d8e9cde0048e2407b7e23fd534e114219da297e77097d07508770dffd13b237e",
+      "identity_material": "{\"event_kind\":\"data\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":{\"id\":1},\"operation\":\"u\",\"snapshot\":\"false\",\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26479888,\"messageType\":\"UPDATE\",\"ts_usec\":1793183461555894,\"txId\":749},\"topic\":\"ontology_test.public.items\",\"transaction\":{\"data_collection_order\":2,\"id\":\"749:26479888\",\"total_order\":2}}",
+      "event_kind": "data",
+      "connector": "postgresql",
+      "topic": "ontology_test.public.items",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "transaction_id": "749",
+        "lsn_proc": 26479888,
+        "messageType": "UPDATE",
+        "lsn": 26479888,
+        "txId": 749,
+        "ts_usec": 1793183461555894,
+        "transaction_data_collection_order_public.items": 2
+      },
+      "key": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "int64",
+              "optional": false,
+              "field": "id"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Key"
+        },
+        "payload": {
+          "id": 1
+        }
+      },
+      "value": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "before"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "after"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "version"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "connector"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "ts_ms"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "name": "io.debezium.data.Enum",
+                  "version": 1,
+                  "parameters": {
+                    "allowed": "true,first,first_in_data_collection,last_in_data_collection,last,false,incremental"
+                  },
+                  "default": "false",
+                  "field": "snapshot"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "db"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "sequence"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_us"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_ns"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "schema"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "table"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "txId"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "lsn"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "xmin"
+                }
+              ],
+              "optional": false,
+              "name": "io.debezium.connector.postgresql.Source",
+              "version": 1,
+              "field": "source"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "total_order"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "data_collection_order"
+                }
+              ],
+              "optional": true,
+              "name": "event.block",
+              "version": 1,
+              "field": "transaction"
+            },
+            {
+              "type": "string",
+              "optional": false,
+              "field": "op"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ms"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_us"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ns"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Envelope",
+          "version": 2
+        },
+        "payload": {
+          "before": {
+            "id": 1,
+            "name": "更新一次",
+            "amount": "AY7pD/bAXmMY4gDzTg==",
+            "raw": "AP8=",
+            "optional": null
+          },
+          "after": {
+            "id": 1,
+            "name": "更新一次",
+            "amount": "AY7pD/bAXmMY4gDzTg==",
+            "raw": "AP8=",
+            "optional": null
+          },
+          "source": {
+            "version": "3.3.2.Final",
+            "connector": "postgresql",
+            "name": "ontology_test",
+            "ts_ms": 1793183461555,
+            "snapshot": "false",
+            "db": "ontology_test",
+            "sequence": "[null,\"26479888\"]",
+            "ts_us": 1793183461555894,
+            "ts_ns": 1793183461555894000,
+            "schema": "public",
+            "table": "items",
+            "txId": 749,
+            "lsn": 26479888,
+            "xmin": null
+          },
+          "transaction": {
+            "id": "749:26479888",
+            "total_order": 2,
+            "data_collection_order": 2
+          },
+          "op": "u",
+          "ts_ms": 1793183461620,
+          "ts_us": 1793183461620800,
+          "ts_ns": 1793183461620800614
+        }
+      },
+      "headers": [
+        {
+          "key": "__debezium.context.connectorLogicalName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "ontology_test"
+        },
+        {
+          "key": "__debezium.context.taskId",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "0"
+        },
+        {
+          "key": "__debezium.context.connectorName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "postgresql"
+        }
+      ],
+      "operation": "u",
+      "transaction": {
+        "id": "749:26479888",
+        "total_order": 2,
+        "data_collection_order": 2
+      },
+      "snapshot": "false"
+    },
+    {
+      "event_id": "01d0fa54de7f8a342a1b4489cab067ce9e1243b213ffcd1878c7aa47089ff05d",
+      "identity_material": "{\"event_kind\":\"data\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":{\"id\":3},\"operation\":\"c\",\"snapshot\":\"false\",\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26480048,\"messageType\":\"INSERT\",\"ts_usec\":1793183461555894,\"txId\":749},\"topic\":\"ontology_test.public.items\",\"transaction\":{\"data_collection_order\":3,\"id\":\"749:26480048\",\"total_order\":3}}",
+      "event_kind": "data",
+      "connector": "postgresql",
+      "topic": "ontology_test.public.items",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "transaction_id": "749",
+        "lsn_proc": 26480048,
+        "messageType": "INSERT",
+        "lsn": 26480048,
+        "txId": 749,
+        "ts_usec": 1793183461555894,
+        "transaction_data_collection_order_public.items": 3
+      },
+      "key": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "int64",
+              "optional": false,
+              "field": "id"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Key"
+        },
+        "payload": {
+          "id": 3
+        }
+      },
+      "value": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "before"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "after"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "version"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "connector"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "ts_ms"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "name": "io.debezium.data.Enum",
+                  "version": 1,
+                  "parameters": {
+                    "allowed": "true,first,first_in_data_collection,last_in_data_collection,last,false,incremental"
+                  },
+                  "default": "false",
+                  "field": "snapshot"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "db"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "sequence"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_us"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_ns"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "schema"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "table"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "txId"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "lsn"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "xmin"
+                }
+              ],
+              "optional": false,
+              "name": "io.debezium.connector.postgresql.Source",
+              "version": 1,
+              "field": "source"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "total_order"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "data_collection_order"
+                }
+              ],
+              "optional": true,
+              "name": "event.block",
+              "version": 1,
+              "field": "transaction"
+            },
+            {
+              "type": "string",
+              "optional": false,
+              "field": "op"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ms"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_us"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ns"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Envelope",
+          "version": 2
+        },
+        "payload": {
+          "before": null,
+          "after": {
+            "id": 3,
+            "name": "待删除",
+            "amount": null,
+            "raw": null,
+            "optional": null
+          },
+          "source": {
+            "version": "3.3.2.Final",
+            "connector": "postgresql",
+            "name": "ontology_test",
+            "ts_ms": 1793183461555,
+            "snapshot": "false",
+            "db": "ontology_test",
+            "sequence": "[null,\"26480048\"]",
+            "ts_us": 1793183461555894,
+            "ts_ns": 1793183461555894000,
+            "schema": "public",
+            "table": "items",
+            "txId": 749,
+            "lsn": 26480048,
+            "xmin": null
+          },
+          "transaction": {
+            "id": "749:26480048",
+            "total_order": 3,
+            "data_collection_order": 3
+          },
+          "op": "c",
+          "ts_ms": 1793183461622,
+          "ts_us": 1793183461622240,
+          "ts_ns": 1793183461622240920
+        }
+      },
+      "headers": [
+        {
+          "key": "__debezium.context.connectorLogicalName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "ontology_test"
+        },
+        {
+          "key": "__debezium.context.taskId",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "0"
+        },
+        {
+          "key": "__debezium.context.connectorName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "postgresql"
+        }
+      ],
+      "operation": "c",
+      "transaction": {
+        "id": "749:26480048",
+        "total_order": 3,
+        "data_collection_order": 3
+      },
+      "snapshot": "false"
+    },
+    {
+      "event_id": "84a3a1249478f270537cbe54c2cb6ae35fc5c19e5ed4aabba41a781442d602aa",
+      "identity_material": "{\"event_kind\":\"transaction\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":{\"id\":\"749:26480240\"},\"operation\":null,\"snapshot\":null,\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26480240,\"messageType\":\"COMMIT\",\"ts_usec\":1793183461555894,\"txId\":749},\"topic\":\"ontology_test.transaction\",\"transaction\":{\"data_collections\":[{\"data_collection\":\"public.items\",\"event_count\":3}],\"event_count\":3,\"id\":\"749:26480240\",\"status\":\"END\",\"ts_ms\":1793183461555}}",
+      "event_kind": "transaction",
+      "connector": "postgresql",
+      "topic": "ontology_test.transaction",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "transaction_id": "749",
+        "lsn_proc": 26480240,
+        "messageType": "COMMIT",
+        "lsn_commit": 26480240,
+        "lsn": 26480240,
+        "txId": 749,
+        "ts_usec": 1793183461555894,
+        "transaction_data_collection_order_public.items": 3
+      },
+      "key": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "string",
+              "optional": false,
+              "field": "id"
+            }
+          ],
+          "optional": false,
+          "name": "io.debezium.connector.common.TransactionMetadataKey",
+          "version": 1
+        },
+        "payload": {
+          "id": "749:26480240"
+        }
+      },
+      "value": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "string",
+              "optional": false,
+              "field": "status"
+            },
+            {
+              "type": "string",
+              "optional": false,
+              "field": "id"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "event_count"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "struct",
+                "fields": [
+                  {
+                    "type": "string",
+                    "optional": false,
+                    "field": "data_collection"
+                  },
+                  {
+                    "type": "int64",
+                    "optional": false,
+                    "field": "event_count"
+                  }
+                ],
+                "optional": true,
+                "name": "event.collection",
+                "version": 1
+              },
+              "optional": true,
+              "field": "data_collections"
+            },
+            {
+              "type": "int64",
+              "optional": false,
+              "field": "ts_ms"
+            }
+          ],
+          "optional": false,
+          "name": "io.debezium.connector.common.TransactionMetadataValue",
+          "version": 1
+        },
+        "payload": {
+          "status": "END",
+          "id": "749:26480240",
+          "event_count": 3,
+          "data_collections": [
+            {
+              "data_collection": "public.items",
+              "event_count": 3
+            }
+          ],
+          "ts_ms": 1793183461555
+        }
+      },
+      "headers": [],
+      "operation": null,
+      "transaction": {
+        "status": "END",
+        "id": "749:26480240",
+        "event_count": 3,
+        "data_collections": [
+          {
+            "data_collection": "public.items",
+            "event_count": 3
+          }
+        ],
+        "ts_ms": 1793183461555
+      },
+      "snapshot": null
+    },
+    {
+      "event_id": "218fd34a5012b91cf6f48e7ce4fe5a7989573fc327d0ee6f30333df30c8b712d",
+      "identity_material": "{\"event_kind\":\"tombstone\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":{\"id\":3},\"operation\":null,\"snapshot\":null,\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26480240,\"messageType\":\"UPDATE\",\"ts_usec\":1793183461997330,\"txId\":750},\"topic\":\"ontology_test.public.items\",\"transaction\":null}",
+      "event_kind": "tombstone",
+      "connector": "postgresql",
+      "topic": "ontology_test.public.items",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "transaction_id": "750",
+        "lsn_proc": 26480240,
+        "messageType": "UPDATE",
+        "lsn_commit": 26480240,
+        "lsn": 26480240,
+        "txId": 750,
+        "ts_usec": 1793183461997330,
+        "transaction_data_collection_order_public.items": 1
+      },
+      "key": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "int64",
+              "optional": false,
+              "field": "id"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Key"
+        },
+        "payload": {
+          "id": 3
+        }
+      },
+      "value": {
+        "schema": null,
+        "payload": null
+      },
+      "headers": [
+        {
+          "key": "__debezium.newkey",
+          "schema": {
+            "type": "struct",
+            "fields": [
+              {
+                "type": "int64",
+                "optional": false,
+                "field": "id"
+              }
+            ],
+            "optional": false,
+            "name": "ontology_test.public.items.Key"
+          },
+          "value": {
+            "id": 30
+          }
+        },
+        {
+          "key": "__debezium.context.connectorLogicalName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "ontology_test"
+        },
+        {
+          "key": "__debezium.context.taskId",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "0"
+        },
+        {
+          "key": "__debezium.context.connectorName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "postgresql"
+        }
+      ],
+      "operation": null,
+      "transaction": null,
+      "snapshot": null
+    },
+    {
+      "event_id": "7f87157beb2ca40635e21e758785ced6a7f34caa863c10f2bc9c98679b7117f1",
+      "identity_material": "{\"event_kind\":\"data\",\"generation\":\"0517aba8-fc08-4175-833b-7afe3a3cb6ee\",\"identity_version\":1,\"key_payload\":null,\"operation\":\"t\",\"snapshot\":\"false\",\"source_partition\":{\"server\":\"ontology_test\"},\"source_position\":{\"lsn\":26485264,\"messageType\":\"TRUNCATE\",\"ts_usec\":1793183477408706,\"txId\":757},\"topic\":\"ontology_test.public.items\",\"transaction\":{\"data_collection_order\":1,\"id\":\"757:26485264\",\"total_order\":1}}",
+      "event_kind": "data",
+      "connector": "postgresql",
+      "topic": "ontology_test.public.items",
+      "kafka_partition": null,
+      "timestamp": null,
+      "source_partition": {
+        "server": "ontology_test"
+      },
+      "source_offset": {
+        "transaction_id": "757",
+        "lsn_proc": 26485264,
+        "messageType": "TRUNCATE",
+        "lsn_commit": 26482336,
+        "lsn": 26485264,
+        "txId": 757,
+        "ts_usec": 1793183477408706,
+        "transaction_data_collection_order_public.items": 1
+      },
+      "key": {
+        "schema": null,
+        "payload": null
+      },
+      "value": {
+        "schema": {
+          "type": "struct",
+          "fields": [
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "added"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "before"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "name": "org.apache.kafka.connect.data.Decimal",
+                  "version": 1,
+                  "parameters": {
+                    "scale": "18",
+                    "connect.decimal.precision": "30"
+                  },
+                  "field": "amount"
+                },
+                {
+                  "type": "bytes",
+                  "optional": true,
+                  "field": "raw"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "optional"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "added"
+                }
+              ],
+              "optional": true,
+              "name": "ontology_test.public.items.Value",
+              "field": "after"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "version"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "connector"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "name"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "ts_ms"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "name": "io.debezium.data.Enum",
+                  "version": 1,
+                  "parameters": {
+                    "allowed": "true,first,first_in_data_collection,last_in_data_collection,last,false,incremental"
+                  },
+                  "default": "false",
+                  "field": "snapshot"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "db"
+                },
+                {
+                  "type": "string",
+                  "optional": true,
+                  "field": "sequence"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_us"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "ts_ns"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "schema"
+                },
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "table"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "txId"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "lsn"
+                },
+                {
+                  "type": "int64",
+                  "optional": true,
+                  "field": "xmin"
+                }
+              ],
+              "optional": false,
+              "name": "io.debezium.connector.postgresql.Source",
+              "version": 1,
+              "field": "source"
+            },
+            {
+              "type": "struct",
+              "fields": [
+                {
+                  "type": "string",
+                  "optional": false,
+                  "field": "id"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "total_order"
+                },
+                {
+                  "type": "int64",
+                  "optional": false,
+                  "field": "data_collection_order"
+                }
+              ],
+              "optional": true,
+              "name": "event.block",
+              "version": 1,
+              "field": "transaction"
+            },
+            {
+              "type": "string",
+              "optional": false,
+              "field": "op"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ms"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_us"
+            },
+            {
+              "type": "int64",
+              "optional": true,
+              "field": "ts_ns"
+            }
+          ],
+          "optional": false,
+          "name": "ontology_test.public.items.Envelope",
+          "version": 2
+        },
+        "payload": {
+          "before": null,
+          "after": null,
+          "source": {
+            "version": "3.3.2.Final",
+            "connector": "postgresql",
+            "name": "ontology_test",
+            "ts_ms": 1793183477408,
+            "snapshot": "false",
+            "db": "ontology_test",
+            "sequence": "[\"26482336\",\"26485264\"]",
+            "ts_us": 1793183477408706,
+            "ts_ns": 1793183477408706000,
+            "schema": "public",
+            "table": "items",
+            "txId": 757,
+            "lsn": 26485264,
+            "xmin": null
+          },
+          "transaction": {
+            "id": "757:26485264",
+            "total_order": 1,
+            "data_collection_order": 1
+          },
+          "op": "t",
+          "ts_ms": 1793183477459,
+          "ts_us": 1793183477459894,
+          "ts_ns": 1793183477459894387
+        }
+      },
+      "headers": [
+        {
+          "key": "__debezium.context.connectorLogicalName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "ontology_test"
+        },
+        {
+          "key": "__debezium.context.taskId",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "0"
+        },
+        {
+          "key": "__debezium.context.connectorName",
+          "schema": {
+            "type": "string",
+            "optional": false
+          },
+          "value": "postgresql"
+        }
+      ],
+      "operation": "t",
+      "transaction": {
+        "id": "757:26485264",
+        "total_order": 1,
+        "data_collection_order": 1
+      },
+      "snapshot": "false"
+    }
+  ]
+}
