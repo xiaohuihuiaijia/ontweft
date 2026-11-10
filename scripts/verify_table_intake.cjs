@@ -71,6 +71,22 @@ async function main() {
     await page.getByRole('button', { name: '编辑模型与来源映射' }).click();
     await page.getByLabel('变更名称', { exact: true }).fill('我的通用清单 · 首版');
     await page.getByLabel('显示名称', { exact: true }).first().fill('我的通用清单');
+    const itemTypeKey = await page.getByLabel('类型标识', { exact: true }).first().inputValue();
+    await page.getByRole('button', { name: '添加业务类型', exact: true }).click();
+    const groupEditor = page.locator('fieldset.type-editor').nth(1);
+    await groupEditor.getByLabel('类型标识', { exact: true }).fill('Group');
+    await groupEditor.getByLabel('显示名称', { exact: true }).fill('我的分组');
+    for (const [key, label] of [['name', '名称'], ['code', '编号']]) {
+      await groupEditor.getByRole('button', { name: '添加字段', exact: true }).click();
+      await groupEditor.getByLabel('字段标识', { exact: true }).last().fill(key);
+      await groupEditor.getByLabel('字段名称', { exact: true }).last().fill(label);
+    }
+    const itemEditor = page.locator('fieldset.type-editor').first();
+    await itemEditor.getByRole('button', { name: '添加关系', exact: true }).click();
+    await itemEditor.getByLabel('关系标识', { exact: true }).fill('belongs_to');
+    await itemEditor.getByLabel('业务角色', { exact: true }).fill('所属分组');
+    await itemEditor.getByLabel(/^目标类型/).selectOption('Group');
+    await itemEditor.getByLabel(/^基数/).selectOption('one');
     await page.getByRole('button', { name: '保存草稿', exact: true }).click();
     await page.getByRole('button', { name: '验证', exact: true }).click();
     await page.getByRole('button', { name: '批准当前修订', exact: true }).click();
@@ -92,6 +108,25 @@ async function main() {
     assert.equal(record.snapshot.projection.created, 2);
     await page.getByRole('button', { name: '刷新采集状态' }).click();
     await page.getByText(/对象投影：新增 2/).waitFor();
+    const auth = await (await context.request.get(base + '/api/auth/me')).json();
+    const ownerProject = auth.projects[0].id;
+    const definition = await (await context.request.get(`${base}/api/ontology/definition?project_id=${ownerProject}`)).json();
+    const group = await context.request.post(base + '/api/objects', { data: { project_id: ownerProject, expected_model_release_id: definition.release_id, type_key: 'Group', properties: { name: '合成分组', code: '001' } } });
+    assert.equal(group.status(), 201, await group.text());
+    await page.getByRole('button', { name: '刷新已发布模型' }).click();
+    await page.getByLabel('起点类型').selectOption(itemTypeKey);
+    await page.getByLabel('要建立的关系').selectOption('belongs_to');
+    await page.getByLabel('起点关联字段').selectOption('c1');
+    await page.getByLabel('目标匹配字段').selectOption('code');
+    await page.getByRole('button', { name: '预览关系匹配' }).click();
+    const applyRelations = page.getByRole('button', { name: '建立 1 条关系', exact: true });
+    await applyRelations.waitFor();
+    assert.equal(await applyRelations.isDisabled(), true);
+    await page.getByRole('checkbox', { name: /我已知有 1 条未解决/ }).check();
+    await applyRelations.click();
+    await page.getByText(/已建立 1 条关系，保留 0 条已有关系，1 条未解决/).waitFor();
+    const importedGraph = await (await context.request.get(`${base}/api/graph?project_id=${ownerProject}`)).json();
+    assert.equal(importedGraph.nodes.length, 3); assert.equal(importedGraph.edges.length, 1);
     const capture = async (name, width) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.evaluate(() => window.scrollTo(0, 0));
@@ -116,10 +151,10 @@ async function main() {
     const session = await (await context.request.get(base + '/api/auth/me')).json();
     const projectId = session.projects[0].id;
     const objects = await (await context.request.get(`${base}/api/objects?project_id=${projectId}`)).json();
-    assert.equal(objects.total, 2);
+    assert.equal(objects.total, 3);
     assert.ok(objects.items.some(item => item.properties.c1 === '001'));
     assert.deepEqual(result.pageErrors, []);
-    result.passed = true; result.objectsCreated = 2; result.customModelSaved = true; result.survivesReload = true;
+    result.passed = true; result.objectsImported = 2; result.fixtureTargetObjects = 1; result.matchedRelations = 1; result.unmatchedRecords = 1; result.customModelSaved = true; result.survivesReload = true;
   } catch (error) { result.error = String(error); process.exitCode = 1; }
   finally {
     if (browser) await browser.close();

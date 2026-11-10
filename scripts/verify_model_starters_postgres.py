@@ -19,8 +19,9 @@ def main():
     parser.add_argument("--include-graph", action="store_true")
     parser.add_argument("--include-documents", action="store_true")
     parser.add_argument("--include-intake", action="store_true")
+    parser.add_argument("--include-relations", action="store_true")
     args = parser.parse_args()
-    prefix = "intake-postgres" if args.include_intake else "documents-postgres" if args.include_documents else "graph-postgres" if args.include_graph else "starter-postgres"
+    prefix = "relations-postgres" if args.include_relations else "intake-postgres" if args.include_intake else "documents-postgres" if args.include_documents else "graph-postgres" if args.include_graph else "starter-postgres"
     tests = ["backend/tests/modeling/test_templates.py"]
     if args.include_graph:
         tests.append("backend/tests/objects/test_graph_scale.py")
@@ -28,6 +29,8 @@ def main():
         tests.append("backend/tests/documents/test_document_reparse.py")
     if args.include_intake:
         tests.extend(["backend/tests/sources/test_tabular.py", "backend/tests/sources/test_intake.py"])
+    if args.include_relations:
+        tests.append("backend/tests/objects/test_relation_matching.py")
     OUTPUT.mkdir(parents=True, exist_ok=True)
     name = "ontweft-starter-pg-" + uuid4().hex
     admin_password, runtime_password = secrets.token_hex(24), secrets.token_hex(24)

@@ -18,6 +18,7 @@ npm --prefix frontend run build
 
 ```sh
 uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-graph
+uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-intake --include-relations
 ```
 
 浏览器检查在独立临时数据目录运行，不使用开发账号。下面把测试工具安装到忽略目录，不修改应用锁文件：
@@ -41,6 +42,7 @@ POSIX shell：
 ```sh
 PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_model_starters.cjs
 PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_graph_scale.cjs
+PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_table_intake.cjs
 ```
 
 ## 维护边界

@@ -115,6 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from ontology.knowledge.api import router as knowledge_router
     from ontology.modeling.api import router as ontology_router
     from ontology.objects.api import router as objects_router
+    from ontology.objects.relation_matching import router as relation_matching_router
     from ontology.objects.contributions.api import router as contributions_router
     from ontology.objects.contributions.decision_api import router as decisions_router
     from ontology.search.content.api import router as content_search_router
@@ -126,6 +127,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(ontology_router, prefix="/api")
     app.include_router(objects_router, prefix="/api")
+    app.include_router(relation_matching_router, prefix="/api")
     app.include_router(search_router, prefix="/api")
     app.include_router(contributions_router, prefix="/api")
     app.include_router(decisions_router, prefix="/api")

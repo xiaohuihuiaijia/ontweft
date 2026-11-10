@@ -18,6 +18,17 @@
 .upload-table-preview th:first-child, .upload-table-preview td:first-child { min-width: 72px; max-width: 96px; }
 .upload-table-preview td:first-child span { min-width: 48px; }
 .upload-table-preview details { margin: 16px 0; }
+.relation-matcher { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--color-line); }
+.relation-matcher fieldset { border: 0; padding: 0; min-width: 0; }
+.relation-matcher legend { font-weight: 600; margin-bottom: 16px; }
+.relation-matcher .section-heading { flex-wrap: wrap; gap: 16px; }
+.relation-match-report { margin-top: 24px; }
+.match-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 12px; }
+.match-counts > div { border: 1px solid var(--color-line); padding: 12px; border-radius: 8px; }
+.match-counts dt { font-size: 13px; color: var(--color-muted); }
+.match-counts dd { margin: 8px 0 0; font-size: 24px; color: var(--color-forest); }
+.match-value { display: block; max-width: 24ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.relation-match-report details, .relation-match-report .checkbox { margin: 16px 0; }
 .intake-resource-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; margin: 16px 0; }
 .intake-resource { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1px solid var(--color-line); border-radius: 8px; cursor: pointer; }
 .intake-resource input { flex: 0 0 auto; width: 18px; height: 18px; margin: 4px 0 0; }

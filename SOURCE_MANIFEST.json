@@ -29,8 +29,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 2613,
-      "sha256": "f06152f7aa425a3bd183e82a2f4c2b6a33f2168de16620a68ac62fca44b4bfbb",
+      "bytes": 2831,
+      "sha256": "b08cdd6e5fe0cd4b093dc27862943b874c5fd6176eec879efd67b473e886fe3f",
       "source": "maintained-in-public-repository"
     },
     {
@@ -47,8 +47,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5473,
-      "sha256": "ae93a43b02f7b03eefd80c694c8c8dd28117ca8a926eb8fd5f2904b28dc53f7b",
+      "bytes": 5656,
+      "sha256": "f378749dd066a9b24f5fea75c5aed20fcd2d6d3f2cf0af65931c2d509d61fe7f",
       "source": "maintained-in-public-repository"
     },
     {
@@ -227,8 +227,8 @@
     },
     {
       "path": "backend/ontology/api.py",
-      "bytes": 6972,
-      "sha256": "da1f000841ed14851ad966ed44a42e8bd0b5ae0b6e6d0d60c0c7420c802732cf",
+      "bytes": 7124,
+      "sha256": "3d9fea247ed0b6e9a3139784dfc3ee82c017db2f6382f20d62e7a14a9a58edda",
       "source": "maintained-in-public-repository"
     },
     {
@@ -725,9 +725,9 @@
     },
     {
       "path": "backend/ontology/objects/api.py",
-      "bytes": 22837,
-      "sha256": "7dd7c29cd8f20502f9c31cca2447cdb633035efb4f50d883ad327760db0ee374",
-      "source": "backend/ontology/objects/api.py"
+      "bytes": 22861,
+      "sha256": "d1760460389525d440e824a6472afe9a077b1c977a25741cf729f2e24d866a08",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/objects/contributions/__init__.py",
@@ -776,6 +776,12 @@
       "bytes": 2419,
       "sha256": "12abd837d9aee9b69505bcb64b6bca5b2e2d19d91e98e84250102e437f6d5410",
       "source": "backend/ontology/objects/models.py"
+    },
+    {
+      "path": "backend/ontology/objects/relation_matching.py",
+      "bytes": 10468,
+      "sha256": "dfcf366ff745e5d230a5cff60ad18be4496a54aad38d7f0a02e37d304535f561",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/objects/schemas.py",
@@ -1282,6 +1288,12 @@
       "source": "backend/tests/objects/test_object_model_baseline.py"
     },
     {
+      "path": "backend/tests/objects/test_relation_matching.py",
+      "bytes": 11536,
+      "sha256": "eddb0cf471f1a0a15a267de6577ea9e359c47fcbcfb84d6d02319930954543dc",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "backend/tests/platform/__init__.py",
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -1553,14 +1565,14 @@
     },
     {
       "path": "docs/alpha-status.md",
-      "bytes": 4637,
-      "sha256": "5abc2cb54c140fea641df73efbc55b04f17c9cb03d80f032fe1219f3f5f57d03",
+      "bytes": 6392,
+      "sha256": "42f7f468e320432b08efff409a0b0249319496affc320f6aa8a1774d3487d40f",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/data-to-ontology.md",
-      "bytes": 6346,
-      "sha256": "6b3970e5b9889ec0e5d03a676099102ab7d3602337118d8cd8a33eaae59e1276",
+      "bytes": 8358,
+      "sha256": "5b04679fda02cdf747938096f2052a6d6b6d827bfd783ff5d1d3b512112e991d",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1577,8 +1589,8 @@
     },
     {
       "path": "docs/images/table-intake.png",
-      "bytes": 246678,
-      "sha256": "73918e343ad2ebfe155afa122d6c83aab5556ec1ed93abb9e6ac7f4bf03d4deb",
+      "bytes": 280150,
+      "sha256": "7d8c9fbf987f591f8615859a91f9adc9b416ac5caf3efadfb4396eefd9c9cde2",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1589,8 +1601,8 @@
     },
     {
       "path": "docs/ontology-methodology.md",
-      "bytes": 9848,
-      "sha256": "966f495fa9295e45559db7e7766fe89a6d1d0a2987f6c1f679cfbed8d9e35ce4",
+      "bytes": 10275,
+      "sha256": "6e6076bc9b088d6cf671f6642b146e619f8e7d62a9182029753f1f8d10779ee3",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2014,6 +2026,18 @@
       "source": "frontend/src/features/search/ContentSearchPage.tsx"
     },
     {
+      "path": "frontend/src/features/sources/RelationMatcher.test.tsx",
+      "bytes": 3893,
+      "sha256": "08385a4f7e3f219cb0e45a49f58cea33e1b4d67105738d9df2b7c3dfb8d430f4",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/sources/RelationMatcher.tsx",
+      "bytes": 8621,
+      "sha256": "d6be1d79f7ba1eadc1ab191bb88ffe6d567adf91e025ec3bd6a535b10322d41f",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "frontend/src/features/sources/SourceCdc.test.tsx",
       "bytes": 10567,
       "sha256": "b168e2862780dceabb178f0c639a89a4366f347012e1113d23dab49cb7eedef5",
@@ -2069,8 +2093,8 @@
     },
     {
       "path": "frontend/src/features/sources/SourcesPage.tsx",
-      "bytes": 11933,
-      "sha256": "60818c11dbb1116e1051fbcee368fdc340a19f279dd74d476bdca52d33bfbdfa",
+      "bytes": 12375,
+      "sha256": "aea00f7328bd252840ac272a36a6fb8194e52edf193e11de147f7d7b81c64966",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2093,8 +2117,8 @@
     },
     {
       "path": "frontend/src/features/sources/source-intake.css",
-      "bytes": 3368,
-      "sha256": "fc2105034d9f9669c79898afa166c0f5a3480fb851f3872b85084027cd0c8fda",
+      "bytes": 4259,
+      "sha256": "70f56f1830b481479241a18798288beab520548c8830a40e08b428f041640854",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2369,14 +2393,14 @@
     },
     {
       "path": "scripts/verify_model_starters_postgres.py",
-      "bytes": 5341,
-      "sha256": "b6923b46917ba0e9ddaf17582673bed8ef8314f4bb31c26fb1f32d6f8a6c31f6",
+      "bytes": 5564,
+      "sha256": "444bc7dab02a75743fb6baf6e571265467e1b8efe0e6f0db53b52e2e07eb6948",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "scripts/verify_table_intake.cjs",
-      "bytes": 10190,
-      "sha256": "067bcad318e85074d3d0c545a4d9b3b6e7acbda7841749ba34dddb475b527258",
+      "bytes": 13168,
+      "sha256": "963791a1c1b11930410d9e10e97211026265c52c3ac1206aebaf31431ddc51a2",
       "source": "maintained-in-public-repository"
     },
     {

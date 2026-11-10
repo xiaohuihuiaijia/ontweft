@@ -334,7 +334,7 @@ def relations(
 
 @router.post("/relations", status_code=201)
 def create_relation(data: RelationInput, request: Request, user=Depends(authenticated)):
-    with request.app.state.db.transaction(user.tenant_id) as session:
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         ctx = access(session, user, data.project_id, "objects:write")
         ensure_model_baseline(session, ctx, data)
         source = scoped_record(session, Entity, data.source_id, user)
@@ -385,7 +385,7 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
 def delete_relation(
     relation_id: str, data: ModelRevisionInput, request: Request, user=Depends(authenticated)
 ):
-    with request.app.state.db.transaction(user.tenant_id) as session:
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         row = scoped_record(session, Relation, relation_id, user)
         ctx = access(session, user, row.project_id, "objects:write")
         ensure_model_baseline(session, ctx, data)
