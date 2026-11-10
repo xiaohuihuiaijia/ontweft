@@ -36,6 +36,13 @@ class ApplyMatch(StrictModel):
     allow_partial: bool = False
 
 
+class MatchIssuePage(StrictModel):
+    rule: MatchRule
+    expected_plan_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    offset: int = Field(default=0, ge=0, le=MAX_OBJECTS)
+    limit: int = Field(default=SAMPLE_SIZE, ge=1, le=100)
+
+
 def _property(type_def, key, role):
     prop = next((p for p in type_def["properties"] if p["key"] == key), None)
     if not prop or not allowed_field(prop, role):
@@ -63,7 +70,7 @@ def _value_key(value, family):
     return family, value
 
 
-def matching_plan(session, ctx, rule):
+def matching_plan(session, ctx, rule, *, issue_offset=0, issue_limit=SAMPLE_SIZE):
     session.refresh(ctx.project, attribute_names=["active_release_id"])
     if rule.expected_model_release_id != ctx.project.active_release_id:
         conflict("模型版本已改变，请重新选择关系并预览")
@@ -138,6 +145,7 @@ def matching_plan(session, ctx, rule):
         )
     }
     pairs, samples, issues = [], [], []
+    issue_index = 0
     for source in sources:
         value = source.properties.get(rule.source_field)
         key = _value_key(value, family)
@@ -170,8 +178,10 @@ def matching_plan(session, ctx, rule):
         }
         if len(samples) < SAMPLE_SIZE:
             samples.append(sample)
-        if status not in {"create", "existing"} and len(issues) < SAMPLE_SIZE:
-            issues.append(sample)
+        if status not in {"create", "existing"}:
+            if issue_offset <= issue_index < issue_offset + issue_limit:
+                issues.append(sample)
+            issue_index += 1
     revision_state = {
         "rule": rule.model_dump(),
         "actor": ctx.user.id,
@@ -261,4 +271,20 @@ def apply_matches(data: ApplyMatch, request: Request, user=Depends(authenticated
             "unresolved": report["unresolved_count"],
             "plan_hash": report["plan_hash"],
             "message": "关系已按本次确认的对象修订建立；后续字段变化不会自动重连或删除关系",
+        }
+
+
+@router.post("/relations/match-issues")
+def match_issues(data: MatchIssuePage, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        ctx = access(session, user, data.rule.project_id, "objects:write")
+        report, _ = matching_plan(session, ctx, data.rule, issue_offset=data.offset, issue_limit=data.limit)
+        if data.expected_plan_hash != report["plan_hash"]:
+            conflict("对象、已有关系或规则已改变，请重新预览后查看问题记录")
+        return {
+            "plan_hash": report["plan_hash"],
+            "rows": report["issues"],
+            "offset": data.offset,
+            "limit": data.limit,
+            "total": report["unresolved_count"],
         }

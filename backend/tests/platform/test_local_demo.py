@@ -5,6 +5,8 @@ import sys
 
 import pytest
 from fastapi.testclient import TestClient
+from ontology.connectors import ConnectorError
+from ontology.connectors.policy import NetworkPolicy
 
 from tests.support.paths import REPO_ROOT as ROOT
 
@@ -63,6 +65,32 @@ def test_local_demo_refuses_an_existing_unowned_directory(tmp_path):
     with pytest.raises(ValueError, match="已有其他文件"):
         demo.create_demo_app(data, password="Local-Test-Only-2026")
     assert existing.read_bytes() == b"must not be opened or replaced"
+
+
+def test_source_network_requires_an_explicit_host_and_separate_private_opt_in(tmp_path, monkeypatch):
+    monkeypatch.setenv("ONTOLOGY_ALLOWED_SOURCE_HOSTS", '["ambient.example"]')
+    monkeypatch.setenv("ONTOLOGY_ALLOW_PRIVATE_SOURCE_ADDRESSES", "true")
+    defaults = demo.demo_settings(tmp_path, 8020)
+    assert defaults.allowed_source_hosts == [] and not defaults.allow_private_source_addresses
+    settings = demo.demo_settings(tmp_path, 8020, source_hosts=["127.0.0.1", "DB.Example.", "db.example"])
+    assert settings.allowed_source_hosts == ["127.0.0.1", "db.example"]
+    with pytest.raises(ConnectorError, match="Private"):
+        NetworkPolicy(frozenset(settings.allowed_source_hosts)).check_host("127.0.0.1")
+    enabled = demo.demo_settings(tmp_path, 8020, source_hosts=["127.0.0.1"], allow_private_sources=True)
+    policy = NetworkPolicy(frozenset(enabled.allowed_source_hosts), enabled.allow_private_source_addresses)
+    policy.check_host("127.0.0.1")
+    with pytest.raises(ConnectorError, match="explicitly"):
+        policy.check_host("127.0.0.2")
+    with pytest.raises(ValueError, match="指定主机"):
+        demo.demo_settings(tmp_path, 8020, allow_private_sources=True)
+
+
+@pytest.mark.parametrize(
+    "host", ["*", "https://db.example", "db.example:5432", "user@db.example", "", "db.example/path"]
+)
+def test_source_host_arguments_do_not_accept_urls_ports_or_wildcards(tmp_path, host):
+    with pytest.raises(ValueError, match="来源主机"):
+        demo.demo_settings(tmp_path, 8020, source_hosts=[host])
 
 
 def test_core_boot_does_not_import_unused_feishu_sdk(tmp_path):

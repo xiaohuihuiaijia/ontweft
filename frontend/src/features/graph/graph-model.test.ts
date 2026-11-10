@@ -52,3 +52,24 @@ it('bounds visible work without adding dangling edges or claiming complete count
   const limited = boundedGraph({ ...data, nodes, edges: [{ ...data.edges[0], source: '0', target: '500' }] });
   expect(limited.nodes).toHaveLength(500); expect(limited.edges).toEqual([]); expect(limited.truncated).toBe(true);
 });
+
+it('keeps a linked pair legible among many isolated records without merging or losing nodes', () => {
+  const ids = ['linked-a', 'linked-b', ...Array.from({ length: 26 }, (_, i) => `isolated-${i}`)];
+  const input = { ids, edges: [{ source: 'linked-a', target: 'linked-b' }] };
+  const points = layoutGraph(input); const byId = new Map(points.map(point => [point.id, point]));
+  const a = byId.get('linked-a')!; const b = byId.get('linked-b')!;
+  const span = Math.max(Math.max(...points.map(p => p.x)) - Math.min(...points.map(p => p.x)), Math.max(...points.map(p => p.y)) - Math.min(...points.map(p => p.y)));
+  expect(Math.hypot(a.x - b.x, a.y - b.y) / span).toBeGreaterThan(0.15);
+  expect(new Set(points.map(p => p.id)).size).toBe(28);
+  expect(points).toEqual(layoutGraph({ ids: [...ids].reverse(), edges: input.edges }));
+  for (const p of points.filter(p => p.id.startsWith('isolated'))) {
+    expect(p.x < Math.min(a.x, b.x) || p.x > Math.max(a.x, b.x) || p.y < Math.min(a.y, b.y) || p.y > Math.max(a.y, b.y)).toBe(true);
+  }
+});
+
+it('handles a fully disconnected bounded graph with distinct finite coordinates', () => {
+  const points = layoutGraph({ ids: Array.from({ length: 500 }, (_, i) => `object-${i}`), edges: [] });
+  expect(points).toHaveLength(500);
+  expect(new Set(points.map(p => `${p.x}:${p.y}`)).size).toBe(500);
+  expect(points.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
+});

@@ -29,8 +29,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 2831,
-      "sha256": "b08cdd6e5fe0cd4b093dc27862943b874c5fd6176eec879efd67b473e886fe3f",
+      "bytes": 2934,
+      "sha256": "ef32cd880b3803ab6fd07477721e1bbfcb9300b188f28a560d3c0bf3dcc38b97",
       "source": "maintained-in-public-repository"
     },
     {
@@ -47,8 +47,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5656,
-      "sha256": "f378749dd066a9b24f5fea75c5aed20fcd2d6d3f2cf0af65931c2d509d61fe7f",
+      "bytes": 5921,
+      "sha256": "714f498135269d6d6f6200d368d8d185829f47d27439e9174915b2b5962cfc77",
       "source": "maintained-in-public-repository"
     },
     {
@@ -779,8 +779,8 @@
     },
     {
       "path": "backend/ontology/objects/relation_matching.py",
-      "bytes": 10468,
-      "sha256": "dfcf366ff745e5d230a5cff60ad18be4496a54aad38d7f0a02e37d304535f561",
+      "bytes": 11616,
+      "sha256": "f1a2c969b30a963d0488a965dfb18a39ed3cd2cdb23455682df7a05c7cac5b65",
       "source": "maintained-in-public-repository"
     },
     {
@@ -905,8 +905,8 @@
     },
     {
       "path": "backend/ontology/sources/proposals.py",
-      "bytes": 5638,
-      "sha256": "b75cb62fc7aa8e61ab6b29e9edb84a01ad0f1baf5ca55d121cab9e9998d11fce",
+      "bytes": 5835,
+      "sha256": "a2916649c316f400335fbd456cc886ed75c0f36259723dd2687ff6b5cfde3d4f",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1289,8 +1289,8 @@
     },
     {
       "path": "backend/tests/objects/test_relation_matching.py",
-      "bytes": 11536,
-      "sha256": "eddb0cf471f1a0a15a267de6577ea9e359c47fcbcfb84d6d02319930954543dc",
+      "bytes": 13092,
+      "sha256": "4aa4203cd47f312b0c9a7097739607ae933ed9dec5486ac542f2830d34ff00d4",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1307,9 +1307,9 @@
     },
     {
       "path": "backend/tests/platform/test_local_demo.py",
-      "bytes": 4218,
-      "sha256": "26dd50d8c41a89a5e3d08ef0215ec38d42a6ce14746e96162915f5da88b90386",
-      "source": "backend/tests/platform/test_local_demo.py"
+      "bytes": 5859,
+      "sha256": "00c8438b21c06a3abbfa0d550d7c55aabd021069f5d693075b6a511b0d500608",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/tests/platform/test_platform.py",
@@ -1382,6 +1382,12 @@
       "bytes": 21442,
       "sha256": "5a5b404881ff31b0b2d46955d787d349766fec09965f5f4c47b65d1785d24bfb",
       "source": "backend/tests/sources/test_connectors.py"
+    },
+    {
+      "path": "backend/tests/sources/test_database_intake.py",
+      "bytes": 6683,
+      "sha256": "46e17b078cf196e41ccb52ea7ee850c14301d78ad8ee0f0826728e0fe87d7cae",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/tests/sources/test_ingestion.py",
@@ -1534,6 +1540,12 @@
       "source": "backend/tests/support/ingestion.py"
     },
     {
+      "path": "backend/tests/support/intake_database.py",
+      "bytes": 2858,
+      "sha256": "ae13597ce0196786bfd9bead46a6b877b9eccf1947eb3b3218b74c138df90f3d",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "backend/tests/support/live_cdc.py",
       "bytes": 24214,
       "sha256": "6ff3442bd106495aa271f0b5058457cd6c89bcc766f7e3a238b6fd18dbcf2e31",
@@ -1565,14 +1577,14 @@
     },
     {
       "path": "docs/alpha-status.md",
-      "bytes": 6392,
-      "sha256": "42f7f468e320432b08efff409a0b0249319496affc320f6aa8a1774d3487d40f",
+      "bytes": 9020,
+      "sha256": "465b80367ac91b12c9de26bb6123f5d5cd568dd868d7ead15129df6a18104c05",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/data-to-ontology.md",
-      "bytes": 8358,
-      "sha256": "5b04679fda02cdf747938096f2052a6d6b6d827bfd783ff5d1d3b512112e991d",
+      "bytes": 10830,
+      "sha256": "27bd7f7dcfaac0ccef987836270dec9cb1539f58b58c2698e86f3667bcdb35c9",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1583,14 +1595,20 @@
     },
     {
       "path": "docs/graph.md",
-      "bytes": 1490,
-      "sha256": "50813a15b5ee992b2a095583dbf52b4cbc7fab35dc44e0682bdcf8bd0444848f",
-      "source": "publishing/github/graph.md"
+      "bytes": 1783,
+      "sha256": "c71457370cd98bebae658d188224ddd63fb9cc1ad61bb23a3e0a2c2721d6222b",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "docs/images/data-graph.png",
+      "bytes": 138018,
+      "sha256": "d7a6f9a248c90d6144b89415733ed872d3739d22e76e5ea9013bd6005ee3e015",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/images/table-intake.png",
-      "bytes": 280150,
-      "sha256": "7d8c9fbf987f591f8615859a91f9adc9b416ac5caf3efadfb4396eefd9c9cde2",
+      "bytes": 461029,
+      "sha256": "0db8ce5429472727fc641242f21d332e5eeeaf37f1ae9d18c189b50ccdcc031a",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1637,9 +1655,9 @@
     },
     {
       "path": "frontend/package-lock.json",
-      "bytes": 105282,
-      "sha256": "555501c8a8079e015f3b2806904fecf47616bcec3ead688dcb6ecda0b4eb845d",
-      "source": "frontend/package-lock.json"
+      "bytes": 104642,
+      "sha256": "f6d4a5cea5d0df5b4020e0a8b72edd2f83b5481dad39c8f3c60e5bc825790168",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/package.json",
@@ -1817,15 +1835,15 @@
     },
     {
       "path": "frontend/src/features/graph/graph-model.test.ts",
-      "bytes": 4034,
-      "sha256": "e35ad09400daaf1abbcb60e1620de673e648724841893f1775d617e1b6e0e4b6",
-      "source": "frontend/src/features/graph/graph-model.test.ts"
+      "bytes": 5463,
+      "sha256": "4c771417f53863790b431a25b8f0dacfea1cd9d40f30576cca1dd1b1b69bfe35",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/graph/graph-model.ts",
-      "bytes": 6504,
-      "sha256": "f75c0055cb76c006133187bafc105b4bb709ae40bbeebd4a3faf62763211ab8c",
-      "source": "frontend/src/features/graph/graph-model.ts"
+      "bytes": 9026,
+      "sha256": "5b4397156f2e117cac5266efbd215061941db6aac4c4e479b62f19d9a614cc91",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/graph/self-loop-layer.css",
@@ -2027,14 +2045,14 @@
     },
     {
       "path": "frontend/src/features/sources/RelationMatcher.test.tsx",
-      "bytes": 3893,
-      "sha256": "08385a4f7e3f219cb0e45a49f58cea33e1b4d67105738d9df2b7c3dfb8d430f4",
+      "bytes": 6086,
+      "sha256": "fdfcdef703eebd6b656fd32925a5f00ca5356f582c5123f7500a4b7fe5af5200",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/sources/RelationMatcher.tsx",
-      "bytes": 8621,
-      "sha256": "d6be1d79f7ba1eadc1ab191bb88ffe6d567adf91e025ec3bd6a535b10322d41f",
+      "bytes": 9891,
+      "sha256": "6199f13849b52c081737a3c215f213a12a53ef9dbd98af871e7fbf0d4202189b",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2369,9 +2387,9 @@
     },
     {
       "path": "scripts/start_local_demo.py",
-      "bytes": 4523,
-      "sha256": "a12e3e5857051a0f0296a7ea857cbf9c3ca658e8aff56666107bd2e71f300fd6",
-      "source": "scripts/start_local_demo.py"
+      "bytes": 6428,
+      "sha256": "854a7f270329cf9a6c1366e614c490a0e669c4e4e522f6f4e764563f86694527",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "scripts/test_backend.py",
@@ -2393,14 +2411,14 @@
     },
     {
       "path": "scripts/verify_model_starters_postgres.py",
-      "bytes": 5564,
-      "sha256": "444bc7dab02a75743fb6baf6e571265467e1b8efe0e6f0db53b52e2e07eb6948",
+      "bytes": 5809,
+      "sha256": "ee7571762f6e6c8bd8c4361e3468facc1103d56e11f5c8f3ae4e6e15fcfbc24b",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "scripts/verify_table_intake.cjs",
-      "bytes": 13168,
-      "sha256": "963791a1c1b11930410d9e10e97211026265c52c3ac1206aebaf31431ddc51a2",
+      "bytes": 13817,
+      "sha256": "7d6a85aa5600051289b74873c479938273810a621887df8fbee4c87e4329280e",
       "source": "maintained-in-public-repository"
     },
     {

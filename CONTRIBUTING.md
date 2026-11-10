@@ -19,6 +19,7 @@ npm --prefix frontend run build
 ```sh
 uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-graph
 uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-intake --include-relations
+uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-database-intake
 ```
 
 浏览器检查在独立临时数据目录运行，不使用开发账号。下面把测试工具安装到忽略目录，不修改应用锁文件：

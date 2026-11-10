@@ -39,6 +39,8 @@ uv run --locked --extra dev python scripts/start_local_demo.py
 uv run --locked --extra dev python scripts/start_local_demo.py worker
 ```
 
+上传表格不需要开放网络来源。连接自己的 PostgreSQL/MySQL 时，须为服务和 worker 指定相同的来源主机名单；本机或内网地址另需明确启用。见 [数据库接入步骤](docs/data-to-ontology.md#连接自己的数据库)。
+
 ## 架构与源码
 
 | 目录 | 内容 |

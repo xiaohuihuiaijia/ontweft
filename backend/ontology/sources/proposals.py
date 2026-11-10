@@ -32,6 +32,8 @@ def suggested_type(field):
         return "boolean"
     if raw == "date":
         return "date"
+    if raw in {"timestamp with time zone", "timestamptz"}:
+        return "datetime"
     if raw in {"json", "jsonb", "object", "array"}:
         return "json"
     return "string"
@@ -128,6 +130,7 @@ def propose(source, resource_ids, current):
         "warnings": [
             "仅生成可编辑草稿；请确认业务名称、字段类型和显示名称。",
             "未推断必填或唯一性约束；声明外键仅作为关系设计依据，不自动创建对象连线。",
+            "带时区时间戳可建议为时间；无时区时间保留文本，不替来源假设时区。",
             "上传行号只在本次文件内稳定；再次上传会成为独立来源，不自动合并对象。",
         ],
     }

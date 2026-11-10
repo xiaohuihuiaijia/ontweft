@@ -63,6 +63,42 @@ export interface LayoutInput { ids: string[]; edges: { source: string; target: s
 export interface Position { id: string; x: number; y: number }
 /** Independent bounded spring/repulsion layout. Edges affect placement, never business semantics. */
 export function layoutGraph(input: LayoutInput): Position[] {
+  const ids = [...new Set(input.ids)].sort().slice(0, 500);
+  const adjacency = new Map(ids.map(id => [id, new Set<string>()]));
+  const edges = input.edges.slice(0, 1000).filter(edge => adjacency.has(edge.source) && adjacency.has(edge.target));
+  for (const edge of edges) { adjacency.get(edge.source)!.add(edge.target); adjacency.get(edge.target)!.add(edge.source); }
+  const unseen = new Set(ids); const components: string[][] = [];
+  for (const id of ids) {
+    if (!unseen.delete(id)) continue;
+    const members = [id];
+    for (let index = 0; index < members.length; index++) for (const next of adjacency.get(members[index])!) if (unseen.delete(next)) members.push(next);
+    components.push(members.sort());
+  }
+  if (components.length <= 1) return springLayout({ ids, edges });
+  // Solve each connected component independently: isolated records cannot shrink
+  // a useful linked pair to a coincident dot in the normalized global viewport.
+  const blocks = components.map(members => {
+    const included = new Set(members);
+    const points = springLayout({ ids: members, edges: edges.filter(edge => included.has(edge.source)) });
+    const minX = Math.min(...points.map(p => p.x)); const maxX = Math.max(...points.map(p => p.x));
+    const minY = Math.min(...points.map(p => p.y)); const maxY = Math.max(...points.map(p => p.y));
+    const scale = members.length === 1 ? 1 : Math.sqrt(members.length) * 1.8 / Math.max(maxX - minX, maxY - minY, 0.01);
+    const width = Math.max(1, (maxX - minX) * scale); const height = Math.max(1, (maxY - minY) * scale);
+    return { id: members[0], points, width, height, scale, centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2 };
+  }).sort((a, b) => b.height - a.height || a.id.localeCompare(b.id));
+  const gap = 0.8;
+  const rowWidth = Math.max(...blocks.map(block => block.width), Math.sqrt(blocks.reduce((sum, block) => sum + (block.width + gap) * (block.height + gap), 0)) * 1.25);
+  let x = 0; let y = 0; let rowHeight = 0;
+  const result: Position[] = [];
+  for (const block of blocks) {
+    if (x > 0 && x + block.width > rowWidth) { x = 0; y += rowHeight + gap; rowHeight = 0; }
+    result.push(...block.points.map(p => ({ id: p.id, x: x + block.width / 2 + (p.x - block.centerX) * block.scale, y: y + block.height / 2 + (p.y - block.centerY) * block.scale })));
+    x += block.width + gap; rowHeight = Math.max(rowHeight, block.height);
+  }
+  return result.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function springLayout(input: LayoutInput): Position[] {
   const ids = [...new Set(input.ids)].sort().slice(0, 500); const n = ids.length;
   if (!n) return []; if (n === 1) return [{ id: ids[0], x: 0, y: 0 }];
   const index = new Map(ids.map((id, i) => [id, i]));

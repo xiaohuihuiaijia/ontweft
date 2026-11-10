@@ -212,6 +212,12 @@ def test_hidden_match_fields_are_rechecked_on_apply(platform):
     result = apply(client, rule, plan)
     assert result.status_code == 403 and "sensitive" not in result.text
     assert client.post("/api/relations/match-preview", json=rule).status_code == 403
+    assert (
+        client.post(
+            "/api/relations/match-issues", json={"rule": rule, "expected_plan_hash": plan["plan_hash"]}
+        ).status_code
+        == 403
+    )
 
 
 def test_matching_budget_rejects_without_silent_truncation(platform, monkeypatch):
@@ -222,6 +228,33 @@ def test_matching_budget_rejects_without_silent_truncation(platform, monkeypatch
     monkeypatch.setattr("ontology.objects.relation_matching.MAX_OBJECTS", 2)
     response = client.post("/api/relations/match-preview", json=rule)
     assert response.status_code == 422 and response.json()["error"]["code"] == "match_budget"
+
+
+def test_issue_pages_cover_all_unresolved_objects_and_reject_stale_baselines(platform):
+    client, _, owner, _ = platform
+    rule = setup_model(client, owner)
+    sources = [obj(client, rule, "Item", f"missing-{index}") for index in range(27)]
+    plan = preview(client, rule)
+    assert plan["unresolved_count"] == 27 and len(plan["issues"]) == 25
+    query = {"rule": rule, "expected_plan_hash": plan["plan_hash"], "offset": 25, "limit": 25}
+    response = client.post("/api/relations/match-issues", json=query)
+    assert response.status_code == 200, response.text
+    page = response.json()
+    assert page["total"] == 27 and page["offset"] == 25 and len(page["rows"]) == 2
+    returned = plan["issues"] + page["rows"]
+    assert len({row["source_id"] for row in returned}) == 27
+    assert {row["source_id"] for row in returned} == {row["id"] for row in sources}
+    assert all(row["status"] == "unmatched" for row in returned)
+    assert client.post("/api/relations/match-issues", json={**query, "limit": 1000}).status_code == 422
+    edited = client.patch(
+        f"/api/objects/{sources[0]['id']}",
+        json={
+            "expected_revision": sources[0]["revision"],
+            "properties": {"reference": "changed"},
+        },
+    )
+    assert edited.status_code == 200
+    assert client.post("/api/relations/match-issues", json=query).status_code == 409
 
 
 def test_self_relations_require_explicit_choice_and_old_model_baselines_are_rejected(platform):

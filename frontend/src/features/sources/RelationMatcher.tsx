@@ -9,6 +9,7 @@ type MatchStatus = keyof typeof labels;
 interface MatchRow { source_id: string; source_revision: number; value: string | number | boolean | null; target_id: string | null; status: MatchStatus; candidate_count: number }
 interface MatchReport { plan_hash: string; counts: Record<MatchStatus, number>; source_count: number; target_count: number; unresolved_count: number; samples: MatchRow[]; issues: MatchRow[]; semantics: string }
 interface MatchRule { project_id: string; expected_model_release_id: string; source_type: string; relation_key: string; source_field: string; target_field: string; allow_self: boolean }
+interface IssuePage { plan_hash: string; rows: MatchRow[]; offset: number; limit: number; total: number }
 const family = (kind: string) => ['string', 'enum'].includes(kind) ? 'text' : kind;
 
 export function RelationMatcher({ projectId, disabled, onDirty, onBusy }: {
@@ -18,7 +19,7 @@ export function RelationMatcher({ projectId, disabled, onDirty, onBusy }: {
   const [sourceKey, setSourceKey] = useState(''); const [relationKey, setRelationKey] = useState('');
   const [sourceField, setSourceField] = useState(''); const [targetField, setTargetField] = useState('');
   const [allowSelf, setAllowSelf] = useState(false); const [partial, setPartial] = useState(false);
-  const [plan, setPlan] = useState<{ rule: MatchRule; report: MatchReport }>();
+  const [plan, setPlan] = useState<{ rule: MatchRule; report: MatchReport; issueOffset: number }>();
   const [busy, setBusy] = useState(false); const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<unknown>(); const [message, setMessage] = useState('');
   useEffect(() => { onDirty(dirty); return () => onDirty(false); }, [dirty, onDirty]);
@@ -32,7 +33,7 @@ export function RelationMatcher({ projectId, disabled, onDirty, onBusy }: {
     if (!types.data?.release_id) return;
     const rule = { project_id: projectId, expected_model_release_id: types.data.release_id, source_type: sourceKey, relation_key: relationKey, source_field: sourceField, target_field: targetField, allow_self: allowSelf };
     setBusy(true); setError(undefined); setMessage(''); setPartial(false);
-    try { setPlan({ rule, report: await write<MatchReport>('/relations/match-preview', rule) }); }
+    try { setPlan({ rule, report: await write<MatchReport>('/relations/match-preview', rule), issueOffset: 0 }); }
     catch (e) { setError(e); } finally { setBusy(false); }
   };
   const apply = async () => {
@@ -42,6 +43,14 @@ export function RelationMatcher({ projectId, disabled, onDirty, onBusy }: {
       const result = await write<{ created: number; existing: number; unresolved: number; message: string }>('/relations/match-apply', { rule: plan.rule, expected_plan_hash: plan.report.plan_hash, allow_partial: partial });
       setMessage(`已建立 ${result.created} 条关系，保留 ${result.existing} 条已有关系，${result.unresolved} 条未解决。${result.message}`);
       setPlan(undefined); setDirty(false);
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const loadIssues = async (offset: number) => {
+    if (!plan) return;
+    setBusy(true); setError(undefined);
+    try {
+      const page = await write<IssuePage>('/relations/match-issues', { rule: plan.rule, expected_plan_hash: plan.report.plan_hash, offset, limit: 25 });
+      setPlan(previous => previous?.report.plan_hash === page.plan_hash ? { ...previous, issueOffset: page.offset, report: { ...previous.report, issues: page.rows } } : previous);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   return <section className="relation-matcher" aria-labelledby="relation-matcher-title">
@@ -60,7 +69,9 @@ export function RelationMatcher({ projectId, disabled, onDirty, onBusy }: {
       <p>起点 {plan.report.source_count} 个 · 目标 {plan.report.target_count} 个。{plan.report.semantics}</p>
       <dl className="match-counts">{Object.entries(labels).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{plan.report.counts[key as MatchStatus]}</dd></div>)}</dl>
       <h4>匹配样本（最多 25 条）</h4><MatchTable rows={plan.report.samples} />
-      {!!plan.report.issues.length && <details><summary>查看未解决记录（最多 25 条）</summary><MatchTable rows={plan.report.issues} /></details>}
+      {plan.report.unresolved_count > 0 && <details><summary>查看未解决记录（共 {plan.report.unresolved_count} 条）</summary><MatchTable rows={plan.report.issues} />
+        <nav className="toolbar" aria-label="未解决记录分页"><button className="secondary" disabled={busy || plan.issueOffset === 0} onClick={() => loadIssues(Math.max(0, plan.issueOffset - 25))}>上一页</button><span role="status">第 {plan.issueOffset + 1}–{plan.issueOffset + plan.report.issues.length} 条，共 {plan.report.unresolved_count} 条</span><button className="secondary" disabled={busy || plan.issueOffset + plan.report.issues.length >= plan.report.unresolved_count} onClick={() => loadIssues(plan.issueOffset + 25)}>下一页</button></nav>
+      </details>}
       {plan.report.unresolved_count > 0 && <label className="checkbox"><input type="checkbox" checked={partial} disabled={busy} onChange={e => setPartial(e.target.checked)} />我已知有 {plan.report.unresolved_count} 条未解决，仅建立 {plan.report.counts.create} 条唯一匹配关系</label>}
       <div className="toolbar"><button disabled={busy || !plan.report.counts.create || (!!plan.report.unresolved_count && !partial)} onClick={apply}>建立 {plan.report.counts.create} 条关系</button><button className="secondary" disabled={busy} onClick={() => { setPlan(undefined); setDirty(false); }}>取消预览</button></div>
     </div>}

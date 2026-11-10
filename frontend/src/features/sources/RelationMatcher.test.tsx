@@ -49,3 +49,30 @@ it('retains a stale preview error and clears preview when its rule is edited', a
   fireEvent.change(screen.getByLabelText('目标匹配字段'), { target: { value: '' } });
   await waitFor(() => expect(screen.queryByLabelText('关系匹配结果')).toBeNull());
 });
+
+it('pages through all unresolved records without changing the confirmed rule or partial choice', async () => {
+  const issues = Array.from({ length: 26 }, (_, index) => ({ source_id: `object-${index}`, source_revision: 1, value: `unmatched-${index}`, target_id: null, status: 'unmatched', candidate_count: 0 }));
+  const pages: Record<string, unknown>[] = [];
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (String(url).endsWith('match-issues')) {
+      const body = JSON.parse(options?.body as string); pages.push(body);
+      return new Response(JSON.stringify({ plan_hash: report.plan_hash, rows: issues.slice(body.offset, body.offset + body.limit), offset: body.offset, limit: body.limit, total: 26 }));
+    }
+    return new Response(JSON.stringify(String(url).endsWith('match-preview') ? { ...report, source_count: 27, unresolved_count: 26, counts: { ...report.counts, unmatched: 26 }, issues: issues.slice(0, 25) } : types));
+  });
+  render(<RelationMatcher projectId="p" disabled={false} onBusy={noop} onDirty={noop} />);
+  await selectRule();
+  fireEvent.click(screen.getByRole('button', { name: '预览关系匹配' }));
+  fireEvent.click(await screen.findByText('查看未解决记录（共 26 条）'));
+  fireEvent.click(screen.getByRole('checkbox', { name: /我已知有 26 条未解决/ }));
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+  await screen.findByText('第 26–26 条，共 26 条');
+  expect(screen.getByText('unmatched-25')).toBeTruthy();
+  expect(screen.queryByText('unmatched-0')).toBeNull();
+  expect((screen.getByRole('button', { name: '下一页' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('checkbox', { name: /我已知有 26 条未解决/ }) as HTMLInputElement).checked).toBe(true);
+  expect(pages[0]).toMatchObject({ expected_plan_hash: report.plan_hash, offset: 25, limit: 25, rule: { project_id: 'p', expected_model_release_id: 'release-1', relation_key: 'belongs' } });
+  fireEvent.click(screen.getByRole('button', { name: '上一页' }));
+  await screen.findByText('第 1–25 条，共 26 条');
+  expect(screen.queryByText('unmatched-25')).toBeNull();
+});

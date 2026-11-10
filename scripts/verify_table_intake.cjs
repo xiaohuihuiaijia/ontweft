@@ -53,7 +53,7 @@ async function main() {
     await page.getByRole('textbox', { name: /^用户名/ }).fill('owner');
     await page.getByLabel('密码', { exact: true }).fill(password);
     await page.getByRole('button', { name: '登录', exact: true }).click();
-    await page.getByLabel('CSV / XLSX 文件', { exact: true }).setInputFiles({ name: '合成清单.csv', mimeType: 'text/csv', buffer: Buffer.from('编号,名称,数量\n001,合成测试 · 输入,2\n002,合成测试 · 确认,3\n') });
+    await page.getByLabel('CSV / XLSX 文件', { exact: true }).setInputFiles({ name: '合成清单.csv', mimeType: 'text/csv', buffer: Buffer.from('编号,名称,数量\n001,合成测试 · 输入,2\n' + Array.from({ length: 26 }, (_, index) => `${String(index + 2).padStart(3, '0')},合成测试 · 待匹配 ${index + 2},3`).join('\n') + '\n') });
     await page.getByLabel('数据源名称（选填）').fill('合成数据 · 通用建模验证');
     const uploadResponse = page.waitForResponse(response => response.url().endsWith('/api/sources/upload') && response.request().method() === 'POST');
     await page.getByRole('button', { name: '上传并查看数据', exact: true }).click();
@@ -105,9 +105,9 @@ async function main() {
       await pause(250);
     }
     assert.equal(record.snapshot.status, 'complete', JSON.stringify(record.snapshot));
-    assert.equal(record.snapshot.projection.created, 2);
+    assert.equal(record.snapshot.projection.created, 27);
     await page.getByRole('button', { name: '刷新采集状态' }).click();
-    await page.getByText(/对象投影：新增 2/).waitFor();
+    await page.getByText(/对象投影：新增 27/).waitFor();
     const auth = await (await context.request.get(base + '/api/auth/me')).json();
     const ownerProject = auth.projects[0].id;
     const definition = await (await context.request.get(`${base}/api/ontology/definition?project_id=${ownerProject}`)).json();
@@ -122,11 +122,16 @@ async function main() {
     const applyRelations = page.getByRole('button', { name: '建立 1 条关系', exact: true });
     await applyRelations.waitFor();
     assert.equal(await applyRelations.isDisabled(), true);
-    await page.getByRole('checkbox', { name: /我已知有 1 条未解决/ }).check();
+    await page.getByText('查看未解决记录（共 26 条）').click();
+    await page.getByRole('navigation', { name: '未解决记录分页' }).getByRole('button', { name: '下一页', exact: true }).click();
+    await page.getByText('第 26–26 条，共 26 条').waitFor();
+    await page.getByRole('navigation', { name: '未解决记录分页' }).getByRole('button', { name: '上一页', exact: true }).click();
+    await page.getByText('第 1–25 条，共 26 条').waitFor();
+    await page.getByRole('checkbox', { name: /我已知有 26 条未解决/ }).check();
     await applyRelations.click();
-    await page.getByText(/已建立 1 条关系，保留 0 条已有关系，1 条未解决/).waitFor();
+    await page.getByText(/已建立 1 条关系，保留 0 条已有关系，26 条未解决/).waitFor();
     const importedGraph = await (await context.request.get(`${base}/api/graph?project_id=${ownerProject}`)).json();
-    assert.equal(importedGraph.nodes.length, 3); assert.equal(importedGraph.edges.length, 1);
+    assert.equal(importedGraph.nodes.length, 28); assert.equal(importedGraph.edges.length, 1);
     const capture = async (name, width) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.evaluate(() => window.scrollTo(0, 0));
@@ -151,10 +156,10 @@ async function main() {
     const session = await (await context.request.get(base + '/api/auth/me')).json();
     const projectId = session.projects[0].id;
     const objects = await (await context.request.get(`${base}/api/objects?project_id=${projectId}`)).json();
-    assert.equal(objects.total, 3);
+    assert.equal(objects.total, 28);
     assert.ok(objects.items.some(item => item.properties.c1 === '001'));
     assert.deepEqual(result.pageErrors, []);
-    result.passed = true; result.objectsImported = 2; result.fixtureTargetObjects = 1; result.matchedRelations = 1; result.unmatchedRecords = 1; result.customModelSaved = true; result.survivesReload = true;
+    result.passed = true; result.objectsImported = 27; result.fixtureTargetObjects = 1; result.matchedRelations = 1; result.unmatchedRecords = 26; result.issuePagingVerified = true; result.customModelSaved = true; result.survivesReload = true;
   } catch (error) { result.error = String(error); process.exitCode = 1; }
   finally {
     if (browser) await browser.close();
