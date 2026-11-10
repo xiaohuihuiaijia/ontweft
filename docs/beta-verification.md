@@ -16,7 +16,9 @@
 | 发布兼容 | 23 个既有迁移与已发布 functions/runtime.py 字节不变；新增 a500–a700 迁移，保留业务对象、原件、旧 CDC 代和证据 |
 | 最新 Linux 镜像 | 核心镜像构建及隔离 Compose 启动、真实 worker、受限数据库角色、健康／任务指标、备份恢复通过 |
 
-各批次有重叠，不相加成用例总数；修复后的专项通过也不冒充最后提交的完整回归。50 个跳过项包括未配置的真实外部连接器／CDC，以及未安装的 docx/docling。当前提交的 Windows／Linux PostgreSQL 全量 CI 以 [PR 检查记录](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks) 为准。
+各批次有重叠，不相加成用例总数；修复后的专项通过也不冒充最后提交的完整回归。50 个跳过项包括未配置的真实外部连接器／CDC，以及未安装的 docx/docling。
+
+提交 `c1120f6` 的 [远端回归](https://github.com/xiaohuihuiaijia/ontweft/actions/runs/42824195198) 实际为 Windows 669 通过／216 跳过／1 失败，Linux PostgreSQL 834 通过／50 跳过／2 失败。两端共同失败的是旧 CDC 用例仍将显示标签改名视为语义变更；现已分别断言标签兼容和真实必填约束变更阻断，保留冻结绑定及来源修订检查。Linux 另有长文档检索响应缺少结果字段；已补 HTTP 状态诊断，在独立 PostgreSQL 17.11 与 SQLite 定向复测中通过（合计 3 项），尚不据此宣称该次完整 CI 通过。最新远端结果以 [PR 检查记录](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks) 为准。
 
 此前同日核心依赖 pip-audit 和前端生产依赖 npm audit 未发现已知漏洞；本轮依赖未变，审计仍在现有 CI 中执行。它们不等于渗透测试或完整安全审计。
 

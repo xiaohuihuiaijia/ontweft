@@ -187,12 +187,16 @@ def test_configuration_freezes_exact_published_scope_and_is_idempotent(request, 
         assert session.scalar(select(func.count()).select_from(Job)) == 0
 
 
-def test_binding_cannot_silently_follow_new_model_or_source_revision(platform):
+def test_binding_allows_labels_but_not_semantic_or_source_changes(platform):
     client, app, owner, _ = platform
     setup = prepare(platform)
     frozen = freeze(client, setup)["binding"]
     updated = copy.deepcopy(setup["definition"])
     updated["types"][0]["label"] = "新版条目"
+    publish(client, owner["project_id"], updated)
+    compatible = client.get(setup["url"]).json()
+    assert compatible["reason_code"] == "inbox_empty" and compatible["binding"] == frozen
+    updated["types"][0]["properties"][0]["required"] = False
     release = publish(client, owner["project_id"], updated)
     blocked = client.get(setup["url"]).json()
     assert blocked["reason_code"] == "binding_changed" and blocked["binding"] == frozen

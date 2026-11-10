@@ -52,6 +52,8 @@ PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/
 
 ## 维护边界
 
+更新 GitHub 展示截图时，复用上面的 Playwright 环境运行 `node scripts/capture_showcase.cjs`。它通过真实 API 创建独立合成图，使用实际拖动和编辑入口，结果写入忽略目录 `var/reports/showcase/`。确认画面后只复制所选 PNG 到 `docs/images/graph-workbench.png`，并更新 [截图来源](docs/images/README.md)；不提交临时数据库或日志。中英文 README 共用这一张图。
+
 - 保留 `ontology.api:create_app`、CLI、worker 和 parse_task 入口。
 - 新 ORM 类加入 `core/registry.py`；历史 Alembic revision 不重写。
 - `backend/ontology/functions/runtime.py` 是已发布的 v1 源码哈希载体，不能自动格式化或改换行符；函数行为变更通过新版本及审批发布。

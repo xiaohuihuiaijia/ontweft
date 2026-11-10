@@ -115,10 +115,14 @@ def test_partial_and_long_document_exact_location_after_200_elements(content_pla
         row.ir, row.ir_fingerprint, row.state = changed, ir_fingerprint(changed), "partial"
         enqueue_content(session, row, "document")
     drain(app, owner)
-    hit = search(client, owner, "特殊阀门").json()["items"][0]
+    response = search(client, owner, "特殊阀门")
+    assert response.status_code == 200, response.text
+    hit = response.json()["items"][0]
     assert hit["status"] == "partial" and not hit["complete"] and hit["warnings"] == ["扫描页未识别"]
     assert hit["anchor"]["element_index"] > 200
-    result = resolve(client, owner, hit).json()
+    response = resolve(client, owner, hit)
+    assert response.status_code == 200, response.text
+    result = response.json()
     assert "尾部证据" in result["unit"]["text"] and result["coverage"]["pages"][0]["status"] == "needs_ocr"
     assert result["unit"]["evidence"]["page_number"] is None
     assert result["unit"]["metadata"]["exact_integer"] == "9223372036854775807"

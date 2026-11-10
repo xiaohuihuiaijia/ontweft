@@ -41,8 +41,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 3621,
-      "sha256": "297498f5716536e4a3398253c3974045a7c813ba851fd1f3d24be531626ff2cc",
+      "bytes": 4063,
+      "sha256": "558aa9774f9ad7d87c53e7ef8b938feb9a93ac531b820ca0d5343920844f9a71",
       "source": "maintained-in-public-repository"
     },
     {
@@ -64,9 +64,15 @@
       "source": "NOTICE"
     },
     {
+      "path": "README.en.md",
+      "bytes": 8727,
+      "sha256": "2b0306fd5f28de27d42ce3abb37e401edc6c7bf72129e05c7873265b7b47993a",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "README.md",
-      "bytes": 6615,
-      "sha256": "cce0af650c4194a42065b6663d8b2f37ed8e01adfb3e53a82efd547863e32735",
+      "bytes": 8127,
+      "sha256": "3b9f23153071df261da99b6fd7afc3370a867159ce4423b5abca9b9c06831d4c",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1097,8 +1103,8 @@
     },
     {
       "path": "backend/tests/cdc/test_cdc_projection_config.py",
-      "bytes": 24518,
-      "sha256": "9167a3e7ed79d3803f9da3901a793912343ee9c5052d7c381f4b1fff112784fe",
+      "bytes": 24769,
+      "sha256": "7d80e5e795c50516ae223ede094c1487c1ccf01154195c619431177036bda781",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1505,9 +1511,9 @@
     },
     {
       "path": "backend/tests/search/test_content_search.py",
-      "bytes": 12699,
-      "sha256": "e559eaf6c2f0eb2b9c35a17dcf2ad109eb84a07b9f2da90b79d0dc127c06ee44",
-      "source": "backend/tests/search/test_content_search.py"
+      "bytes": 12859,
+      "sha256": "3ae8169efca799d57346728480d9abfbdb9bf49d15f917125f348ac23a3e3c11",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/tests/search/test_content_search_pipeline.py",
@@ -1799,8 +1805,8 @@
     },
     {
       "path": "docs/beta-verification.md",
-      "bytes": 7897,
-      "sha256": "ac03c1cf6686d1adffc4431da585585879ff71422b27651d60b40839cb5e6a27",
+      "bytes": 8472,
+      "sha256": "d2fd8996435deac030506d5bbe0c3aa3d6870c836dfa4670199b90b6b446f556",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1823,8 +1829,8 @@
     },
     {
       "path": "docs/getting-started.md",
-      "bytes": 5757,
-      "sha256": "cbfd42992f41b27fec4eec3337e55d5aed1ec9653b23261a0b4d6156e02cf070",
+      "bytes": 5739,
+      "sha256": "163f32c8b7d97396b75199e25771201f0dca8d163b4a5a48cc18f14563b2f6eb",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1834,9 +1840,21 @@
       "source": "maintained-in-public-repository"
     },
     {
+      "path": "docs/images/README.md",
+      "bytes": 1557,
+      "sha256": "380c3cc25e726315575cfa7b8231ad459d1d334cc0344fc8874c2e4dcaa77022",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "docs/images/data-graph.png",
       "bytes": 138018,
       "sha256": "d7a6f9a248c90d6144b89415733ed872d3739d22e76e5ea9013bd6005ee3e015",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "docs/images/graph-workbench.png",
+      "bytes": 201515,
+      "sha256": "cb6f7c9cfba48097b2ec3e7b2c32b807d624b9dff8ce797974a37a284fe15248",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2623,6 +2641,12 @@
       "path": "scripts/beta_benchmark.py",
       "bytes": 34623,
       "sha256": "4481460f6f12958eededddbfe4ade28d495eb34dd041fbfb8ebecb80ef254bc5",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "scripts/capture_showcase.cjs",
+      "bytes": 11986,
+      "sha256": "858cf71b632139f8abc422c4f6e66c90cbde240467dd1db9bf14ead7d6654b49",
       "source": "maintained-in-public-repository"
     },
     {
