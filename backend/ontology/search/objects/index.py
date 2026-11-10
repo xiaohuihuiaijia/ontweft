@@ -92,26 +92,17 @@ def current_state(session, project):
     return None
 
 
-def index_status(session, project):
-    state = current_state(session, project)
+def index_status(session, project, *, state=None):
+    state = state if state is not None else current_state(session, project)
     status = "not_ready"
     if state:
-        failed = session.scalar(
-            select(ObjectSearchRequest.id)
-            .where(
-                *scoped(ObjectSearchRequest, project),
-                ObjectSearchRequest.error.is_not(None),
+        requests = select(ObjectSearchRequest.id).where(*scoped(ObjectSearchRequest, project))
+        failed, pending = session.execute(
+            select(
+                exists(requests.where(ObjectSearchRequest.error.is_not(None))),
+                exists(requests.where(ObjectSearchRequest.error.is_(None))),
             )
-            .limit(1)
-        )
-        pending = session.scalar(
-            select(ObjectSearchRequest.id)
-            .where(
-                *scoped(ObjectSearchRequest, project),
-                ObjectSearchRequest.error.is_(None),
-            )
-            .limit(1)
-        )
+        ).one()
         status = (
             "failed"
             if state.error or failed

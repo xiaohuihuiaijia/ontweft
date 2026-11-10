@@ -911,14 +911,14 @@
     },
     {
       "path": "backend/ontology/search/objects/api.py",
-      "bytes": 9073,
-      "sha256": "702e568fb159e38269bc926ed70a2a78d829ecf671c244d7d706dc671576e3c1",
+      "bytes": 9456,
+      "sha256": "ddeb6ce3c4e70d6aa7fb2810cc32f2848af5d7425f0740d07d83fd669d3f199b",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/search/objects/index.py",
-      "bytes": 18995,
-      "sha256": "db8251b88bfada702172930a0ef21c6688263004e489a332d191a7de41612a36",
+      "bytes": 18883,
+      "sha256": "ef52ea3f027e5acb472d0e0d77d2dcacfbf7bdea930157b7b3adbf4aa30ca7e1",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1715,8 +1715,8 @@
     },
     {
       "path": "docs/beta-verification.md",
-      "bytes": 5390,
-      "sha256": "8316ab9c218223036f0ae8262829c96eaa6bcb52c15e755c064854ec29823665",
+      "bytes": 6671,
+      "sha256": "a2e1e8afb888deff1156b9a144b1cdef76d2751fb728d7df32cc1563425841bb",
       "source": "maintained-in-public-repository"
     },
     {

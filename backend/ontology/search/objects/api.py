@@ -138,7 +138,7 @@ def search(data: SearchInput, request: Request, user=Depends(authenticated)):
             "query": {"text": data.q, "terms": terms, "mode": "all_terms"},
             "release_id": ctx.project.active_release_id,
             "model_version": ctx.project.version,
-            "index": index_status(session, ctx.project),
+            "index": index_status(session, ctx.project, state=state),
             "matches": {},
         }
         if state is None:
@@ -176,7 +176,7 @@ def search(data: SearchInput, request: Request, user=Depends(authenticated)):
             ObjectSearchDocument.tokenizer_version == TOKENIZER_VERSION,
             ObjectSearchDocument.status == "ready",
         ]
-        # Each term may occur in a different authorized field/chunk. Hidden
+        # Each term may occur in a different authorized field posting. Hidden
         # fields never contribute to membership, counts, ordering or snippets.
         for term in terms:
             conditions.append(
@@ -198,19 +198,25 @@ def search(data: SearchInput, request: Request, user=Depends(authenticated)):
         entities = session.scalars(
             query.order_by(Entity.updated_at.desc(), Entity.id).offset(data.offset).limit(data.limit)
         ).all()
-        result["items"] = [entity_view(session, entity, ctx) for entity in entities]
-        for entity in entities:
-            fields = session.scalars(
-                select(ObjectSearchField.field_key)
+        by_type = {definition["key"]: definition for definition in definitions}
+        result["items"] = [
+            entity_view(session, entity, ctx, definition=by_type[entity.type_key]) for entity in entities
+        ]
+        result["matches"] = {entity.id: {"fields": []} for entity in entities}
+        if entities:
+            fields = session.execute(
+                select(ObjectSearchField.entity_id, ObjectSearchField.field_key)
+                .join(Entity, ObjectSearchField.entity_id == Entity.id)
                 .where(
                     *scoped(ObjectSearchField, ctx.project),
-                    ObjectSearchField.entity_id == entity.id,
+                    ObjectSearchField.entity_id.in_([entity.id for entity in entities]),
                     ObjectSearchField.generation == state.generation,
-                    ObjectSearchField.field_key.in_(visible.get(entity.type_key, [])),
+                    or_(*access_terms),
                     or_(*(term_match(session, term) for term in terms)),
                 )
                 .distinct()
-                .order_by(ObjectSearchField.field_key)
+                .order_by(ObjectSearchField.entity_id, ObjectSearchField.field_key)
             ).all()
-            result["matches"][entity.id] = {"fields": fields}
+            for entity_id, field in fields:
+                result["matches"][entity_id]["fields"].append(field)
         return result
