@@ -929,9 +929,9 @@
     },
     {
       "path": "backend/ontology/search/content/index.py",
-      "bytes": 19105,
-      "sha256": "e05c498e918e92f5986e558c61700414f38d10cffb37d74abfe6170f0894b1ed",
-      "source": "backend/ontology/search/content/index.py"
+      "bytes": 18946,
+      "sha256": "cd4f56fa0a67da8cf44ada6b6821335759365d16bdb4238ed8ee582b004300cb",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/search/content/models.py",
@@ -1805,8 +1805,8 @@
     },
     {
       "path": "docs/beta-verification.md",
-      "bytes": 8472,
-      "sha256": "d2fd8996435deac030506d5bbe0c3aa3d6870c836dfa4670199b90b6b446f556",
+      "bytes": 8880,
+      "sha256": "d44f68f5d1a9ee115b5874fd5afe3dd8d6711f145c5853cf74a6ac7bb800b1b9",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1877,8 +1877,8 @@
     },
     {
       "path": "docs/project-audit.md",
-      "bytes": 10042,
-      "sha256": "69abff316b0a23a469e59ced4959e88f80e1e08f6cc5cbb7f0866d1d9abb124d",
+      "bytes": 10373,
+      "sha256": "1611fceec6f4c9664495a231b0d534f1fe170307bb54c6e2354cee416d1d8cca",
       "source": "maintained-in-public-repository"
     },
     {
