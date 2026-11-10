@@ -71,9 +71,13 @@ class Database:
         Base.metadata.create_all(self.engine)
 
     @contextmanager
-    def transaction(self, tenant_id: str | None = None, *, session_hash: str | None = None):
+    def transaction(self, tenant_id: str | None = None, *, session_hash: str | None = None, write=False):
         with self.sessions.begin() as session:
-            if self.engine.dialect.name == "postgresql":
+            if self.engine.dialect.name == "sqlite" and write:
+                # SQLite ignores SELECT FOR UPDATE. Reserve its database writer
+                # before reading admission predicates, including across processes.
+                session.execute(text("BEGIN IMMEDIATE"))
+            elif self.engine.dialect.name == "postgresql":
                 # Transaction-local settings also clear context on pooled connections.
                 session.execute(
                     text(

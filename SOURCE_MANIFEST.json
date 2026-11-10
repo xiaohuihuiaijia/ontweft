@@ -11,15 +11,15 @@
   "files": [
     {
       "path": ".gitattributes",
-      "bytes": 112,
-      "sha256": "b0f915e78ab9ceaa56aab31b41e8df77311442c6b23c7e49695073aa7528fbd6",
-      "source": ".gitattributes"
+      "bytes": 190,
+      "sha256": "f94dcf7b70236569b1928c3d34b97039e28e5043a6311494db2b446deedc4441",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": ".github/workflows/ci.yml",
-      "bytes": 1169,
-      "sha256": "c587b42d9fb81586b4b45e7e464d7a518295e789948f38125e3de3de2c4c15cb",
-      "source": "publishing/github/ci.yml"
+      "bytes": 1262,
+      "sha256": "7a850d365ee687f08dc0da7b3d2db46ab5d2eaf48b603bb6ddca91341eca4083",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": ".gitignore",
@@ -29,9 +29,9 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 2326,
-      "sha256": "9d3766c07f1593c87e66fca869e7f41a90cf4dcf3dcf03f0495724a3da829aa3",
-      "source": "publishing/github/CONTRIBUTING.md"
+      "bytes": 2576,
+      "sha256": "699cbdcfce7042ce7c2a6e54f5056b0b3f177eceabd580b79d40d764ca02ac1d",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "LICENSE",
@@ -407,9 +407,9 @@
     },
     {
       "path": "backend/ontology/core/db.py",
-      "bytes": 3440,
-      "sha256": "c355b4d4b5b31933e891378357b362f2af633ad2f52deef2a087f6f69a2e1967",
-      "source": "backend/ontology/core/db.py"
+      "bytes": 3742,
+      "sha256": "8e256d70b0ef95afc815891d718e4cce0a6e6958f995f7a2ebaf19f25d18a5b7",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/core/domain.py",
@@ -467,9 +467,9 @@
     },
     {
       "path": "backend/ontology/documents/history_api.py",
-      "bytes": 7767,
-      "sha256": "33363faafa65f120f3de99c84582a0735ba37ea70fb5dcd8ad8c6357c0ff5866",
-      "source": "backend/ontology/documents/history_api.py"
+      "bytes": 7779,
+      "sha256": "0689044606c979070edfe891df0a61dcc5d5e42729214f8d0d1c051e7c6a9498",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/documents/history_models.py",
@@ -641,9 +641,9 @@
     },
     {
       "path": "backend/ontology/jobs/api.py",
-      "bytes": 5008,
-      "sha256": "c0da7f2205be04521c6db04a482c1a2b31152e45db2122fb076064a6c1e54134",
-      "source": "backend/ontology/jobs/api.py"
+      "bytes": 5020,
+      "sha256": "ccb10f646783ba4258c5d30254ad8792e5d7e762baf3b1ca05cef702b10330dd",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/jobs/models.py",
@@ -1001,9 +1001,9 @@
     },
     {
       "path": "backend/tests/documents/test_document_reparse.py",
-      "bytes": 25264,
-      "sha256": "ecffdb810a0de40618616a27cad01c04f251b77734016880625a63795f19bb81",
-      "source": "backend/tests/documents/test_document_reparse.py"
+      "bytes": 26638,
+      "sha256": "77f58dd1ad945b1f6eab5f6d30f1b6c53fdec074a7ae98c8a90217b94fc74017",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/tests/documents/test_document_reparse_pipeline.py",
@@ -1517,9 +1517,9 @@
     },
     {
       "path": "docs/alpha-status.md",
-      "bytes": 2133,
-      "sha256": "0aa438d038c6dfa9b317ea2f2030333e021d536b56d30adf9d9b28b855aef63f",
-      "source": "publishing/github/alpha-status.md"
+      "bytes": 2839,
+      "sha256": "ff509181c5ae4f5213d233489054d65cf6fa1fa3fa753e1ff80b8e432cb70160",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/getting-started.md",
@@ -2272,6 +2272,12 @@
       "source": "scripts/setup_development.py"
     },
     {
+      "path": "scripts/source_manifest.py",
+      "bytes": 2100,
+      "sha256": "c8a12f057c544086c42567ff3ef3bb1112c6843b460ceed3f8a2dd1b067a93bb",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "scripts/start_local_demo.py",
       "bytes": 4523,
       "sha256": "a12e3e5857051a0f0296a7ea857cbf9c3ca658e8aff56666107bd2e71f300fd6",
@@ -2297,9 +2303,9 @@
     },
     {
       "path": "scripts/verify_model_starters_postgres.py",
-      "bytes": 4874,
-      "sha256": "e1714853270f6b495b4bec14648a5ec36c0e266eb383743f5430f773ec71748c",
-      "source": "scripts/verify_model_starters_postgres.py"
+      "bytes": 5098,
+      "sha256": "36655310a69f9bcc0346cb4a7bad1dcd4915f153642fdb08db377019596d79e3",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "scripts/verify_transport.py",

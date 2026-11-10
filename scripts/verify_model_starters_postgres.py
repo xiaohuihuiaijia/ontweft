@@ -17,11 +17,14 @@ OUTPUT = ROOT / "var/reports/open-source-readiness-20261109"
 def main():
     parser = argparse.ArgumentParser(description="Isolated PostgreSQL starter and optional graph contracts")
     parser.add_argument("--include-graph", action="store_true")
+    parser.add_argument("--include-documents", action="store_true")
     args = parser.parse_args()
-    prefix = "graph-postgres" if args.include_graph else "starter-postgres"
+    prefix = "documents-postgres" if args.include_documents else "graph-postgres" if args.include_graph else "starter-postgres"
     tests = ["backend/tests/modeling/test_templates.py"]
     if args.include_graph:
         tests.append("backend/tests/objects/test_graph_scale.py")
+    if args.include_documents:
+        tests.append("backend/tests/documents/test_document_reparse.py")
     OUTPUT.mkdir(parents=True, exist_ok=True)
     name = "ontweft-starter-pg-" + uuid4().hex
     admin_password, runtime_password = secrets.token_hex(24), secrets.token_hex(24)

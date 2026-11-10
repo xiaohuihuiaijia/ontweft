@@ -34,6 +34,8 @@ jobs:
           npm --prefix frontend ci
       - name: Build frontend
         run: npm --prefix frontend run build
+      - name: Verify source inventory
+        run: python scripts/source_manifest.py --check
       - name: Frontend tests
         run: npm --prefix frontend test -- --maxWorkers=2
       - name: Backend tests (external integrations skip without configuration)

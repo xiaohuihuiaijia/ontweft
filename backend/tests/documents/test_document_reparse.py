@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from threading import Barrier
 
 import pytest
 from fastapi.testclient import TestClient
@@ -93,6 +94,32 @@ def test_concurrent_reparse_creates_at_most_one_job_and_old_retry_is_exclusive(r
     history = client.get(f"/api/documents/{document['id']}/parses").json()
     assert history["total"] == 2
     assert [item["parse_revision"] for item in history["items"]] == [2, 1]
+
+
+def test_retry_and_new_reparse_share_one_admission_boundary(reparse_platform):
+    client, app, owner, _ = reparse_platform
+    document = parsed(reparse_platform)
+    queued = reparse(client, document)
+    assert queued.status_code == 202
+    job_id = queued.json()["job"]["id"]
+    assert client.post(f"/api/jobs/{job_id}/cancel").status_code == 200
+    start = Barrier(2)
+
+    def submit(retry):
+        start.wait(timeout=10)
+        return client.post(f"/api/jobs/{job_id}/retry") if retry else reparse(client, document)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(submit, (True, False)))
+    assert sorted(response.status_code for response in responses) == [202, 409] or sorted(
+        response.status_code for response in responses
+    ) == [200, 409]
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        jobs = session.scalars(select(Job).where(Job.project_id == owner["project_id"])).all()
+        assert len([job for job in jobs if job.status in {"pending", "running", "retry_wait"}]) == 1
+        assert session.get(Document, document["id"]).parse_revision == document["parse_revision"]
+    assert worker.process_one(app.state.db, app.state.settings)
+    assert client.get(f"/api/documents/{document['id']}").json()["parse_revision"] == 2
 
 
 def test_history_reads_current_authority_and_wrong_document_scope_is_hidden(reparse_platform):

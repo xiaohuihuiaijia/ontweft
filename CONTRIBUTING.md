@@ -50,3 +50,5 @@ PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/
 - 跨测试辅助代码放入 `backend/tests/support`，不能从其他 `test_*.py` 或 `conftest.py` 导入。
 - 不以截图替代权限、持久化或并发合同测试；不把模拟与局部通过描述为真实外部集成通过。
 - 凭据、运行数据、客户资料、未明确许可的图片/权重不得提交。
+
+新增文件先按路径加入 Git 暂存区，然后运行 `python scripts/source_manifest.py` 更新源码清单，并提交清单。`python scripts/source_manifest.py --check` 仅核对文件与摘要，不代表凭据或许可证审查通过。

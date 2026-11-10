@@ -52,7 +52,7 @@ def jobs(
 
 @router.post("/jobs/{job_id}/{operation}")
 def job_operation(job_id: str, operation: str, request: Request, user=Depends(authenticated)):
-    with request.app.state.db.transaction(user.tenant_id) as session:
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         row = scoped_record(session, Job, job_id, user)
         session.scalar(
             select(Project)

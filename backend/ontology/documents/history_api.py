@@ -64,7 +64,7 @@ def parse_view(row, doc, *, full=False):
 
 @router.post("/documents/{document_id}/reparse", status_code=202)
 def reparse(document_id: str, data: ReparseInput, request: Request, user=Depends(authenticated)):
-    with request.app.state.db.transaction(user.tenant_id) as session:
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         doc = scoped_record(session, Document, document_id, user)
         ctx = content_context(session, request, user, doc.project_id, permission="documents:write")
         require_document(session, ctx, doc.id)
