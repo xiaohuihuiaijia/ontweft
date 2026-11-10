@@ -2,6 +2,23 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { SourcesPage } from './SourcesPage';
 
+it('retains historical resources and snapshots without offering disabled connector operations', async () => {
+  const calls: string[] = [];
+  const source = { id: 'legacy', name: '历史 MongoDB', kind: 'mongo', revision: 1, config: {}, resources: [{ resource_id: 'items', name: 'items', fields: [], primary_key: ['id'], foreign_keys: [] }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    calls.push(String(url));
+    return new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [{ id: 'retained-snapshot', resource_id: 'items', status: 'complete', source_revision: 1 }], total: 1 } : { items: [source], total: 1 }));
+  });
+  render(<SourcesPage projectId="p" canWrite canConfigureProjection integrationsEnabled={false} onDirty={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看资源 →' }));
+  await screen.findByText('retained-snapshot');
+  fireEvent.click(screen.getByRole('button', { name: 'items' }));
+  expect(screen.getByText(/此连接器扩展已停用/)).toBeTruthy();
+  for (const name of ['测试连接', '发现资源', '读取最多 20 条样本', '采集所选资源快照']) expect(screen.queryByRole('button', { name })).toBeNull();
+  expect(screen.getByRole('button', { name: '查看记录与投影结果' })).toBeTruthy();
+  expect(calls.every(url => url.includes('/sources'))).toBe(true);
+});
+
 it('prevents source/resource switching while an old sample is in flight and clears samples before the next resource', async () => {
   let resolveSample: (response: Response) => void = () => {};
   const source = { id: 's', name: '测试来源', kind: 'sqlite', revision: 1, config: {}, resources: ['A', 'B'].map(name => ({ resource_id: name, name, fields: [], primary_key: ['id'], foreign_keys: [] })) };

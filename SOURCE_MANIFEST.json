@@ -1403,8 +1403,8 @@
     },
     {
       "path": "backend/tests/platform/test_extensions.py",
-      "bytes": 2920,
-      "sha256": "84be23a8f4760292972eb88b13885813242ea33977c53c2385d2aebee55e83a3",
+      "bytes": 3847,
+      "sha256": "ba53efd76fe692a56076afa24f55470d92eb0dd33b891ba36979759023d4f8d6",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1715,8 +1715,8 @@
     },
     {
       "path": "docs/beta-verification.md",
-      "bytes": 6671,
-      "sha256": "a2e1e8afb888deff1156b9a144b1cdef76d2751fb728d7df32cc1563425841bb",
+      "bytes": 6866,
+      "sha256": "26af5f9e52b0c2e415ff8676154f07f5514145b0954b4c02652389f1d9709eb8",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2267,20 +2267,20 @@
     },
     {
       "path": "frontend/src/features/sources/SourceSnapshots.tsx",
-      "bytes": 4954,
-      "sha256": "706e96e7bd462aeb135a7b985fa32936eb0cbbf1b5d9690c2113a576d46a73b0",
+      "bytes": 5011,
+      "sha256": "542ecd18eaff87ae43aef5affb0641e2b0a633ed295654b56c3fc9c74478b31f",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/sources/SourcesPage.test.tsx",
-      "bytes": 3741,
-      "sha256": "9662d9e7b682ce364182b262232c4af948a017068929cf17d69d9791375e4fad",
-      "source": "frontend/src/features/sources/SourcesPage.test.tsx"
+      "bytes": 5135,
+      "sha256": "3774aa689860ad3bfc322740fd380067e801a6ea54f191e82cc49267f900e6d6",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/sources/SourcesPage.tsx",
-      "bytes": 12926,
-      "sha256": "de4eac51a126e42df439aaedfead61627be9baccc69d59d229d78d6f34bc6178",
+      "bytes": 13318,
+      "sha256": "ccc892f73d1a9712c5a3da400541d067b7704b4a045a1a40a3325751dc39903f",
       "source": "maintained-in-public-repository"
     },
     {

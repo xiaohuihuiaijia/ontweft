@@ -3,6 +3,7 @@ from ontology.api import create_app
 from ontology.cli import bootstrap
 from ontology.core.config import Settings
 from ontology.jobs.models import Job
+from ontology.sources.models import Source
 from ontology.worker import process_one
 from sqlalchemy import select
 
@@ -39,6 +40,16 @@ def test_core_routes_and_parked_extension_jobs(tmp_path):
             == 409
         )
         with app.state.db.transaction(owner["tenant_id"]) as session:
+            legacy = Source(
+                tenant_id=owner["tenant_id"],
+                project_id=owner["project_id"],
+                name="Retained optional source",
+                kind="mongo",
+                config={},
+            )
+            session.add(legacy)
+            session.flush()
+            legacy_id = legacy.id
             job = Job(
                 tenant_id=owner["tenant_id"],
                 project_id=owner["project_id"],
@@ -47,9 +58,22 @@ def test_core_routes_and_parked_extension_jobs(tmp_path):
                 payload={},
             )
             session.add(job)
+        assert any(
+            row["id"] == legacy_id
+            for row in client.get("/api/sources", params={"project_id": owner["project_id"]}).json()["items"]
+        )
+        assert client.post(f"/api/sources/{legacy_id}/test", json={}).status_code == 409
+        assert (
+            client.post(
+                f"/api/sources/{legacy_id}/snapshots",
+                json={"expected_source_revision": 1, "resource_id": "items"},
+            ).status_code
+            == 409
+        )
         assert process_one(app.state.db, settings) is False
         with app.state.db.transaction(owner["tenant_id"]) as session:
-            assert session.scalar(select(Job)).status == "pending"
+            jobs = session.scalars(select(Job)).all()
+            assert len(jobs) == 1 and jobs[0].status == "pending"
         assert client.get("/api/health").status_code == 200
     app.state.db.engine.dispose()
 
