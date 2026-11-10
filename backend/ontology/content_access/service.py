@@ -212,6 +212,9 @@ def content_context(session, request, user, project_id, *, permission="objects:r
     if permission != "objects:read":
         access(session, user, project_id, permission)
     ctx = read_context(session, user, project_id)
+    if "integrations" not in request.app.state.settings.extensions:
+        ctx.content_application_ids = []
+        return ctx
     login = session.scalar(
         select(LoginSession)
         .where(LoginSession.token_hash == token_hash(request.cookies.get("ontology_session", "")))
@@ -421,6 +424,8 @@ async def refresh_project(request, user, project_id, *, actions=("view",)):
 
 async def prepare_content_access(request: Request, user=Depends(authenticated)):
     # Route dependencies run before sync content handlers open transactions.
+    if "integrations" not in request.app.state.settings.extensions:
+        return
     path = request.url.path
     if path.endswith("/documents/upload"):
         return

@@ -9,22 +9,37 @@ from ontology.identity.security import ROLES
 from ontology.jobs.models import Job
 
 
-def claim(db, worker_id: str, lease_seconds=300) -> dict | None:
+def claim(db, worker_id: str, lease_seconds=300, *, kinds=None, source_kinds=None) -> dict | None:
     with db.transaction() as session:
         tenants = list(session.scalars(select(Tenant.id)))
     for tenant_id in tenants:
-        run = claim_for_tenant(db, tenant_id, worker_id, lease_seconds)
+        run = claim_for_tenant(
+            db, tenant_id, worker_id, lease_seconds, kinds=kinds, source_kinds=source_kinds
+        )
         if run:
             return run
     return None
 
 
-def claim_for_tenant(db, tenant_id, worker_id, lease_seconds):
+def claim_for_tenant(db, tenant_id, worker_id, lease_seconds, *, kinds=None, source_kinds=None):
     with db.transaction(tenant_id) as session:
         current = time.time()
         eligible = (Job.tenant_id == tenant_id) & or_(
             Job.status == "pending", (Job.status == "running") & (Job.lease_until < current)
         )
+        if kinds is not None:
+            eligible &= Job.kind.in_(kinds)
+        if source_kinds is not None:
+            from ontology.sources.models import Source, SourceSnapshot
+
+            supported = (
+                select(SourceSnapshot.id)
+                .join(Source, Source.id == SourceSnapshot.source_id)
+                .where(Source.tenant_id == tenant_id, Source.kind.in_(source_kinds))
+            )
+            eligible &= or_(
+                Job.kind != "source.snapshot", Job.payload["snapshot_id"].as_string().in_(supported)
+            )
         job = session.scalar(
             select(Job).where(eligible).order_by(Job.created_at).with_for_update(skip_locked=True).limit(1)
         )
@@ -101,6 +116,8 @@ def check_job_authority(session, job: Job):
         "source.discover": "sources:write",
         "source.snapshot": "sources:write",
         "cdc.project": "sources:write",
+        "model.validate": "ontology:write",
+        "relation.recompute": "objects:write",
     }.get(job.kind)
     if (
         not user

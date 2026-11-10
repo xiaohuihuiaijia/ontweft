@@ -25,6 +25,8 @@ def create_snapshot(source_id: str, data: SnapshotInput, request: Request, user=
         ctx = access(session, user, source.project_id, "sources:write")
         if source.revision != data.expected_source_revision:
             conflict("来源配置已改变")
+        if source.kind not in request.app.state.settings.source_kinds:
+            raise DomainError(409, "extension_disabled", "当前部署未启用此连接器")
         if source.kind == "feishu":
             raise DomainError(
                 422, "employee_authorization_required", "飞书批量持久接入须先配置当前员工授权服务"
@@ -32,37 +34,41 @@ def create_snapshot(source_id: str, data: SnapshotInput, request: Request, user=
         resource = next((r for r in source.resources if r["resource_id"] == data.resource_id), None)
         if not resource:
             raise DomainError(422, "undiscovered_resource", "请先发现并选择有效资源")
-        generation = (
-            session.scalar(
-                select(func.max(SourceSnapshot.generation)).where(
-                    SourceSnapshot.source_id == source.id, SourceSnapshot.resource_id == data.resource_id
-                )
+        return enqueue_snapshot(session, ctx, source, resource)
+
+
+def enqueue_snapshot(session, ctx, source, resource):
+    generation = (
+        session.scalar(
+            select(func.max(SourceSnapshot.generation)).where(
+                SourceSnapshot.source_id == source.id, SourceSnapshot.resource_id == resource["resource_id"]
             )
-            or 0
-        ) + 1
-        snapshot = SourceSnapshot(
-            tenant_id=user.tenant_id,
-            project_id=source.project_id,
-            source_id=source.id,
-            source_revision=source.revision,
-            resource_id=data.resource_id,
-            schema_fingerprint=schema_fingerprint(resource),
-            release_id=ctx.project.active_release_id,
-            generation=generation,
         )
-        session.add(snapshot)
-        session.flush()
-        job = Job(
-            tenant_id=user.tenant_id,
-            project_id=source.project_id,
-            kind="source.snapshot",
-            owner_id=user.id,
-            payload={"snapshot_id": snapshot.id, "source_id": source.id},
-        )
-        session.add(job)
-        session.flush()
-        audit(session, user, source.project_id, "source.snapshot.requested", snapshot.id)
-        return {"snapshot": row_dict(snapshot), "job": row_dict(job)}
+        or 0
+    ) + 1
+    snapshot = SourceSnapshot(
+        tenant_id=ctx.user.tenant_id,
+        project_id=source.project_id,
+        source_id=source.id,
+        source_revision=source.revision,
+        resource_id=resource["resource_id"],
+        schema_fingerprint=schema_fingerprint(resource),
+        release_id=ctx.project.active_release_id,
+        generation=generation,
+    )
+    session.add(snapshot)
+    session.flush()
+    job = Job(
+        tenant_id=ctx.user.tenant_id,
+        project_id=source.project_id,
+        kind="source.snapshot",
+        owner_id=ctx.user.id,
+        payload={"snapshot_id": snapshot.id, "source_id": source.id},
+    )
+    session.add(job)
+    session.flush()
+    audit(session, ctx.user, source.project_id, "source.snapshot.requested", snapshot.id)
+    return {"snapshot": row_dict(snapshot), "job": row_dict(job)}
 
 
 @router.get("/sources/{source_id}/snapshots")

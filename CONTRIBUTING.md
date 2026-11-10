@@ -9,7 +9,7 @@
 按照 README 安装依赖，然后运行：
 
 ```sh
-uv run --locked --extra dev python scripts/test_backend.py backend/tests -q
+uv run --locked --extra dev --extra knowledge --extra integrations python scripts/test_backend.py backend/tests -q
 npm --prefix frontend test -- --maxWorkers=2
 npm --prefix frontend run build
 ```
@@ -21,6 +21,8 @@ uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --i
 uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-intake --include-relations
 uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-database-intake
 ```
+
+企业 Beta 的核心安装、Linux/PostgreSQL、持续关系、文件版本、异人审批和恢复证据见 [验证记录](docs/beta-verification.md)。`scripts/beta_benchmark.py` 只使用显式测试数据库环境，创建独立随机数据库，默认测试 10 万对象、100 万关系和 50 个用户；结束后清理自己的数据库。它使用合成预建索引，不能代表首次导入或全量索引构建速度。部署与备份恢复命令见 [部署说明](docs/deployment.md)。
 
 浏览器检查在独立临时数据目录运行，不使用开发账号。下面把测试工具安装到忽略目录，不修改应用锁文件：
 

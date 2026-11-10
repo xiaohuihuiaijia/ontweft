@@ -22,6 +22,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app):
+        # Search is a core capability. Load its local dictionary before the
+        # service reports healthy, instead of queuing the first user requests.
+        from ontology.search.tokens import tokenizer
+
+        tokenizer()
         yield
         database.engine.dispose()
 
@@ -105,20 +110,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_identity_routes(app, database, settings)
 
-    from ontology.actions.api import router as actions_router
     from ontology.cdc.api import router as cdc_router
     from ontology.cdc.projection_api import router as cdc_projection_router
-    from ontology.documents.api import router as documents_router
-    from ontology.documents.history_api import router as document_router
-    from ontology.functions.api import router as functions_router
     from ontology.jobs.api import router as jobs_router
-    from ontology.knowledge.api import router as knowledge_router
     from ontology.modeling.api import router as ontology_router
     from ontology.objects.api import router as objects_router
-    from ontology.objects.relation_matching import router as relation_matching_router
     from ontology.objects.contributions.api import router as contributions_router
     from ontology.objects.contributions.decision_api import router as decisions_router
-    from ontology.search.content.api import router as content_search_router
+    from ontology.objects.relation_matching import router as relation_matching_router
     from ontology.search.objects.api import router as search_router
     from ontology.sources.api import router as sources_router
     from ontology.sources.intake_api import router as intake_router
@@ -127,24 +126,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(ontology_router, prefix="/api")
     app.include_router(objects_router, prefix="/api")
+    from ontology.objects.graph import router as graph_router
+
+    app.include_router(graph_router, prefix="/api")
     app.include_router(relation_matching_router, prefix="/api")
+    from ontology.objects.relation_rules import router as relation_rules_router
+
+    app.include_router(relation_rules_router, prefix="/api")
     app.include_router(search_router, prefix="/api")
     app.include_router(contributions_router, prefix="/api")
     app.include_router(decisions_router, prefix="/api")
-    app.include_router(documents_router, prefix="/api")
-    app.include_router(knowledge_router, prefix="/api")
     app.include_router(jobs_router, prefix="/api")
-    app.include_router(content_search_router, prefix="/api")
-    app.include_router(document_router, prefix="/api")
     app.include_router(sources_router, prefix="/api")
     app.include_router(intake_router, prefix="/api")
-    from ontology.integrations.feishu.api import router as feishu_router
+    from ontology.sources.file_versions import router as file_versions_router
 
-    app.include_router(feishu_router, prefix="/api")
+    app.include_router(file_versions_router, prefix="/api")
     app.include_router(ingestion_router, prefix="/api")
     app.include_router(mapping_preview_router, prefix="/api")
-    app.include_router(actions_router, prefix="/api")
-    app.include_router(functions_router, prefix="/api")
     app.include_router(cdc_projection_router, prefix="/api")
     app.include_router(cdc_router, prefix="/api")
+    if "knowledge" in settings.extensions:
+        from ontology.documents.api import router as documents_router
+        from ontology.documents.history_api import router as document_router
+        from ontology.knowledge.api import router as knowledge_router
+        from ontology.search.content.api import router as content_search_router
+
+        for router in (documents_router, document_router, knowledge_router, content_search_router):
+            app.include_router(router, prefix="/api")
+    if "integrations" in settings.extensions:
+        from ontology.integrations.feishu.api import router as feishu_router
+
+        app.include_router(feishu_router, prefix="/api")
+    if "automation" in settings.extensions:
+        from ontology.actions.api import router as actions_router
+        from ontology.functions.api import router as functions_router
+
+        app.include_router(actions_router, prefix="/api")
+        app.include_router(functions_router, prefix="/api")
+    if settings.frontend_dir is not None:
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/", StaticFiles(directory=settings.frontend_dir, html=True), name="frontend")
     return app

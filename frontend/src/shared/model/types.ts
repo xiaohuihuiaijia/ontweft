@@ -1,17 +1,17 @@
 export type RecordData = Record<string, unknown>;
 export interface Project { id: string; name: string; role?: string; permissions?: string[] }
-export interface Session { user: { id: string; username?: string | null; email: string; display_name: string; admin?: boolean }; tenant: { id: string; name: string }; projects: Project[]; permissions: string[] }
+export interface Session { user: { id: string; username?: string | null; email: string; display_name: string; admin?: boolean }; tenant: { id: string; name: string }; projects: Project[]; permissions: string[]; features?: string[]; actions_available?: boolean; model_approval?: 'single' | 'separate' }
 export interface ListResult<T> { items: T[]; total: number }
 export type DataType = 'string' | 'integer' | 'number' | 'boolean' | 'date' | 'datetime' | 'enum' | 'json';
 export interface PropertyDef { key: string; label: string; data_type: DataType; required?: boolean; enum?: string[]; unit?: string; source_owned?: boolean; read_roles?: string[]; write_roles?: string[] }
 export interface RelationDef { key: string; label: string; target_type: string; cardinality: 'one' | 'many' }
-export interface TypeDef { key: string; label: string; description?: string; properties: PropertyDef[]; relations: RelationDef[] }
+export interface TypeDef { key: string; label: string; description?: string; properties: PropertyDef[]; unique_keys?: string[][]; relations: RelationDef[] }
 export interface TypeList extends ListResult<TypeDef> { release_id?: string | null; version?: number }
 export interface FieldMapping { source_field: string; transform: 'identity' | 'trim' | 'lower' | 'upper' | 'integer' | 'number' | 'boolean' | 'date' }
-export interface MappingDef { key: string; source_id: string; resource_id: string; type_key: string; schema_fingerprint: string; fields: Record<string, FieldMapping> }
+export interface MappingDef { key: string; source_id: string; resource_id: string; type_key: string; schema_fingerprint: string; identity_fields?: string[]; fields: Record<string, FieldMapping> }
 export interface Definition { types: TypeDef[]; mappings?: MappingDef[] }
 export interface DefinitionResult { definition: Definition; release_id?: string | null; version: number }
-export interface ChangeSet { id: string; project_id: string; title: string; revision: number; status: string; definition: Definition; baseline_release_id?: string; validation?: { valid: boolean; errors: unknown[] }; approved_by?: string }
+export interface ChangeSet { id: string; project_id: string; title: string; revision: number; status: string; definition: Definition; baseline_release_id?: string; validation?: { valid: boolean; errors: unknown[]; job_id?: string; objects_checked?: number }; approved_by?: string; validation_job?: { id: string; status: string; error?: string; objects_checked: number } }
 export interface BusinessObject { id: string; project_id: string; type_key: string; properties: RecordData; evidence?: unknown[]; revision: number; data_status?: 'active' | 'conflict' | 'incomplete' | 'withdrawn'; model_release_id?: string | null; model_version?: number; created_at?: string; updated_at?: string }
 export interface GraphNode { id: string; label: string; type_key: string; type_label?: string; visible_property_count?: number; kind: string; properties: RecordData; revision?: number }
 export interface GraphEdge { id: string; source: string; target: string; label: string; type_key: string; kind: string; cardinality?: 'one' | 'many' }

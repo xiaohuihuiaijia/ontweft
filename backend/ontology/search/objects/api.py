@@ -5,13 +5,12 @@ from time import monotonic
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
-from sqlalchemy import and_, event, exists, func, literal_column, or_, select, text
+from sqlalchemy import and_, event, exists, func, or_, select, text
 from sqlalchemy.exc import DBAPIError
 
 from ontology.core.domain import active_definition, entity_view
-from ontology.core.errors import DomainError, conflict, missing
+from ontology.core.errors import DomainError, conflict
 from ontology.core.schemas import StrictModel
-from ontology.identity.models import Project, User
 from ontology.identity.security import access, allowed_field, audit, authenticated
 from ontology.objects.models import Entity
 from ontology.search.objects.index import current_state, index_status, reset_project, scoped
@@ -73,27 +72,7 @@ class SearchInput(SearchBaseline):
 def read_context(session, user, project_id):
     # A response uses one model/membership/object baseline through count and
     # pagination. Current authorization is read after waiting for the lock.
-    project = session.scalar(
-        select(Project)
-        .where(
-            Project.id == project_id,
-            Project.tenant_id == user.tenant_id,
-        )
-        .with_for_update(read=True)
-        .execution_options(populate_existing=True)
-    )
-    if project is None:
-        missing()
-    session.scalar(
-        select(User)
-        .where(
-            User.id == user.id,
-            User.tenant_id == user.tenant_id,
-        )
-        .with_for_update(read=True)
-        .execution_options(populate_existing=True)
-    )
-    return access(session, user, project_id)
+    return access(session, user, project_id, read_lock=True)
 
 
 def baseline(ctx, data):
@@ -105,14 +84,10 @@ def baseline(ctx, data):
 
 
 def term_match(session, term):
-    if session.bind.dialect.name == "postgresql":
-        config = literal_column("'simple'::regconfig")
-        return func.to_tsvector(config, ObjectSearchField.token_text).op("@@")(
-            func.plainto_tsquery(config, term)
-        )
-    # SQLite is an explicitly documented reference backend for local tests.
-    # The production path above uses the actual PostgreSQL expression GIN.
-    return ObjectSearchField.token_text.contains(" " + term + " ", autoescape=True)
+    # Equality can use the scoped B-tree under forced RLS. PG's non-leakproof
+    # @@ / to_tsvector expression caused a full tenant scan in measured plans.
+    # Terms are already normalized by the shared versioned tokenizer.
+    return ObjectSearchField.token_text == " " + term + " "
 
 
 @router.get("/search/status")

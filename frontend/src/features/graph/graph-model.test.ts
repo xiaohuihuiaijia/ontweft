@@ -7,6 +7,14 @@ const data: GraphResult = {
   edges: [{ id: 'ab', source: 'a', target: 'b', label: '使用', type_key: 'uses', kind: 'relation' }, { id: 'ab2', source: 'a', target: 'b', label: '负责', type_key: 'owns', kind: 'relation' }, { id: 'aa', source: 'a', target: 'a', label: '关联自身', type_key: 'self', kind: 'relation' }], truncated: false,
 };
 
+it('lays out only new nodes around retained anchors without moving saved coordinates', () => {
+  const positions = [{ id: 'a', x: 8, y: 9 }, { id: 'b', x: 10, y: 12 }];
+  const result = layoutGraph({ ids: ['a', 'b', 'c'], edges: [{ source: 'a', target: 'b' }, { source: 'b', target: 'c' }], positions });
+  expect(result.filter(point => point.id !== 'c')).toEqual(positions);
+  expect(result.every(point => Number.isFinite(point.x) && Number.isFinite(point.y))).toBe(true);
+  expect(result.find(point => point.id === 'c')).not.toEqual({ ...positions[1], id: 'c' });
+});
+
 it('keeps separate physical lanes for forward and reverse relations, stable under response reordering', () => {
   const edges = [...data.edges, { ...data.edges[0], id: 'ba', source: 'b', target: 'a' }];
   const lanes = edgeLanes(edges);

@@ -352,6 +352,20 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
         relation = next((r for r in definition.get("relations", []) if r["key"] == data.type_key), None)
         if not relation or relation["target_type"] != target.type_key:
             raise DomainError(422, "invalid_relation", "关系谓词或目标类型不匹配")
+        existing = session.scalar(
+            select(Relation).where(
+                Relation.tenant_id == user.tenant_id,
+                Relation.project_id == data.project_id,
+                Relation.source_id == source.id,
+                Relation.target_id == target.id,
+                Relation.type_key == data.type_key,
+            )
+        )
+        if existing and not existing.manual:
+            existing.manual = True
+            existing.revision += 1
+            audit(session, user, data.project_id, "relation.manual.retained", existing.id)
+            return row_dict(existing)
         if relation["cardinality"] == "one" and session.scalar(
             select(Relation.id).where(
                 Relation.project_id == data.project_id,
@@ -376,6 +390,9 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
             evidence=data.evidence,
         )
         session.add(row)
+        from ontology.objects.constraints import touch_entity
+
+        touch_entity(session, source)
         session.flush()
         audit(session, user, data.project_id, "relation.created", row.id)
         return row_dict(row)
@@ -391,7 +408,27 @@ def delete_relation(
         ensure_model_baseline(session, ctx, data)
         if row.revision != data.expected_revision:
             conflict()
+        from ontology.objects.rule_models import RelationContribution
+
+        supported = session.scalar(
+            select(RelationContribution.id).where(RelationContribution.relation_id == row.id).limit(1)
+        )
+        if supported:
+            if not row.manual:
+                conflict("关系由持续规则维护，请调整规则或匹配字段")
+            row.manual = False
+            row.revision += 1
+            audit(session, user, row.project_id, "relation.manual.removed", row.id)
+            return {"ok": True, "retained_by_rules": True}
+        from ontology.objects.constraints import touch_entity
+
+        touch_entity(session, session.get(Entity, row.source_id))
+        source = session.get(Entity, row.source_id)
         session.delete(row)
+        session.flush()
+        from ontology.objects.relation_rules import changed_entity
+
+        changed_entity(session, source)
         audit(session, user, row.project_id, "relation.deleted", row.id)
         return {"ok": True}
 
@@ -405,6 +442,8 @@ async def graph(
     user=Depends(authenticated),
 ):
     if kind == "knowledge":
+        if "knowledge" not in request.app.state.settings.extensions:
+            raise DomainError(409, "extension_disabled", "当前部署未启用知识资料扩展")
         from ontology.content_access.service import refresh_project
 
         await refresh_project(request, user, project_id)
@@ -468,62 +507,21 @@ async def graph(
             .order_by(Entity.id)
             .limit(limit + 1)
         ).all()
-        definitions = {t["key"]: t for t in active_definition(session, ctx.project)["types"]}
-        object_types = {obj.id: obj.type_key for obj in rows[:limit]}
-        nodes = []
-        for obj in rows[:limit]:
-            view = entity_view(session, obj, ctx, definition=definitions[obj.type_key])
-            props = view["properties"]
-            nodes.append(
-                {
-                    "id": obj.id,
-                    "label": str(props.get("name", props.get("title", obj.type_key))),
-                    "type_key": obj.type_key,
-                    "type_label": definitions[obj.type_key]["label"],
-                    "kind": "object",
-                    "properties": props,
-                    "revision": obj.revision,
-                }
-            )
-        ids = [n["id"] for n in nodes]
+        from ontology.objects.graph import graph_slice
+
+        ids = [obj.id for obj in rows[:limit]]
         rels = session.scalars(
             select(Relation)
             .where(
-                Relation.project_id == project_id,
                 Relation.tenant_id == user.tenant_id,
+                Relation.project_id == project_id,
                 Relation.source_id.in_(ids),
                 Relation.target_id.in_(ids),
             )
             .order_by(Relation.id)
             .limit(1001)
         ).all()
-        edges = []
-        for rel in rels[:1000]:
-            relation_def = next(
-                (
-                    item
-                    for item in definitions[object_types[rel.source_id]].get("relations", [])
-                    if item["key"] == rel.type_key
-                ),
-                {},
-            )
-            edges.append(
-                {
-                    "id": rel.id,
-                    "source": rel.source_id,
-                    "target": rel.target_id,
-                    "label": relation_def.get("label", rel.type_key),
-                    "type_key": rel.type_key,
-                    "kind": "relation",
-                    "cardinality": relation_def.get("cardinality"),
-                }
-            )
-        return {
-            **graph_baseline,
-            "nodes": nodes,
-            "edges": edges,
-            "truncated": len(rows) > limit or len(rels) > 1000,
-        }
+        return graph_slice(session, ctx, rows[:limit], rels, truncated=len(rows) > limit)
 
 
 @router.get("/audit")

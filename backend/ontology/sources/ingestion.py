@@ -71,6 +71,14 @@ def mapping_errors(session, ctx, definition):
             continue
         fields = {f["name"] for f in resource["fields"]}
         props = {p["key"]: p for p in type_def["properties"]}
+        identity_fields = mapping.get("identity_fields", [])
+        if identity_fields and (
+            set(identity_fields) not in [set(k) for k in type_def.get("unique_keys", [])]
+            or any(f not in mapping["fields"] for f in identity_fields)
+        ):
+            errors.append(
+                {"mapping": key, "message": "跨来源身份绑定必须使用已定义唯一键，且映射覆盖全部键字段"}
+            )
         writer = (mapping["source_id"], mapping["resource_id"], mapping["type_key"])
         if writer in writers:
             errors.append({"mapping": key, "message": "同一来源资源和类型只能有一个映射"})
@@ -207,6 +215,32 @@ def resolve_identity(session, job, snapshot, mapping, record):
     return identity, codec
 
 
+def bound_entity(session, ctx, mapping, type_def, properties):
+    fields = mapping.get("identity_fields", [])
+    if not fields:
+        return None
+    from ontology.objects.constraints import key_values
+    from ontology.objects.models import EntityKey
+
+    key = key_values(type_def, properties, fields)
+    if key is None:
+        conflict("身份绑定的业务键不能为空")
+    entity_id = session.scalar(
+        select(EntityKey.entity_id).where(
+            EntityKey.tenant_id == ctx.user.tenant_id,
+            EntityKey.project_id == ctx.project.id,
+            EntityKey.definition_id == ctx.project.active_release_id,
+            EntityKey.type_key == mapping["type_key"],
+            EntityKey.fields_hash == key[0],
+            EntityKey.value_hash == key[1],
+        )
+    )
+    entity = session.get(Entity, entity_id) if entity_id else None
+    if entity:
+        ensure_legacy_contributions(session, ctx, entity)
+    return entity
+
+
 def project_snapshot(session, job, snapshot):
     user = session.get(User, job.owner_id)
     ctx = access(session, user, job.project_id, "sources:write")
@@ -258,69 +292,125 @@ def project_snapshot(session, job, snapshot):
             .execution_options(yield_per=500)
         )
         for record in records:
-            # Bootstrap before resolve_identity can upgrade a legacy key hash.
-            # Only immutable evidence proves its old contribution; object values
-            # are a consistency check, never the reconstruction source.
-            candidates = session.scalars(
+            try:
+                with session.begin_nested():
+                    # Bootstrap before resolve_identity can upgrade a legacy key hash.
+                    # Only immutable evidence proves its old contribution; object values
+                    # are a consistency check, never the reconstruction source.
+                    candidates = session.scalars(
+                        select(SourceIdentity).where(
+                            SourceIdentity.tenant_id == job.tenant_id,
+                            SourceIdentity.project_id == job.project_id,
+                            SourceIdentity.source_id == snapshot.source_id,
+                            SourceIdentity.resource_id == snapshot.resource_id,
+                            SourceIdentity.type_key == mapping["type_key"],
+                            SourceIdentity.key_hash.in_({record.key_hash, fingerprint(record.source_key)}),
+                        )
+                    ).all()
+                    for candidate in candidates:
+                        ensure_legacy_contributions(session, ctx, session.get(Entity, candidate.entity_id))
+                    identity, codec = resolve_identity(session, job, snapshot, mapping, record)
+                    codecs.add(codec)
+                    if len(codecs) > 1:
+                        conflict("同一资源的来源身份编码不一致")
+                    obj = session.get(Entity, identity.entity_id) if identity else None
+                    if obj and obj.deleted:
+                        conflict("映射对象已被人工删除，须先处理身份冲突")
+                    properties = mapped_properties(
+                        record, mapping, types[mapping["type_key"]], allow_incomplete=True
+                    )
+                    new_identity = identity is None
+                    if new_identity:
+                        obj = bound_entity(session, ctx, mapping, types[mapping["type_key"]], properties)
+                    created = obj is None
+                    if created:
+                        obj = Entity(
+                            tenant_id=job.tenant_id,
+                            project_id=job.project_id,
+                            type_key=mapping["type_key"],
+                            properties={},
+                            evidence=[],
+                            release_id=snapshot.release_id,
+                        )
+                        session.add(obj)
+                        session.flush()
+                    if new_identity:
+                        identity = SourceIdentity(
+                            tenant_id=job.tenant_id,
+                            project_id=job.project_id,
+                            source_id=snapshot.source_id,
+                            resource_id=snapshot.resource_id,
+                            key_hash=record.key_hash,
+                            key_codec=codec,
+                            type_key=mapping["type_key"],
+                            entity_id=obj.id,
+                            last_record_id=record.id,
+                            last_record_codec=record.record_codec,
+                            mapping_key=mapping["key"],
+                        )
+                        session.add(identity)
+                        session.flush()
+                    result = replace_contribution(
+                        session,
+                        ctx,
+                        identity,
+                        record,
+                        snapshot.release_id,
+                        mapping,
+                        types[mapping["type_key"]],
+                        properties,
+                        new_identity=new_identity,
+                        new_entity=created,
+                    )
+                    session.flush()
+                    outcome = "created" if created else "updated" if result["changed"] else "unchanged"
+                counts[outcome] += 1
+            except DomainError as exc:
+                if exc.status not in {409, 422}:
+                    raise
+                counts["blocked"] = counts.get("blocked", 0) + 1
+                issues = counts.setdefault("issues", [])
+                if len(issues) < 100:
+                    issues.append({"record_id": record.id, "code": exc.code, "message": exc.message})
+        source = session.get(Source, snapshot.source_id)
+        if source.kind == "tabular" and source.config.get("file_mode") == "replace":
+            if not job.checkpoint.get("complete") or snapshot.consistency != "transaction":
+                conflict("完整替换需要采集完整且一致的文件快照")
+            from ontology.objects.contributions.models import SourceContribution
+
+            present = select(SourceRecordRevision.key_hash).where(
+                SourceRecordRevision.snapshot_id == snapshot.id,
+                SourceRecordRevision.attempt == snapshot.attempt,
+            )
+            missing_identities = session.scalars(
                 select(SourceIdentity).where(
                     SourceIdentity.tenant_id == job.tenant_id,
-                    SourceIdentity.project_id == job.project_id,
-                    SourceIdentity.source_id == snapshot.source_id,
+                    SourceIdentity.source_id == source.id,
                     SourceIdentity.resource_id == snapshot.resource_id,
                     SourceIdentity.type_key == mapping["type_key"],
-                    SourceIdentity.key_hash.in_({record.key_hash, fingerprint(record.source_key)}),
+                    SourceIdentity.key_hash.not_in(present),
                 )
             ).all()
-            for candidate in candidates:
-                ensure_legacy_contributions(session, ctx, session.get(Entity, candidate.entity_id))
-            identity, codec = resolve_identity(session, job, snapshot, mapping, record)
-            codecs.add(codec)
-            if len(codecs) > 1:
-                conflict("同一资源的来源身份编码不一致")
-            obj = session.get(Entity, identity.entity_id) if identity else None
-            if obj and obj.deleted:
-                conflict("映射对象已被人工删除，须先处理身份冲突")
-            properties = mapped_properties(record, mapping, types[mapping["type_key"]], allow_incomplete=True)
-            created = obj is None
-            if created:
-                obj = Entity(
-                    tenant_id=job.tenant_id,
-                    project_id=job.project_id,
-                    type_key=mapping["type_key"],
-                    properties={},
-                    evidence=[],
-                    release_id=snapshot.release_id,
+            for identity in missing_identities:
+                contribution = session.scalar(
+                    select(SourceContribution).where(SourceContribution.identity_id == identity.id)
                 )
-                session.add(obj)
-                session.flush()
-                identity = SourceIdentity(
-                    tenant_id=job.tenant_id,
-                    project_id=job.project_id,
-                    source_id=snapshot.source_id,
-                    resource_id=snapshot.resource_id,
-                    key_hash=record.key_hash,
-                    key_codec=codec,
-                    type_key=mapping["type_key"],
-                    entity_id=obj.id,
-                    last_record_id=record.id,
-                    last_record_codec=record.record_codec,
-                    mapping_key=mapping["key"],
+                if not contribution or not contribution.active:
+                    continue
+                record = session.get(SourceRecordRevision, identity.last_record_id)
+                replace_contribution(
+                    session,
+                    ctx,
+                    identity,
+                    record,
+                    snapshot.release_id,
+                    mapping,
+                    types[mapping["type_key"]],
+                    None,
+                    withdraw_reason=f"complete_file_replacement:{snapshot.id}",
+                    withdrawal_snapshot=snapshot,
                 )
-                session.add(identity)
-                session.flush()
-            result = replace_contribution(
-                session,
-                ctx,
-                identity,
-                record,
-                snapshot.release_id,
-                mapping,
-                types[mapping["type_key"]],
-                properties,
-                new_identity=created,
-                new_entity=created,
-            )
-            counts["created" if created else "updated" if result["changed"] else "unchanged"] += 1
+                counts["withdrawn"] = counts.get("withdrawn", 0) + 1
         if codecs:
             session.flush()
             remaining = session.scalar(
@@ -425,6 +515,7 @@ def run_snapshot(db, settings, run):
 
         def apply(session, job):
             snapshot = session.get(SourceSnapshot, job.payload["snapshot_id"])
+            snapshot.status = "complete"
             snapshot.projection = project_snapshot(session, job, snapshot)
             snapshot.status, snapshot.completed_at = "complete", now()
             user = session.get(User, job.owner_id)

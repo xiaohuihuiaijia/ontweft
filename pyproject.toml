@@ -15,23 +15,19 @@ dependencies = [
   "sqlalchemy>=2.0.36,<2.1",
   "alembic>=1.14,<2",
   "pg8000>=1.31,<2",
-  "PyMySQL>=1.1,<2",
   "argon2-cffi>=23.1,<26",
   "cryptography>=50.0.2,<51",
   "httpx>=0.28,<1",
   "python-multipart>=0.0.20,<1",
-  "pymongo>=4.10,<5",
-  "rdflib>=7.1,<8",
-  "neo4j>=5.27,<7",
-  "pypdf>=6.21.4,<7",
   "openpyxl>=3.1,<4",
   "defusedxml>=0.7,<1",
   "jieba==0.42.1",
-  "lark-oapi==1.7.5",
 ]
 
 [project.optional-dependencies]
+knowledge = ["pypdf>=6.21.4,<7"]
 dev = ["pytest>=8.3,<10", "ruff>=0.9,<1"]
+integrations = ["PyMySQL>=1.1,<2", "pymongo>=4.10,<5", "rdflib>=7.1,<8", "neo4j>=5.27,<7", "lark-oapi==1.7.5"]
 docling = ["docling-slim[convert-core,format-docx,format-xlsx,format-pdf-pypdfium2]==2.143.1"]
 
 [project.scripts]

@@ -2,9 +2,11 @@
 
 import hashlib
 import json
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from ontology.core.models import now
 from ontology.identity.models import Project
 from ontology.modeling.models import ChangeSet, Release
 from ontology.objects.contributions.decision_models import ContributionDecision
@@ -58,13 +60,30 @@ def parents(db, owner, project_id=None):
             record_count=1,
             consistency="transaction",
         )
-        entity = Entity(
-            **scope,
+        # Historical migrations must not insert columns from a future ORM model.
+        entity = SimpleNamespace(
+            id=str(uuid4()),
             type_key="Item",
+            revision=1,
             properties={"quantity": "12345678901234567890.00001"},
-            release_id=release.id,
         )
-        session.add_all([snapshot, entity])
+        table = Table("entities", MetaData(), autoload_with=session.connection())
+        session.execute(
+            table.insert().values(
+                **scope,
+                id=entity.id,
+                type_key=entity.type_key,
+                properties=entity.properties,
+                revision=1,
+                release_id=release.id,
+                evidence=[],
+                created_at=now(),
+                updated_at=now(),
+                deleted=False,
+                data_status="active",
+            )
+        )
+        session.add(snapshot)
         session.flush()
         raw = {"key": {"id": 9223372036854775807}, "values": entity.properties}
         record = SourceRecordRevision(

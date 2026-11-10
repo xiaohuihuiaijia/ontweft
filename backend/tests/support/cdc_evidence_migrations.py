@@ -13,7 +13,6 @@ from ontology.cdc.models import CdcEvent, CdcStream
 from ontology.core.config import Settings
 from ontology.core.db import Database
 from ontology.core.models import now
-from ontology.identity.models import Project
 from ontology.modeling.models import ChangeSet, Release
 from ontology.sources.ingestion import fingerprint
 from ontology.sources.models import Source, SourceRecordRevision, SourceSnapshot
@@ -106,7 +105,13 @@ def seed_old(db, invalid=None):
         )
     scope = {"tenant_id": owner["tenant_id"], "project_id": owner["project_id"]}
     with db.transaction(owner["tenant_id"]) as session:
-        second = Project(tenant_id=owner["tenant_id"], name="Other synthetic project")
+        second_id = str(uuid4())
+        projects = Table("projects", MetaData(), autoload_with=session.connection())
+        session.execute(
+            projects.insert().values(
+                id=second_id, tenant_id=owner["tenant_id"], name="Other synthetic project", version=0
+            )
+        )
         source = Source(**scope, name="Synthetic old source", kind="postgres", config={})
         change = ChangeSet(
             **scope,
@@ -114,7 +119,7 @@ def seed_old(db, invalid=None):
             definition={"types": [], "mappings": []},
             author_id=owner["user_id"],
         )
-        session.add_all([second, source, change])
+        session.add_all([source, change])
         session.flush()
         release = Release(
             **scope,
@@ -170,7 +175,7 @@ def seed_old(db, invalid=None):
             "content_hash": "b" * 64,
         }
         if invalid == "record_scope":
-            raw["project_id"] = second.id
+            raw["project_id"] = second_id
         records = Table("source_record_revisions", MetaData(), autoload_with=session.connection())
         session.execute(records.insert().values(**raw))
         identity = {
@@ -187,7 +192,7 @@ def seed_old(db, invalid=None):
             "mapping_key": "items",
         }
         if invalid == "identity_scope":
-            identity["project_id"] = second.id
+            identity["project_id"] = second_id
         identities = Table("source_identities", MetaData(), autoload_with=session.connection())
         session.execute(identities.insert().values(**identity))
         result = {
@@ -197,7 +202,7 @@ def seed_old(db, invalid=None):
             "raw": raw,
             "identity": identity,
             "snapshot_id": snapshot.id,
-            "second_project": second.id,
+            "second_project": second_id,
             "source_id": source.id,
         }
     return result

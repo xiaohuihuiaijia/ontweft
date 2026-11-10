@@ -80,7 +80,7 @@ def test_snapshot_projects_published_mapping_stable_identity_and_originals(platf
     assert client.get(f"/api/snapshots/{first['snapshot']['id']}/records").json()["items"] == first["items"]
 
 
-def test_failed_mapping_keeps_raw_records_and_all_previous_objects(platform):
+def test_invalid_record_preserves_its_object_while_valid_records_continue(platform):
     client, app, a, _ = platform
     source, resource, path, _ = make_source(client, app, a["project_id"])
     capture(client, app, source, resource)
@@ -89,9 +89,17 @@ def test_failed_mapping_keeps_raw_records_and_all_previous_objects(platform):
         connection.execute("UPDATE inventory SET quantity='120' WHERE id=1")
         connection.execute("UPDATE inventory SET quantity='not-a-number' WHERE id=2")
     failed = capture(client, app, source, resource)
-    assert failed["snapshot"]["status"] == "failed", failed
+    assert failed["snapshot"]["status"] == "complete", failed
+    assert failed["snapshot"]["projection"]["blocked"] == 1
+    assert failed["snapshot"]["projection"]["updated"] == 1
     assert failed["total"] == 2
-    assert client.get("/api/objects", params={"project_id": a["project_id"]}).json() == before
+    after = client.get("/api/objects", params={"project_id": a["project_id"]}).json()
+    old = {row["id"]: row for row in before["items"]}
+    for row in after["items"]:
+        if row["properties"]["name"] == "A":
+            assert row["properties"]["quantity"] == 120
+        else:
+            assert row == old[row["id"]]
 
 
 def test_schema_drift_blocks_projection_without_replacing_directory(platform):

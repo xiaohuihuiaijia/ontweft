@@ -196,7 +196,7 @@ def test_multisheet_upload_creates_distinct_editable_types_and_imports_each_tabl
 
 
 def test_upload_rechecks_permission_and_removes_only_its_uncommitted_files(platform, monkeypatch):
-    from ontology.sources import intake_api
+    from ontology.sources import file_versions as intake_api
 
     client, app, owner, _ = platform
     original = intake_api.serialize_tables

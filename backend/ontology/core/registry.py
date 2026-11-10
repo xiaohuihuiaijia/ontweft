@@ -6,6 +6,7 @@ MODEL_MODULES = (
     "ontology.identity.models",
     "ontology.modeling.models",
     "ontology.objects.models",
+    "ontology.objects.rule_models",
     "ontology.sources.models",
     "ontology.documents.storage_models",
     "ontology.documents.history_models",

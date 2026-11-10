@@ -70,10 +70,14 @@ class ObjectSearchField(ProjectRecord, Base):
         entity_scope("fk_search_field_entity_scope"),
         CheckConstraint("chunk >= 0", name="ck_search_field_chunk"),
         Index(
-            "ix_object_search_fields_fts",
-            text("to_tsvector('simple'::regconfig, token_text)"),
-            postgresql_using="gin",
-        ).ddl_if(dialect="postgresql"),
+            "ix_object_search_fields_term",
+            "tenant_id",
+            "project_id",
+            "generation",
+            "token_text",
+            "field_key",
+            "entity_id",
+        ),
     )
     entity_id: Mapped[str] = mapped_column(String(36))
     field_key: Mapped[str] = mapped_column(String(120))

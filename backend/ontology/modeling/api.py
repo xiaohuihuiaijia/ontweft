@@ -1,12 +1,11 @@
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from ontology.core.domain import (
     active_definition,
     compare_and_swap,
     row_dict,
     scoped_record,
-    validation_report,
 )
 from ontology.core.errors import DomainError, conflict
 from ontology.core.schemas import RevisionInput
@@ -15,6 +14,8 @@ from ontology.identity.security import ROLES, access, allowed_field, audit, auth
 from ontology.modeling.models import ChangeSet, Release
 from ontology.modeling.schemas import ChangeSetInput, ChangeSetUpdate
 from ontology.modeling.templates import starter_templates
+from ontology.modeling.validation import recheck_delta, start_validation
+from ontology.objects.models import EntityKey
 
 router = APIRouter()
 
@@ -46,7 +47,18 @@ def types(request: Request, project_id: str, user=Depends(authenticated)):
         ctx = access(session, user, project_id)
         items = active_definition(session, ctx.project)["types"]
         visible = [
-            {**t, "properties": [p for p in t.get("properties", []) if allowed_field(p, ctx.role)]}
+            {
+                **t,
+                "properties": [p for p in t.get("properties", []) if allowed_field(p, ctx.role)],
+                "unique_keys": [
+                    fields
+                    for fields in t.get("unique_keys", [])
+                    if all(
+                        any(p["key"] == field and allowed_field(p, ctx.role) for p in t["properties"])
+                        for field in fields
+                    )
+                ],
+            }
             for t in items
         ]
         return {
@@ -98,7 +110,19 @@ def get_changeset(change_id: str, request: Request, user=Depends(authenticated))
         ctx = access(session, user, change.project_id)
         if not ({"ontology:write", "ontology:approve", "ontology:publish"} & ctx.permissions):
             raise DomainError(403, "forbidden", "无权查看本体变更")
-        return row_dict(change)
+        result = row_dict(change)
+        if change.validation.get("job_id"):
+            from ontology.jobs.models import Job
+
+            job = session.get(Job, change.validation["job_id"])
+            if job and job.tenant_id == user.tenant_id and job.project_id == change.project_id:
+                result["validation_job"] = {
+                    "id": job.id,
+                    "status": job.status,
+                    "error": job.error,
+                    "objects_checked": job.checkpoint.get("report", {}).get("objects_checked", 0),
+                }
+        return result
 
 
 @router.patch("/changesets/{change_id}")
@@ -108,7 +132,7 @@ def edit_changeset(change_id: str, data: ChangeSetUpdate, request: Request, user
         access(session, user, change.project_id, "ontology:write")
         if change.status == "published":
             conflict("已发布版本不可修改，请创建新的变更集")
-        values = {"status": "draft", "validation": {}, "approved_by": None}
+        values = {"status": "draft", "validation": {}, "approved_by": None, "author_id": user.id}
         if data.definition is not None:
             values["definition"] = data.definition.model_dump()
         if data.title is not None:
@@ -154,20 +178,34 @@ def transition(
             conflict()
         if change.baseline_release_id != ctx.project.active_release_id:
             conflict("本体基线已改变，请基于最新发布版重新创建变更集")
-        report = validation_report(session, ctx, change.definition)
-        values = {"validation": report}
         if operation == "validate":
-            values.update(status="validated" if report["valid"] else "draft", approved_by=None)
+            report, job = start_validation(session, ctx, change)
+            values = {
+                "validation": report,
+                "status": "validating" if job else "validated" if report["valid"] else "draft",
+                "approved_by": None,
+            }
         else:
+            report = recheck_delta(session, ctx, change)
+            values = {"validation": report}
             if not report["valid"]:
                 raise DomainError(422, "validation_failed", "本体或现有数据不满足发布约束", report)
             if operation == "approve":
+                if request.app.state.settings.separate_model_approval and change.author_id == user.id:
+                    raise DomainError(
+                        403, "separate_reviewer_required", "当前修订须由另一位有审批权限的成员审核"
+                    )
                 if change.status != "validated":
                     conflict("请先完成当前修订的校验")
                 values.update(status="approved", approved_by=user.id)
             else:
                 if change.status != "approved" or not change.approved_by:
                     conflict("请先审批当前修订")
+                if (
+                    request.app.state.settings.separate_model_approval
+                    and change.approved_by == change.author_id
+                ):
+                    conflict("企业模式要求另一位成员重新审批当前修订")
                 reviewer = session.get(User, change.approved_by)
                 membership = session.scalar(
                     select(Membership).where(
@@ -184,6 +222,7 @@ def transition(
                 ):
                     conflict("审批者的当前权限已失效，请重新校验并审批该变更集")
                 release = Release(
+                    id=report["generation"],
                     tenant_id=user.tenant_id,
                     project_id=change.project_id,
                     version=ctx.project.version + 1,
@@ -208,6 +247,13 @@ def transition(
 
                 session.refresh(ctx.project)
                 recheck_decisions_after_publish(session, ctx)
+                session.execute(
+                    delete(EntityKey).where(
+                        EntityKey.tenant_id == user.tenant_id,
+                        EntityKey.project_id == change.project_id,
+                        EntityKey.definition_id != release.id,
+                    )
+                )
                 values.update(status="published", release_id=release.id)
         compare_and_swap(session, change, data.expected_revision, values)
         audit(

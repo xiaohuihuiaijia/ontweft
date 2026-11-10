@@ -9,7 +9,7 @@ from ontology.core.errors import DomainError, conflict, missing
 from ontology.identity.models import Project
 from ontology.identity.security import ROLES, allowed_field
 from ontology.modeling.models import Release
-from ontology.objects.models import Entity, EntityRevision, Relation
+from ontology.objects.models import EntityRevision
 
 
 def row_dict(row, exclude=()):
@@ -146,59 +146,25 @@ def definition_errors(definition):
                 errors.append({"field": prop["key"], "message": "枚举必须定义选项"})
             if (set(prop.get("read_roles", [])) | set(prop.get("write_roles", []))) - set(ROLES):
                 errors.append({"field": prop["key"], "message": "存在未知角色"})
+        props = {p["key"]: p for p in item.get("properties", [])}
+        seen_keys = set()
+        for fields in item.get("unique_keys", []):
+            signature = tuple(sorted(fields))
+            if (
+                not fields
+                or len(fields) > 16
+                or len(set(fields)) != len(fields)
+                or signature in seen_keys
+                or any(f not in props or props[f]["data_type"] == "json" for f in fields)
+            ):
+                errors.append(
+                    {"field": item["key"] + ".unique_keys", "message": "唯一键须为不重复的已定义标量字段组合"}
+                )
+            seen_keys.add(signature)
         for relation in item.get("relations", []):
             if relation["target_type"] not in keys:
                 errors.append({"field": relation["key"], "message": "关系目标类型不存在"})
     return errors
-
-
-def validation_report(session, access, definition):
-    errors = definition_errors(definition)
-    types = {t["key"]: t for t in definition["types"]}
-    rows = session.scalars(
-        select(Entity).where(
-            Entity.tenant_id == access.user.tenant_id,
-            Entity.project_id == access.project.id,
-            Entity.deleted.is_(False),
-        )
-    ).all()
-    for obj in rows:
-        type_def = types.get(obj.type_key)
-        if not type_def:
-            errors.append({"object_id": obj.id, "message": "删除类型会使现有对象失去定义"})
-        else:
-            try:
-                if obj.data_status == "active":
-                    validate_properties(type_def, obj.properties)
-                else:
-                    validate_source_properties(type_def, obj.properties)
-            except DomainError:
-                errors.append({"object_id": obj.id, "message": "现有对象与新定义不兼容，须先完成迁移"})
-    cardinalities = {}
-    for rel in session.scalars(
-        select(Relation).where(
-            Relation.tenant_id == access.user.tenant_id, Relation.project_id == access.project.id
-        )
-    ):
-        source, target = session.get(Entity, rel.source_id), session.get(Entity, rel.target_id)
-        definitions = types.get(source.type_key, {}).get("relations", []) if source else []
-        expected = next((r for r in definitions if r["key"] == rel.type_key), None)
-        if not expected or not target or expected["target_type"] != target.type_key:
-            errors.append({"relation_id": rel.id, "message": "已有关系与新定义不兼容"})
-        elif expected.get("cardinality") == "one":
-            key = (rel.source_id, rel.type_key)
-            cardinalities[key] = cardinalities.get(key, 0) + 1
-            if cardinalities[key] > 1:
-                errors.append({"relation_id": rel.id, "message": "现有关系不满足新的一对一基数"})
-    from ontology.sources.ingestion import mapping_errors
-
-    errors.extend(mapping_errors(session, access, definition))
-    return {
-        "valid": not errors,
-        "errors": errors,
-        "objects_checked": len(rows),
-        "scope": "all_current_objects",
-    }
 
 
 def scoped_record(session, model, record_id, user):
@@ -276,4 +242,11 @@ def save_entity_revision(session, obj, user, reason=""):
             data_status=obj.data_status,
         )
     )
+    from ontology.objects.constraints import sync_entity_keys, touch_entity
+
+    sync_entity_keys(session, obj)
+    touch_entity(session, obj)
     enqueue_entity(session, obj)
+    from ontology.objects.relation_rules import changed_entity
+
+    changed_entity(session, obj)

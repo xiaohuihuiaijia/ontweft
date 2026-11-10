@@ -7,7 +7,14 @@ from ontology.core.config import Settings
 
 @pytest.fixture
 def platform(tmp_path):
-    app = create_app(Settings(database_url=f"sqlite:///{tmp_path / 'test.db'}", data_dir=tmp_path / "data"))
+    app = create_app(
+        Settings(
+            _env_file=None,
+            database_url=f"sqlite:///{tmp_path / 'test.db'}",
+            data_dir=tmp_path / "data",
+            extensions=["knowledge", "integrations", "automation"],
+        )
+    )
     a = bootstrap(
         app.state.db,
         tenant_slug="alpha",

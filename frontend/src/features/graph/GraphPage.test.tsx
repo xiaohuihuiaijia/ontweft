@@ -32,7 +32,7 @@ it('requests the selected bounded node budget and explains truncated results', a
     const path = String(url); reads.push(path);
     return new Response(JSON.stringify(path.includes('/graph?') ? { ...model, truncated: true } : { items: [], total: 0 }));
   });
-  render(<GraphPage projectId="p" can={() => true} onDirty={() => {}} />);
+  render(<GraphPage knowledgeEnabled projectId="p" can={() => true} onDirty={() => {}} />);
   const budget = await screen.findByLabelText('图谱节点预算');
   expect(reads.some(url => url.includes('/graph?') && new URL(url, 'http://test').searchParams.get('limit') === '200')).toBe(true);
   fireEvent.change(budget, { target: { value: '500' } });
@@ -62,7 +62,7 @@ it('edits a graph relation through a complete draft, preserving hidden schema/ma
     }
     return new Response(JSON.stringify(response));
   });
-  render(<GraphPage projectId="p" can={() => true} onDirty={() => {}} />);
+  render(<GraphPage knowledgeEnabled projectId="p" can={() => true} onDirty={() => {}} />);
   fireEvent.click(screen.getByRole('tab', { name: '本体模型' }));
   await screen.findByRole('button', { name: '设备' });
   fireEvent.click(screen.getByText('关系列表（键盘可操作）'));
@@ -101,7 +101,7 @@ it('opens a citation in its knowledge editor and retains the draft and revision 
     } else if (path === '/api/knowledge/k1') response = { id: 'k1', title: '最新草稿', body: '未发布内容', revision: 3, published_revision: 1, references: refs };
     return new Response(JSON.stringify(response));
   });
-  render(<GraphPage projectId="p" can={() => true} onDirty={() => {}} />);
+  render(<GraphPage knowledgeEnabled projectId="p" can={() => true} onDirty={() => {}} />);
   fireEvent.click(screen.getByRole('tab', { name: '文档与知识' }));
   await screen.findByRole('button', { name: '已发布知识' });
   fireEvent.click(screen.getByText('关系列表（键盘可操作）'));
@@ -120,7 +120,7 @@ it('opens a citation in its knowledge editor and retains the draft and revision 
 
 it('does not expose model editing without permission or treat document nodes as editable knowledge pages', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/graph?') ? (String(url).includes('kind=knowledge') ? knowledge : model) : { items: [], total: 0 })));
-  render(<GraphPage projectId="p" can={() => false} onDirty={() => {}} />);
+  render(<GraphPage knowledgeEnabled projectId="p" can={() => false} onDirty={() => {}} />);
   fireEvent.click(screen.getByRole('tab', { name: '本体模型' }));
   fireEvent.click(await screen.findByRole('button', { name: '设备' }));
   expect(screen.queryByRole('button', { name: '编辑类型（变更集）' })).toBeNull();
@@ -132,7 +132,7 @@ it('does not expose model editing without permission or treat document nodes as 
 
 it('keeps graph-owned authorized counts while refusing metadata from a different release', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/graph?') ? { ...model, release_id: 'r1', version: 1, nodes: [{ ...model.nodes[0], type_label: '设备', visible_property_count: 2 }] } : { items: [{ ...definition.types[0], label: '新模型标签', description: '新模型解释不可混入', properties: [{ key: 'private', label: '新模型私有字段', data_type: 'string' }] }], release_id: 'r2', total: 1 })));
-  render(<GraphPage projectId="p" can={() => false} onDirty={() => {}} />);
+  render(<GraphPage knowledgeEnabled projectId="p" can={() => false} onDirty={() => {}} />);
   fireEvent.click(screen.getByRole('tab', { name: '本体模型' }));
   fireEvent.click(await screen.findByRole('button', { name: '设备' }));
   const inspector = document.querySelector('.graph-inspector')! as HTMLElement;
@@ -147,7 +147,7 @@ it('keeps graph-owned authorized counts while refusing metadata from a different
 it('applies type and search filters to the visible counts and keyboard lists with a reset', async () => {
   const instances = { nodes: [{ id: 'a', label: '星图项目', type_key: 'project', type_label: '项目', kind: 'object', properties: {} }, { id: 'b', label: '林悦', type_key: 'person', type_label: '人员', kind: 'object', properties: {} }], edges: [{ id: 'e', source: 'b', target: 'a', label: '负责', type_key: 'owns', kind: 'relation' }], truncated: false, release_id: 'r1' };
   vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/graph?') ? instances : { items: [], total: 0, release_id: 'r1' })));
-  render(<GraphPage projectId="p" can={() => false} onDirty={() => {}} />);
+  render(<GraphPage knowledgeEnabled projectId="p" can={() => false} onDirty={() => {}} />);
   await screen.findByRole('button', { name: '林悦' });
   fireEvent.click(screen.getByRole('button', { name: '人员1' }));
   expect(screen.queryByRole('button', { name: '林悦' })).toBeNull();

@@ -1,3 +1,6 @@
+import time
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select, update
 
@@ -113,3 +116,29 @@ def job_operation(job_id: str, operation: str, request: Request, user=Depends(au
                 )
         audit(session, user, row.project_id, f"job.{operation}", row.id)
         return row_dict(row)
+
+
+@router.get("/jobs/metrics")
+def job_metrics(request: Request, project_id: str, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        ctx = content_context(session, request, user, project_id, permission="jobs:manage")
+        conditions = (Job.tenant_id == user.tenant_id, Job.project_id == project_id, job_condition(ctx))
+        rows = session.execute(
+            select(Job.kind, Job.status, func.count()).where(*conditions).group_by(Job.kind, Job.status)
+        ).all()
+        oldest = session.scalar(
+            select(func.min(Job.created_at)).where(*conditions, Job.status.in_(["pending", "retry_wait"]))
+        )
+        age = max(0, (datetime.now(UTC) - datetime.fromisoformat(oldest)).total_seconds()) if oldest else 0
+    heartbeat = request.app.state.settings.data_dir / "worker.heartbeat"
+    try:
+        worker_age = max(0, time.time() - heartbeat.stat().st_mtime)
+    except FileNotFoundError:
+        worker_age = None
+    return {
+        "jobs": [{"kind": kind, "status": status, "count": count} for kind, status, count in rows],
+        "pending": sum(count for _, status, count in rows if status in {"pending", "retry_wait"}),
+        "failed": sum(count for _, status, count in rows if status == "failed"),
+        "oldest_pending_seconds": round(age, 1),
+        "worker_heartbeat_age_seconds": worker_age,
+    }

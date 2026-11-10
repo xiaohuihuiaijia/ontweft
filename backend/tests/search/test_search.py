@@ -83,9 +83,8 @@ def drain(app, owner, **options):
         pytest.fail("Index worker did not reach a terminal idle state")
 
 
-def test_chinese_cross_field_cross_chunk_and_normalization(search_platform, monkeypatch):
+def test_chinese_cross_field_terms_and_normalization(search_platform):
     client, app, owner, _ = setup(search_platform)
-    monkeypatch.setattr(search_index, "CHUNK_TOKENS", 2)
     first = create(client, owner, name="南京市长江大桥", description="企业知识图谱 ＡＩ检索 OpenAI")
     create(client, owner, name="南京市业务", description="普通文件")
     pending = search(client, owner, "南京 长江大桥").json()

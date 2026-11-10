@@ -304,7 +304,9 @@ def test_search_migration_preserves_objects_evidence_and_watermarks_and_leaves_i
                 table = Table(name, MetaData(), autoload_with=session.connection())
                 assert list(session.execute(select(table).order_by(table.c.id)).mappings()) == before[name]
             assert all(session.scalar(select(model.id)) is None for model in MODELS)
-            assert session.get(Entity, legacy["identity"]["entity_id"]).properties == {"name": "原对象"}
+            assert session.scalar(
+                select(Entity.properties).where(Entity.id == legacy["identity"]["entity_id"])
+            ) == {"name": "原对象"}
             if dialect == "sqlite":
                 assert "ix_object_search_fields_fts" not in {
                     index["name"]

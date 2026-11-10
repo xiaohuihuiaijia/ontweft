@@ -242,6 +242,9 @@ def apply_matches(data: ApplyMatch, request: Request, user=Depends(authenticated
                 evidence=[],
             )
             session.add(row)
+            from ontology.objects.constraints import touch_entity
+
+            touch_entity(session, source)
             created.append(
                 {
                     "relation_id": row.id,

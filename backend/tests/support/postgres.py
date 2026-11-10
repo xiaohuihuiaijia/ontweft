@@ -96,7 +96,14 @@ def pg_platform(pg_databases, tmp_path):
     b = bootstrap(
         admin, tenant_slug=slug + "-b", tenant_name="RLS B", email="owner@example.test", password=password
     )
-    app = create_app(Settings(database_url=runtime_url, data_dir=tmp_path / "data"))
+    app = create_app(
+        Settings(
+            _env_file=None,
+            database_url=runtime_url,
+            data_dir=tmp_path / "data",
+            extensions=["knowledge", "integrations", "automation"],
+        )
+    )
     with TestClient(app) as client:
         login = client.post(
             "/api/auth/login", json={"tenant_slug": slug, "email": "owner@example.test", "password": password}

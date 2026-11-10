@@ -28,7 +28,13 @@ from ontology.jobs.service import check_job_authority, fenced_job, finish
 from ontology.objects.contributions.models import SourceContribution
 from ontology.objects.contributions.service import ensure_legacy_contributions, replace_contribution
 from ontology.objects.models import Entity
-from ontology.sources.ingestion import fingerprint, mapped_properties, mapping_errors, schema_fingerprint
+from ontology.sources.ingestion import (
+    bound_entity,
+    fingerprint,
+    mapped_properties,
+    mapping_errors,
+    schema_fingerprint,
+)
 from ontology.sources.models import Source, SourceIdentity, SourceRecordRevision
 from ontology.sources.service import connector_for
 
@@ -276,6 +282,9 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
         SimpleNamespace(id=record.id, values=values), mapping, type_def, allow_incomplete=True
     )
     if new_identity:
+        entity = bound_entity(session, ctx, mapping, type_def, mapped)
+    new_entity = entity is None
+    if new_entity:
         entity = Entity(
             id=uid(),
             tenant_id=ctx.user.tenant_id,
@@ -287,6 +296,7 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
         )
         session.add(entity)
         session.flush()
+    if new_identity:
         identity = SourceIdentity(
             tenant_id=ctx.user.tenant_id,
             project_id=ctx.project.id,
@@ -315,7 +325,7 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
         stream_id=stream.id,
         sequence=event.sequence,
         new_identity=new_identity,
-        new_entity=new_identity,
+        new_entity=new_entity,
     )
     return result, new_identity, False
 

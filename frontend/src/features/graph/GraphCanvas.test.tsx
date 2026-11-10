@@ -11,6 +11,9 @@ vi.mock('sigma', () => ({ default: class {
   camera = { ratio: 1, on: vi.fn(), animate: vi.fn(), setState: vi.fn() };
   refresh = vi.fn(() => this.callbacks.afterRender?.()); kill = vi.fn();
   constructor(graph: any) { this.graph = graph; state.sigma = this; }
+  getMouseCaptor() { return { on: (event: string, callback: Function) => { this.callbacks[event] = callback; } }; }
+  getBBox() { return { x: [0, 1], y: [0, 1] }; } getCustomBBox() { return null; } setCustomBBox() {}
+  viewportToGraph(point: { x: number; y: number }) { return point; }
   getGraph() { return this.graph; } getCamera() { return this.camera; }
   getNodeDisplayData(id: string) { return this.graph.getNodeAttributes(id); }
   getDimensions() { return { width: 600, height: 400 }; }
@@ -55,6 +58,25 @@ it('catches Worker constructor failure and exposes an honest list fallback', asy
   await screen.findByText('浏览器未能启动图布局，请使用节点和关系列表。');
   expect(screen.getByText('下方节点与关系列表仍可使用。')).toBeTruthy();
   expect((screen.getByRole('button', { name: '放大图谱' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('preserves the renderer and dragged anchors on expansion and restores coordinates for the same nodes', async () => {
+  const positions = new Map<string, Position>();
+  const props = { data, visible: data, kind: 'instances' as const, selection: {}, positions, cache: new Map<string, Position[]>(), onSelect: vi.fn(), onSelectEdge: vi.fn(), onClear: vi.fn() };
+  const view = render(<GraphCanvas {...props} />);
+  await waitFor(() => expect(state.sigma?.graph.order).toBe(3));
+  const sigma = state.sigma;
+  act(() => { sigma.callbacks.downNode({ node: 'a' }); sigma.callbacks.mousemovebody({ x: 7, y: 8, preventSigmaDefault() {}, original: { preventDefault() {}, stopPropagation() {} } }); sigma.callbacks.mouseup(); });
+  const expanded = { ...data, nodes: [...data.nodes, { ...data.nodes[0], id: 'd' }], edges: [...data.edges, { ...data.edges[0], id: 'ad', target: 'd' }] };
+  view.rerender(<GraphCanvas {...props} data={expanded} visible={expanded} />);
+  await waitFor(() => expect(sigma.graph.order).toBe(4));
+  expect(state.sigma).toBe(sigma); expect(sigma.kill).not.toHaveBeenCalled();
+  expect(sigma.graph.getNodeAttribute('a', 'x')).toBe(7);
+  const restored = new Map(positions); restored.set('a', { id: 'a', x: 11, y: 12 });
+  view.rerender(<GraphCanvas {...props} data={expanded} visible={expanded} positions={restored} />);
+  await waitFor(() => expect(sigma.graph.getNodeAttribute('a', 'x')).toBe(11));
+  expect(state.sigma).toBe(sigma);
+  view.unmount(); expect(sigma.kill).toHaveBeenCalledOnce();
 });
 
 it('renders parallel arrows separately and keeps their names and identity through selection', async () => {

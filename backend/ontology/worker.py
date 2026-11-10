@@ -58,10 +58,23 @@ def parser_environment(temporary_directory: Path | None = None, *, source_enviro
 
 def process_one(db: Database, settings: Settings, worker_id: str | None = None) -> bool:
     worker_id = worker_id or str(uuid4())
-    run = claim(db, worker_id)
+    kinds = ["source.snapshot", "cdc.project", "model.validate", "relation.recompute"]
+    if "knowledge" in settings.extensions:
+        kinds.append("document.parse")
+    run = claim(db, worker_id, kinds=kinds, source_kinds=settings.source_kinds)
     if not run:
         return False
     try:
+        if run["kind"] == "relation.recompute":
+            from ontology.objects.relation_rules import run_rule
+
+            run_rule(db, run)
+            return True
+        if run["kind"] == "model.validate":
+            from ontology.modeling.validation import run_validation
+
+            run_validation(db, run)
+            return True
         if run["kind"] == "source.snapshot":
             from ontology.sources.ingestion import run_snapshot
 
@@ -202,6 +215,7 @@ def run_worker(settings: Settings, once=False, action_registry=None):
     registry = action_registry or {}
     try:
         while True:
+            (settings.data_dir / "worker.heartbeat").touch()
             from ontology.actions.runtime import process_one_action
 
             worked = False
@@ -211,7 +225,9 @@ def run_worker(settings: Settings, once=False, action_registry=None):
                 from ontology.cdc.projection import schedule_pending
 
                 schedule_pending(db, tenant_id)
-                if process_one_action(db, tenant_id, registry, worker_id):
+                if "automation" in settings.extensions and process_one_action(
+                    db, tenant_id, registry, worker_id
+                ):
                     worked = True
                     break
             if not worked:
@@ -226,7 +242,7 @@ def run_worker(settings: Settings, once=False, action_registry=None):
                     break
             from ontology.search.content.index import process_one_content_index
 
-            for tenant_id in tenants:
+            for tenant_id in tenants if "knowledge" in settings.extensions else ():
                 if process_one_content_index(db, tenant_id):
                     worked = True
                     break

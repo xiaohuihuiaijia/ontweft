@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: ontweft
+      POSTGRES_USER: ontweft_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a URL-safe database owner password}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U ontweft_owner -d ontweft"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+  migrate:
+    build: .
+    image: ${ONTWEFT_IMAGE:-ontweft:local}
+    environment:
+      ONTOLOGY_DATABASE_URL: postgresql+pg8000://ontweft_owner:${POSTGRES_PASSWORD}@db/ontweft
+      ONTOLOGY_RUNTIME_PASSWORD: ${RUNTIME_PASSWORD:?Set a separate URL-safe runtime password}
+    command: [python, deploy/migrate.py]
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    image: ${ONTWEFT_IMAGE:-ontweft:local}
+    environment: &runtime
+      ONTOLOGY_DATABASE_URL: postgresql+pg8000://ontweft_runtime:${RUNTIME_PASSWORD}@db/ontweft
+      ONTOLOGY_ENVIRONMENT: production
+      ONTOLOGY_SECURE_COOKIES: 'true'
+      ONTOLOGY_ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set a Fernet encryption key}
+      ONTOLOGY_ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set a JSON array containing the HTTPS application origin}
+      ONTOLOGY_EXTENSIONS: '[]'
+      WEB_CONCURRENCY: ${API_WORKERS:-1}
+    ports:
+      - "127.0.0.1:${PORT:-8000}:8000"
+    volumes:
+      - assets:/data
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+  worker:
+    image: ${ONTWEFT_IMAGE:-ontweft:local}
+    environment: *runtime
+    command: [ontology, worker]
+    volumes:
+      - assets:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+volumes:
+  postgres:
+  assets:

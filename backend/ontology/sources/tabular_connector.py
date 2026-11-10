@@ -23,6 +23,12 @@ def bundle_path(settings, source):
     path = (root / source.tenant_id / source.project_id / source.id).resolve()
     if not path.is_relative_to(root) or path == root:
         raise ConnectorError("upload_path_denied", "上传来源路径不合法")
+    if source.config.get("bundle_id"):
+        # A scoped digest avoids Windows MAX_PATH growth with nested UUIDs.
+        identity = "/".join((source.tenant_id, source.project_id, source.id, source.config["bundle_id"]))
+        path = (
+            settings.data_dir / "uploaded_versions" / hashlib.sha256(identity.encode()).hexdigest()
+        ).resolve()
     return path
 
 
@@ -48,7 +54,7 @@ class UploadedTablesConnector(ConnectorBase):
     capabilities = ConnectorCapabilities(
         consistent_snapshot=True,
         resumable_after_restart=True,
-        notes=["不可变上传快照；身份为本次上传内的原始行号，不跨文件自动合并业务对象"],
+        notes=["不可变文件快照；已配置业务键时跨版本更新，行号仅用于定位"],
     )
 
     def __init__(self, source, settings):
@@ -94,8 +100,9 @@ class UploadedTablesConnector(ConnectorBase):
                 ResourceSchema(
                     resource_id=f"sheet_{index + 1}",
                     name=table.name,
-                    fields=fields,
-                    primary_key=["_source_row"],
+                    fields=self.config.get("frozen_fields", {}).get(f"sheet_{index + 1}", fields),
+                    primary_key=self.config.get("business_keys", {}).get(f"sheet_{index + 1}")
+                    or ["_source_row"],
                     metadata={
                         **profile,
                         "content_sha256": self.config["content_sha256"],
@@ -127,15 +134,17 @@ class UploadedTablesConnector(ConnectorBase):
         end = min(offset + limit, len(table.rows))
         records = []
         for row in range(offset, end):
-            key = {"_source_row": table.source_rows[row]}
+            values = {
+                "_source_row": table.source_rows[row],
+                **{f"c{i + 1}": value for i, value in enumerate(table.rows[row])},
+            }
+            fields = self.config.get("business_keys", {}).get(resource) or ["_source_row"]
+            key = {field: values[field] for field in fields}
             records.append(
                 SourceRecord(
                     key=key,
                     identity_key=canonical_identity_key(key),
-                    values={
-                        **key,
-                        **{f"c{i + 1}": value for i, value in enumerate(table.rows[row])},
-                    },
+                    values=values,
                 )
             )
         return SnapshotPage(

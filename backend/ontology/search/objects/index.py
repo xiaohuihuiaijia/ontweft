@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 BATCH_SIZE = 10
 MAX_OBJECT_CHARACTERS = 500000
 MAX_OBJECT_TOKENS = 100000
-CHUNK_TOKENS = 1024
 
 
 def scoped(model, project):
@@ -165,14 +164,10 @@ def _field_chunks(entity, definition):
             raise SearchBudgetError("单对象文本超过 500000 字符索引预算，未截断发布")
         words = tokens(value, maximum=MAX_OBJECT_TOKENS - count)
         count += len(words)
-        for start in range(0, len(words), CHUNK_TOKENS):
-            result.append(
-                (
-                    prop["key"],
-                    start // CHUNK_TOKENS,
-                    " " + " ".join(words[start : start + CHUNK_TOKENS]) + " ",
-                )
-            )
+        # One distinct lexeme per field posting. Repeated words do not create
+        # duplicate rows; exact terms remain <=512 UTF-8 bytes by tokens().
+        for position, word in enumerate(dict.fromkeys(words)):
+            result.append((prop["key"], position, " " + word + " "))
     return result
 
 

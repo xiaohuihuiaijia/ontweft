@@ -179,15 +179,27 @@ def ensure_legacy_contributions(session, ctx, entity) -> int:
     return len(pending)
 
 
-def _validate_record(session, ctx, identity, record, release_id, stream_id, sequence):
+def _validate_record(
+    session, ctx, identity, record, release_id, stream_id, sequence, withdrawal_snapshot=None
+):
     _scoped(ctx, identity, record)
     if record.record_codec == "snapshot-json-v1":
         snapshot = session.get(SourceSnapshot, record.snapshot_id)
         _scoped(ctx, snapshot)
+        if withdrawal_snapshot is not None:
+            _scoped(ctx, withdrawal_snapshot)
+            if (
+                withdrawal_snapshot.source_id != identity.source_id
+                or withdrawal_snapshot.resource_id != identity.resource_id
+                or withdrawal_snapshot.release_id != release_id
+                or withdrawal_snapshot.status != "complete"
+                or withdrawal_snapshot.consistency != "transaction"
+            ):
+                conflict("撤回缺少当前发布版下的完整文件快照证据")
         if (
             snapshot.source_id != identity.source_id
             or snapshot.resource_id != identity.resource_id
-            or snapshot.release_id != release_id
+            or (snapshot.release_id != release_id and withdrawal_snapshot is None)
             or record.key_hash != identity.key_hash
             or snapshot.attempt != record.attempt
             or stream_id is not None
@@ -224,6 +236,7 @@ def replace_contribution(
     withdraw_reason=None,
     new_identity=False,
     new_entity=False,
+    withdrawal_snapshot=None,
 ):
     """Replace/withdraw one proved source contribution and recompute its entity.
 
@@ -244,7 +257,9 @@ def replace_contribution(
     )
     if mapping != expected_mapping or type_def != expected_type:
         conflict("贡献必须使用固定发布版中的完整映射和类型")
-    _validate_record(session, ctx, identity, record, release_id, stream_id, sequence)
+    if withdrawal_snapshot is not None and not withdraw_reason:
+        conflict("完整快照凭证只用于显式撤回")
+    _validate_record(session, ctx, identity, record, release_id, stream_id, sequence, withdrawal_snapshot)
     if record.record_codec == "snapshot-json-v1" and native_row is not None:
         conflict("快照贡献不接受原生 CDC 行缓存")
     if native_row is not None:

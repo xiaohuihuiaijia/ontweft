@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ontology.core.db import Base
@@ -47,6 +47,7 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(200))
     active_release_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=0)
+    data_revision: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
 
 
 class Membership(Base):

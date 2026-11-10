@@ -8,7 +8,7 @@ const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(__dirname, '..');
-const output = path.join(root, 'var/reports/table-intake-20261110');
+const output = path.join(root, 'var/reports/enterprise-beta-browser');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function main() {
@@ -60,6 +60,10 @@ async function main() {
     const uploaded = await uploadResponse;
     assert.equal(uploaded.status(), 201, await uploaded.text());
     const source = await uploaded.json();
+    assert.equal(await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('button').count(), 5);
+    await page.getByLabel(/的业务键/).selectOption('c1');
+    await page.getByRole('button', { name: '保存业务键', exact: true }).click();
+    await page.getByLabel('更新文件', { exact: true }).waitFor();
     await page.getByText('表格已保存，可查看数据并生成建模建议。尚未创建业务对象。').waitFor();
     await page.getByRole('button', { name: '读取最多 20 条样本' }).click();
     await page.getByRole('table', { name: '上传表格样本' }).waitFor();
@@ -130,6 +134,22 @@ async function main() {
     await page.getByRole('checkbox', { name: /我已知有 26 条未解决/ }).check();
     await applyRelations.click();
     await page.getByText(/已建立 1 条关系，保留 0 条已有关系，26 条未解决/).waitFor();
+    await page.getByRole('button', { name: '保存为持续规则', exact: true }).click();
+    await page.getByText('持续规则已保存，后台开始匹配。人工关系保留，冲突记录单独暂停。').waitFor();
+    await page.getByLabel('更新文件', { exact: true }).setInputFiles({ name: '更新清单.csv', mimeType: 'text/csv', buffer: Buffer.from('编号,名称,数量\n001,合成测试 · 更新,4\n') });
+    await page.getByRole('button', { name: '预览更新', exact: true }).click();
+    const versionApplied = page.waitForResponse(response => /\/versions\/[^/]+\/apply$/.test(response.url()));
+    await page.getByRole('button', { name: '应用此版本并同步', exact: true }).click();
+    assert.equal((await versionApplied).status(), 200);
+    let updated = false;
+    for (let i = 0; i < 120; i++) {
+      const items = await (await context.request.get(`${base}/api/objects?project_id=${ownerProject}`)).json();
+      updated = items.total === 28 && items.items.some(item => item.properties.name === '合成测试 · 更新');
+      if (updated) break;
+      await pause(250);
+    }
+    assert.ok(updated, 'Version update must keep absent records and change the original object');
+    result.fileVersionUpdate = true; result.persistentRuleSaved = true; result.defaultNavigation = 5;
     const importedGraph = await (await context.request.get(`${base}/api/graph?project_id=${ownerProject}`)).json();
     assert.equal(importedGraph.nodes.length, 28); assert.equal(importedGraph.edges.length, 1);
     const capture = async (name, width) => {
@@ -149,8 +169,28 @@ async function main() {
     await capture('table-intake', 320);
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('button', { name: '图谱探索', exact: true }).click();
-    await page.locator('.node-chips').getByRole('button', { name: '合成测试 · 输入', exact: true }).click();
-    await page.locator('.graph-inspector').getByRole('heading', { name: '合成测试 · 输入', exact: true }).waitFor();
+    let indexReady = false;
+    for (let i = 0; i < 120; i++) {
+      const status = await (await context.request.get(`${base}/api/search/status?project_id=${ownerProject}`)).json();
+      if (status.status === 'ready') { indexReady = true; break; }
+      await pause(250);
+    }
+    assert.ok(indexReady, 'The real worker must index the updated object');
+    await page.getByLabel('全库对象搜索', { exact: true }).fill('更新');
+    const searchResponse = page.waitForResponse(response => response.url().endsWith('/api/search/objects'));
+    await page.getByRole('button', { name: '搜索', exact: true }).click();
+    assert.equal((await (await searchResponse).json()).total, 1);
+    await page.getByRole('button', { name: '合成测试 · 更新 · 加入画布', exact: true }).click();
+    result.globalAuthorizedSearch = true;
+    await page.locator('.node-chips').getByRole('button', { name: '合成测试 · 更新', exact: true }).click();
+    await page.locator('.graph-inspector').getByRole('heading', { name: '合成测试 · 更新', exact: true }).waitFor();
+    await page.getByRole('button', { name: '固定节点', exact: true }).click();
+    await page.getByRole('button', { name: '展开邻域', exact: true }).click();
+    await page.getByRole('button', { name: '收起邻域', exact: true }).waitFor();
+    await page.getByRole('button', { name: '保存个人视图', exact: true }).click();
+    await page.getByRole('button', { name: '恢复个人视图', exact: true }).click();
+    await page.getByText('已按当前授权恢复视图').waitFor();
+    result.neighborsPinAndRestore = true;
     await capture('imported-objects', 1440);
     await page.reload();
     const session = await (await context.request.get(base + '/api/auth/me')).json();

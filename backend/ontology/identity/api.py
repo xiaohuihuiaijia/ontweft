@@ -120,6 +120,9 @@ def register_identity_routes(app, database, settings):
                 "tenant": row_dict(tenant),
                 "projects": projects,
                 "permissions": sorted(permissions),
+                "features": sorted(set(settings.extensions)),
+                "actions_available": "automation" in settings.extensions and bool(app.state.action_adapters),
+                "model_approval": "separate" if settings.separate_model_approval else "single",
             }
 
     @app.get("/api/projects")
