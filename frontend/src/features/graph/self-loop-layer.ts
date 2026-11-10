@@ -4,7 +4,7 @@ import { selectionContext, type GraphSelection } from './graph-model';
 
 const SVG = 'http://www.w3.org/2000/svg';
 type Point = { x: number; y: number };
-type State = { data: GraphResult; visible: GraphResult; selection: GraphSelection; onSelectEdge: (edge: GraphEdge) => void };
+type State = { data: GraphResult; visible: GraphResult; selection: GraphSelection; showEdgeLabels?: boolean; onSelectEdge: (edge: GraphEdge) => void };
 
 /** Original cubic geometry. No synthetic graph nodes or semantic edges are added. */
 export function loopGeometry(center: Point, radius: number, lane: number, count = lane + 1) {
@@ -89,7 +89,7 @@ export function attachSelfLoopLayer(sigma: Sigma, host: HTMLElement, current: ()
       const characters = Array.from(edge.label); const shortLabel = characters.length > maxCharacters ? characters.slice(0, maxCharacters - 1).join('') + '…' : edge.label;
       if (entry.text.textContent !== shortLabel) { entry.text.textContent = shortLabel; entry.measuredWidth = undefined; }
       labels.push({ entry, point: geometry.label });
-      const showLabel = selected || (!context.active && state.visible.edges.length <= 40) || (state.selection.node === edge.source && visible.size <= 8);
+      const showLabel = selected || (!context.active && !!state.showEdgeLabels) || (state.selection.node === edge.source && visible.size <= 8);
       entry.group.classList.toggle('show-label', showLabel);
     }
     // Batch layout reads after all geometry writes; selection/panning reuse unchanged widths.

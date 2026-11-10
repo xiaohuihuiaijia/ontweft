@@ -35,8 +35,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 3474,
-      "sha256": "94eb593ebfdc7a2be0577d13f815cace681051d8c3ab49708ea6b3e45163ed97",
+      "bytes": 3621,
+      "sha256": "297498f5716536e4a3398253c3974045a7c813ba851fd1f3d24be531626ff2cc",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1715,8 +1715,8 @@
     },
     {
       "path": "docs/beta-verification.md",
-      "bytes": 6866,
-      "sha256": "26af5f9e52b0c2e415ff8676154f07f5514145b0954b4c02652389f1d9709eb8",
+      "bytes": 7976,
+      "sha256": "5eb56c4e0f304c1392b8e38584f6348810633b48f92d1f276bb1dcc6f4845009",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1739,14 +1739,14 @@
     },
     {
       "path": "docs/getting-started.md",
-      "bytes": 5514,
-      "sha256": "752e98f5591b71463b5ec39192916e3c9797752fa8269473ac0aed42de55dfa6",
+      "bytes": 5586,
+      "sha256": "66242c643ccbfdc6f9994d6f2c454b0bf25b5b64a51a1fb1589c03326d6b334c",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/graph.md",
-      "bytes": 2083,
-      "sha256": "388950e2b828f2fc3c0d5cf42443e61a3e3f242b4c69dfa330a9bfaa7ffdad4f",
+      "bytes": 3926,
+      "sha256": "9f0e568d1ec5f9bb20e3b468838394c71ef93ed665ba1dda4619ef9367f8da31",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1769,8 +1769,8 @@
     },
     {
       "path": "docs/ontology-methodology.md",
-      "bytes": 10275,
-      "sha256": "6e6076bc9b088d6cf671f6642b146e619f8e7d62a9182029753f1f8d10779ee3",
+      "bytes": 10387,
+      "sha256": "f94186a78a2e10571e32c3cb231dc0dcca66adcbda2a3174b95dbb38ec7fe934",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1865,27 +1865,27 @@
     },
     {
       "path": "frontend/src/app/Navigation.tsx",
-      "bytes": 2883,
-      "sha256": "3fb9a38e4f4a81ed89f5dd8b93959e79e212160593ad2a180b92463620299ec3",
+      "bytes": 2891,
+      "sha256": "2f8de6a22bbc0ebed202f6ce6cf949b7a9c3a1142a20a63e584bc75d0188cf4a",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/app/branding.css",
-      "bytes": 22962,
-      "sha256": "ae434ee55ea912a9cc69dc3b604dfe95982e9dac5fb95f643a16f1faac7809dc",
-      "source": "frontend/src/app/branding.css"
+      "bytes": 20787,
+      "sha256": "2564b5d9c01fe498c51757724cd5875cfd2aaf6026502d6605b8e7771b488af3",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/app/styles.css",
-      "bytes": 29108,
-      "sha256": "e0c4163c8ed674f937f1ac56069e6f7f7ac906cb03d694a3f26043a0093c3cde",
+      "bytes": 23888,
+      "sha256": "f21be0cb529a7a302954db804088cd2263524b383f086d7c5f52cfa468fb6de6",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/app/tokens.css",
       "bytes": 1848,
-      "sha256": "e2427de5e29bac099164a58250f3b1d57ff10800daa1270a932f2485d34d5312",
-      "source": "frontend/src/app/tokens.css"
+      "sha256": "ee2d5074f1a26858284581afd3645fd7dffa342494fba24f001d2aa00240b297",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/actions/ActionsPage.test.tsx",
@@ -1949,14 +1949,20 @@
     },
     {
       "path": "frontend/src/features/graph/GraphCanvas.test.tsx",
-      "bytes": 9387,
-      "sha256": "c649b783c424176ae4949e2ff216e549dbc29fa488e4c8adb26be2b8f994e832",
+      "bytes": 14997,
+      "sha256": "a1a1b7943e289448bb763a8dbcb4dcc5fd228a56c4c3d076feec0f2b5bb9a625",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/graph/GraphCanvas.tsx",
-      "bytes": 11070,
-      "sha256": "747d894af2e327b816e0cc1ae1138b785a4c6c78dadf17f586386a9beed2d806",
+      "bytes": 15645,
+      "sha256": "5b3614206b854f455e29c215983754ae0a3491beeb4f2cb954c694a97b701429",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/graph/GraphIcon.tsx",
+      "bytes": 903,
+      "sha256": "c149158e89236f9a2457e9e5caa7864b4fd9d6315203a8be64a7f799d0be52ac",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1967,8 +1973,8 @@
     },
     {
       "path": "frontend/src/features/graph/GraphPage.tsx",
-      "bytes": 18533,
-      "sha256": "ddf207da20457ce5d1c9e59f70ea8b942a47144d493f4b7ebe5934d6c2e8c680",
+      "bytes": 21162,
+      "sha256": "88d97deef6fc5bed8c75531e9d7857c278281e361a53782820175aa6589c01c4",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1997,15 +2003,21 @@
     },
     {
       "path": "frontend/src/features/graph/graph-model.ts",
-      "bytes": 9899,
-      "sha256": "9737359bc910b3c51d96fa4f7d97529d06e8091846387f7921db19916a125bd9",
+      "bytes": 9910,
+      "sha256": "4a314ec473fbec833e41a3be859e0625e8b4195fd4737af6323fed8566632609",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/graph/graph.css",
+      "bytes": 12934,
+      "sha256": "2b52e488f84c4f5e69043365f8824a951e81a7941084fd9bd9ff0ae34e3d7296",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/graph/self-loop-layer.css",
-      "bytes": 1102,
-      "sha256": "12bdc7e2b6a54b2d87ebda2220f22b212aab44f0730ead4a9cf39dc3a1d4bcaa",
-      "source": "frontend/src/features/graph/self-loop-layer.css"
+      "bytes": 887,
+      "sha256": "5a63f06c65170e0f970c3962ed9d548007011a134150e86e10c98e267fccc71d",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/graph/self-loop-layer.test.ts",
@@ -2015,14 +2027,14 @@
     },
     {
       "path": "frontend/src/features/graph/self-loop-layer.ts",
-      "bytes": 8547,
-      "sha256": "004e4f782bffd90ebd115036e332440a637b8ab91e4218a46d3fa4978b6fc1c9",
-      "source": "frontend/src/features/graph/self-loop-layer.ts"
+      "bytes": 8563,
+      "sha256": "957f2d2eb1898b5373183ac14916291056e9b0ae1dfd936b1fdddc3006eb7cdb",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/graph/useGraphExploration.tsx",
-      "bytes": 5451,
-      "sha256": "eab2733caa4f7499155b76bf2ebf88b9a7bf2806e2d392bafe54fb61a41ad980",
+      "bytes": 6279,
+      "sha256": "203138d06481d4c9f4bb7d6f9862dd9271468ec9e01db00e3ad2f7e0891430d7",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2141,9 +2153,9 @@
     },
     {
       "path": "frontend/src/features/objects/ObjectRelations.tsx",
-      "bytes": 4280,
-      "sha256": "2648bc46b6057a091e2c50c7c3009be37bea75eb503c44687ab359d65fc79e51",
-      "source": "frontend/src/features/objects/ObjectRelations.tsx"
+      "bytes": 4412,
+      "sha256": "52a43dd97f8cbbdf988b71c2f8ddb5d15d25258de1f8d8759761f1b37c89e2ff",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/objects/ObjectTable.tsx",
@@ -2165,9 +2177,9 @@
     },
     {
       "path": "frontend/src/features/objects/ObjectsPage.tsx",
-      "bytes": 19941,
-      "sha256": "cb2e2371e7b140f857f06058af95ac372aa39b5280609fca5809b5fd59422eff",
-      "source": "frontend/src/features/objects/ObjectsPage.tsx"
+      "bytes": 20030,
+      "sha256": "b65ed19ecc29f809c8459ed00917b5e52600f4fd7c26e77b17aaa0f0f9366ad8",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/objects/contributions/ContributionDecisions.test.tsx",
@@ -2588,6 +2600,12 @@
       "bytes": 10755,
       "sha256": "2ad525c5bcc06102a5a1dbe003032f695b10255345d12a30a101cfc7e6099f91",
       "source": "scripts/verify_graph_scale.cjs"
+    },
+    {
+      "path": "scripts/verify_graph_workbench.cjs",
+      "bytes": 17547,
+      "sha256": "13b38eb2b562bf1b5ce6e70bbe7ac4ed8adf3e1f83c1fc1a860837198af39d08",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "scripts/verify_model_starters.cjs",

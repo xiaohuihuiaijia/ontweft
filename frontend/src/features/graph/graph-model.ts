@@ -1,7 +1,7 @@
 import type { GraphEdge, GraphKind, GraphNode, GraphResult, TypeDef } from '../../shared/model/types';
 
 export interface GraphSelection { node?: string; edge?: string }
-const palette = ['#356eae', '#b7652c', '#7b58a1', '#27836d', '#b44865', '#69832f', '#307f98', '#986746', '#655bab', '#a37722', '#358262', '#a14a48'];
+const palette = ['#356eae', '#b7652c', '#7b58a1', '#27836d', '#b44865', '#69832f', '#307f98', '#986746', '#655bab', '#a37722', '#358262', '#a14a48', '#526c61'];
 export const groupKey = (node: GraphNode, kind: GraphKind) => kind === 'knowledge' ? node.kind : node.type_key || node.kind;
 export function groupColor(key: string) {
   let hash = 2166136261;

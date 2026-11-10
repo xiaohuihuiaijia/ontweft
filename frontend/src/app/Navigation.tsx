@@ -25,7 +25,7 @@ export function WorkspaceNavigation({ view, onNavigate, tenantName, features = [
   const current = ['jobs', 'audit'].includes(view) ? 'settings' : ['knowledge', 'content-search'].includes(view) ? 'documents' : view === 'actions' ? 'functions' : view;
   const links = (items: [View, string][]) => items.map(([id, label]) => <button key={id} aria-label={navigation.find(item => item[0] === id)![1]} title={label} className={current === id ? 'active' : ''} aria-current={current === id ? 'page' : undefined} onClick={() => onNavigate(id)}><NavigationIcon name={id} /><span className="navigation-label">{label}</span></button>);
   return <>
-    <a className="brand-link" href="#" aria-label={`${BRAND.name} ${BRAND.englishName}，返回本体模型`} onClick={e => { e.preventDefault(); onNavigate('ontology'); }}><Brand /></a>
+    <a className="brand-link" href="#" aria-label={`${BRAND.name} ${BRAND.englishName}，返回本体模型`} onClick={e => { e.preventDefault(); onNavigate('ontology'); }}><Brand inverse /></a>
     <nav aria-label={mobile ? '移动导航' : '主导航'}>
       <div className="navigation-group"><p className="sidebar-label">工作空间</p>{links(primary)}</div>
       {extensions.length > 0 && <div className="navigation-group"><p className="sidebar-label">已启用扩展</p>{links(extensions)}</div>}

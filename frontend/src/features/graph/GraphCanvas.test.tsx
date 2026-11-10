@@ -4,14 +4,16 @@ import { GraphCanvas } from './GraphCanvas';
 import { filterGraph, type Position } from './graph-model';
 import type { GraphResult } from '../../shared/model/types';
 
-const state = vi.hoisted(() => ({ workers: 0, sigma: undefined as any }));
+const state = vi.hoisted(() => ({ workers: 0, connectedOnKill: false, sigma: undefined as any }));
 vi.mock('@sigma/edge-curve', () => ({ EdgeCurvedArrowProgram: class {} }));
 vi.mock('sigma', () => ({ default: class {
-  graph: any; settings: any = {}; callbacks: Record<string, Function> = {};
+  container: HTMLElement; graph: any; settings: any = {}; callbacks: Record<string, Function> = {};
   camera = { ratio: 1, on: vi.fn(), animate: vi.fn(), setState: vi.fn() };
-  refresh = vi.fn(() => this.callbacks.afterRender?.()); kill = vi.fn();
-  constructor(graph: any) { this.graph = graph; state.sigma = this; }
+  refresh = vi.fn(() => this.callbacks.afterRender?.()); kill = vi.fn(() => { state.connectedOnKill = this.container.isConnected; });
+  constructor(graph: any, container: HTMLElement) { this.container = container; this.graph = graph; state.sigma = this; }
   getMouseCaptor() { return { on: (event: string, callback: Function) => { this.callbacks[event] = callback; } }; }
+  getTouchCaptor() { return { on: (event: string, callback: Function) => { this.callbacks[event] = callback; } }; }
+  graphToViewport(point: { x: number; y: number }) { return point; }
   getBBox() { return { x: [0, 1], y: [0, 1] }; } getCustomBBox() { return null; } setCustomBBox() {}
   viewportToGraph(point: { x: number; y: number }) { return point; }
   getGraph() { return this.graph; } getCamera() { return this.camera; }
@@ -76,7 +78,7 @@ it('preserves the renderer and dragged anchors on expansion and restores coordin
   view.rerender(<GraphCanvas {...props} data={expanded} visible={expanded} positions={restored} />);
   await waitFor(() => expect(sigma.graph.getNodeAttribute('a', 'x')).toBe(11));
   expect(state.sigma).toBe(sigma);
-  view.unmount(); expect(sigma.kill).toHaveBeenCalledOnce();
+  view.unmount(); expect(sigma.kill).toHaveBeenCalledOnce(); expect(state.connectedOnKill).toBe(true);
 });
 
 it('renders parallel arrows separately and keeps their names and identity through selection', async () => {
@@ -85,6 +87,7 @@ it('renders parallel arrows separately and keeps their names and identity throug
   const view = render(<GraphCanvas {...props} />);
   await waitFor(() => expect((screen.getByRole('button', { name: '适配可见图' }) as HTMLButtonElement).disabled).toBe(false));
   const sigma = state.sigma;
+  fireEvent.click(screen.getByRole('button', { name: '关系名称' }));
   const first = sigma.graph.getEdgeAttributes('ab'); const second = sigma.graph.getEdgeAttributes('ab2');
   expect(first.type).toBe('curved'); expect(second.type).toBe('curved'); expect(first.curvature).not.toBe(second.curvature);
   expect(sigma.graph.hasEdge('self')).toBe(false); // separate SVG geometry, no fake graph nodes
@@ -115,4 +118,62 @@ it('discards a terminated topology worker response and handles runtime failure w
   act(() => workers[1].onerror());
   await screen.findByText('图布局未能完成，请使用节点和关系列表。');
   expect((screen.getByRole('button', { name: '适配可见图' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+
+it('distinguishes click jitter from a drag and supports one-finger movement without moving pinned nodes', async () => {
+  const positions = new Map<string, Position>(); const onSelect = vi.fn(); const onOpen = vi.fn();
+  const props = { onOpen, data, visible: data, kind: 'instances' as const, selection: {}, positions, cache: new Map<string, Position[]>(), onSelect, onSelectEdge: vi.fn(), onClear: vi.fn() };
+  const view = render(<GraphCanvas {...props} />);
+  await waitFor(() => expect(state.sigma?.graph.order).toBe(3));
+  const sigma = state.sigma;
+  const event = (x: number, y: number) => ({ x, y, preventSigmaDefault: vi.fn(), original: { preventDefault() {}, stopPropagation() {} } });
+  const before = { ...positions.get('a')! };
+  act(() => { sigma.callbacks.downNode({ node: 'a', event: event(10, 10) }); sigma.callbacks.mousemovebody(event(11, 11)); sigma.callbacks.mouseup(); sigma.callbacks.clickNode({ node: 'a' }); });
+  expect(positions.get('a')).toEqual(before); expect(onSelect).toHaveBeenCalledOnce();
+  const touch = { touches: [{ x: 40, y: 50 }], ...event(40, 50) };
+  act(() => { sigma.callbacks.downNode({ node: 'a', event: event(10, 10) }); sigma.callbacks.touchmove(touch); sigma.callbacks.touchup(); });
+  expect(positions.get('a')).toEqual({ id: 'a', x: 40, y: 50 }); expect(touch.preventSigmaDefault).toHaveBeenCalled();
+  view.rerender(<GraphCanvas {...props} pins={['a']} />);
+  act(() => { sigma.callbacks.downNode({ node: 'a', event: event(40, 50) }); sigma.callbacks.mousemovebody(event(80, 90)); sigma.callbacks.mouseup(); });
+  expect(positions.get('a')).toEqual({ id: 'a', x: 40, y: 50 });
+  act(() => sigma.callbacks.doubleClickNode({ node: 'a', preventSigmaDefault() {} }));
+  expect(onOpen).not.toHaveBeenCalled();
+  view.rerender(<GraphCanvas {...props} />);
+  act(() => { sigma.callbacks.downNode({ node: 'a', event: event(40, 50) }); sigma.callbacks.touchmove({ ...touch, touches: [{ x: 60, y: 60 }, { x: 80, y: 80 }] }); sigma.callbacks.touchmove(touch); });
+  expect(positions.get('a')).toEqual({ id: 'a', x: 40, y: 50 });
+});
+
+it('opens only visible unlocked nodes or edges on double click and prevents camera zoom', async () => {
+  const onOpen = vi.fn(); const onOpenEdge = vi.fn(); const preventSigmaDefault = vi.fn();
+  const props = { data, visible: data, kind: 'instances' as const, selection: {}, cache: new Map<string, Position[]>(), onSelect: vi.fn(), onSelectEdge: vi.fn(), onClear: vi.fn(), onOpen, onOpenEdge };
+  const view = render(<GraphCanvas {...props} />);
+  await waitFor(() => expect(state.sigma?.graph.order).toBe(3));
+  const sigma = state.sigma;
+  act(() => { sigma.callbacks.clickNode({ node: 'a' }); sigma.callbacks.doubleClickNode({ node: 'a', preventSigmaDefault }); sigma.callbacks.clickEdge({ edge: 'ab' }); sigma.callbacks.doubleClickEdge({ edge: 'ab', preventSigmaDefault }); });
+  expect(onOpen).toHaveBeenCalledWith(data.nodes[0]); expect(onOpenEdge).toHaveBeenCalledWith(data.edges[0]); expect(preventSigmaDefault).toHaveBeenCalledTimes(2);
+  view.rerender(<GraphCanvas {...props} disabled />);
+  act(() => sigma.callbacks.doubleClickNode({ node: 'a', preventSigmaDefault }));
+  view.rerender(<GraphCanvas {...props} visible={{ ...data, nodes: [], edges: [] }} />);
+  act(() => { sigma.callbacks.clickNode({ node: 'a' }); sigma.callbacks.doubleClickNode({ node: 'a', preventSigmaDefault }); sigma.callbacks.clickEdge({ edge: 'ab' }); sigma.callbacks.doubleClickEdge({ edge: 'ab', preventSigmaDefault }); });
+  expect(onOpen).toHaveBeenCalledOnce(); expect(onOpenEdge).toHaveBeenCalledOnce();
+});
+
+it('allows keyboard selection, positioning and opening while respecting pins and edit locks', async () => {
+  const positions = new Map<string, Position>();
+  const props = { data, visible: data, kind: 'instances' as const, selection: {}, positions, cache: new Map<string, Position[]>(), onSelect: vi.fn(), onSelectEdge: vi.fn(), onClear: vi.fn(), onOpen: vi.fn() };
+  const view = render(<GraphCanvas {...props} />);
+  await waitFor(() => expect(state.sigma?.graph.order).toBe(3));
+  const canvas = screen.getByRole('group', { name: '授权子图画布' });
+  fireEvent.keyDown(canvas, { key: 'ArrowRight' }); expect(props.onSelect).toHaveBeenCalledWith(data.nodes[0]);
+  view.rerender(<GraphCanvas {...props} selection={{ node: 'a' }} />);
+  fireEvent.keyDown(canvas, { key: 'ArrowRight' }); fireEvent.keyDown(canvas, { key: 'ArrowDown', shiftKey: true });
+  expect(positions.get('a')).toEqual({ id: 'a', x: 16, y: 48 });
+  fireEvent.keyDown(canvas, { key: 'Enter' }); expect(props.onOpen).toHaveBeenCalledWith(data.nodes[0]);
+  fireEvent.keyDown(canvas, { key: 'Escape' }); expect(props.onClear).toHaveBeenCalledOnce();
+  view.rerender(<GraphCanvas {...props} selection={{ node: 'a' }} pins={['a']} />);
+  fireEvent.keyDown(canvas, { key: 'ArrowRight' }); expect(positions.get('a')?.x).toBe(16);
+  view.rerender(<GraphCanvas {...props} selection={{ node: 'a' }} disabled />);
+  fireEvent.keyDown(canvas, { key: 'ArrowRight' }); fireEvent.keyDown(canvas, { key: 'Enter' });
+  expect(positions.get('a')?.x).toBe(16); expect(props.onOpen).toHaveBeenCalledOnce();
 });
