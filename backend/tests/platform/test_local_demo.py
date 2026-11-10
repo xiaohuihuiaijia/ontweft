@@ -23,6 +23,8 @@ def test_local_demo_restarts_without_reset_and_ignores_external_config(tmp_path,
     monkeypatch.setattr(demo, "ROOT", tmp_path / "source")
     monkeypatch.setenv("ONTOLOGY_DATABASE_URL", "postgresql+pg8000://invalid.invalid/never-connect")
     monkeypatch.setenv("ONTOLOGY_LOGIN_TENANT_SLUG", "unrelated")
+    monkeypatch.setenv("ONTOLOGY_EXTENSIONS", '["knowledge","integrations","automation"]')
+    monkeypatch.setenv("ONTOLOGY_MODEL_APPROVAL", "separate")
     data = tmp_path / "isolated-demo"
     password = "Local-Test-Only-2026"
     with TestClient(demo.create_demo_app(data, password=password)) as client:
@@ -33,6 +35,8 @@ def test_local_demo_restarts_without_reset_and_ignores_external_config(tmp_path,
             == 200
         )
         session = client.get("/api/auth/me").json()
+        assert session["features"] == []
+        assert session["model_approval"] == "single"
         project = session["projects"][0]["id"]
         definition = client.get("/api/ontology/templates", params={"project_id": project}).json()["items"][0][
             "definition"

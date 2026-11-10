@@ -11,7 +11,7 @@ from pathlib import Path
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "var/reports/open-source-readiness-20261109"
+OUTPUT = ROOT / "var/reports/postgres-contracts"
 
 
 def main():
@@ -112,7 +112,7 @@ def main():
                     "--postgres",
                     *tests,
                     "-q",
-                    f"--junitxml=var/reports/open-source-readiness-20261109/{prefix}.xml",
+                    f"--junitxml=var/reports/postgres-contracts/{prefix}.xml",
                 ],
                 cwd=ROOT,
                 env=environment,

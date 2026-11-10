@@ -68,7 +68,7 @@ it('retains keywords on 409 and requires a fresh model read and explicit rebind 
 });
 
 it.each(['not_ready', 'failed'] as const)('does not equate %s zero results with absence, render HTML, or fall back to contains', async status => {
-  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, options) => String(input).includes('/search/status') ? json({ ...index, status }) : json(result({ items: [], total: 0, query: { text: '<img src=x onerror=alert(1)>', terms: ['<script>'], mode: 'all_terms' }, index: { ...index, status } })));
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => String(input).includes('/search/status') ? json({ ...index, status }) : json(result({ items: [], total: 0, query: { text: '<img src=x onerror=alert(1)>', terms: ['<script>'], mode: 'all_terms' }, index: { ...index, status } })));
   const view = render(<ObjectFulltext {...props} />);
   fireEvent.change(screen.getByLabelText('全文关键词'), { target: { value: '中文无结果' } });
   fireEvent.click(screen.getByRole('button', { name: '执行全文检索' }));

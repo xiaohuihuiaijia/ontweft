@@ -128,73 +128,93 @@ def preview_version(
         access(session, user, source.project_id, "sources:write")
         require_tabular(source)
     filename, content, tables, normalized = read_upload(file, settings, encoding, delimiter)
-    with db.transaction(user.tenant_id, write=True) as session:
-        source = scoped_record(session, Source, source_id, user)
-        access(session, user, source.project_id, "sources:write")
-        session.refresh(source)
-        if source.revision != expected_revision:
-            conflict("来源配置已改变，请重新预览")
-        keys = source.config.get("business_keys")
-        if not keys:
-            conflict("更新前须先配置明确业务键，不能依赖行号覆盖对象")
-        previous = UploadedTablesConnector(source, settings).tables
-        if len(previous) != len(tables) or any(
-            list(a.columns) != list(b.columns) or (len(tables) > 1 and a.name != b.name)
-            for a, b in zip(previous, tables)
-        ):
-            conflict("工作表或字段结构已改变，请作为新来源审核映射；原来源与证据保持不变")
-        preview = {}
-        for i, (old, new) in enumerate(zip(previous, tables)):
-            resource = f"sheet_{i + 1}"
-            left, right = keyed_rows(old, keys[resource]), keyed_rows(new, keys[resource])
-            common = left.keys() & right.keys()
-            preview[resource] = {
-                "added": len(right.keys() - left.keys()),
-                "updated": sum(left[k] != right[k] for k in common),
-                "unchanged": sum(left[k] == right[k] for k in common),
-                "absent": len(left.keys() - right.keys()),
+    directory = None
+    written = []
+    commit_started = False
+    try:
+        with db.transaction(user.tenant_id, write=True) as session:
+            source = scoped_record(session, Source, source_id, user)
+            access(session, user, source.project_id, "sources:write")
+            session.refresh(source)
+            if source.revision != expected_revision:
+                conflict("来源配置已改变，请重新预览")
+            keys = source.config.get("business_keys")
+            if not keys:
+                conflict("更新前须先配置明确业务键，不能依赖行号覆盖对象")
+            previous = UploadedTablesConnector(source, settings).tables
+            if len(previous) != len(tables) or any(
+                list(a.columns) != list(b.columns) or (len(tables) > 1 and a.name != b.name)
+                for a, b in zip(previous, tables)
+            ):
+                conflict("工作表或字段结构已改变，请作为新来源审核映射；原来源与证据保持不变")
+            preview = {}
+            for i, (old, new) in enumerate(zip(previous, tables)):
+                resource = f"sheet_{i + 1}"
+                left, right = keyed_rows(old, keys[resource]), keyed_rows(new, keys[resource])
+                common = left.keys() & right.keys()
+                preview[resource] = {
+                    "added": len(right.keys() - left.keys()),
+                    "updated": sum(left[k] != right[k] for k in common),
+                    "unchanged": sum(left[k] == right[k] for k in common),
+                    "absent": len(left.keys() - right.keys()),
+                }
+            version_id = uid()
+            config = {
+                **source.config,
+                "filename": filename,
+                "content_sha256": hashlib.sha256(content).hexdigest(),
+                "tables_sha256": hashlib.sha256(normalized).hexdigest(),
+                "size": len(content),
+                "encoding": encoding,
+                "delimiter": delimiter,
+                "bundle_id": version_id,
+                "file_mode": mode,
+                "frozen_fields": {r["resource_id"]: r["fields"] for r in source.resources},
             }
-        version_id = uid()
-        config = {
-            **source.config,
-            "filename": filename,
-            "content_sha256": hashlib.sha256(content).hexdigest(),
-            "tables_sha256": hashlib.sha256(normalized).hexdigest(),
-            "size": len(content),
-            "encoding": encoding,
-            "delimiter": delimiter,
-            "bundle_id": version_id,
-            "file_mode": mode,
-            "frozen_fields": {r["resource_id"]: r["fields"] for r in source.resources},
-        }
-        holder = SimpleNamespace(
-            id=source.id, tenant_id=source.tenant_id, project_id=source.project_id, config=config
-        )
-        directory = bundle_path(settings, holder)
-        directory.mkdir(parents=True, exist_ok=False)
-        for leaf, data in (("original", content), ("tables.json", normalized)):
-            with (directory / leaf).open("xb") as stream:
-                stream.write(data)
-        row = SourceFileVersion(
-            id=version_id,
-            tenant_id=user.tenant_id,
-            project_id=source.project_id,
-            source_id=source.id,
-            number=(
-                session.scalar(
-                    select(func.max(SourceFileVersion.number)).where(SourceFileVersion.source_id == source.id)
-                )
-                or 1
+            holder = SimpleNamespace(
+                id=source.id, tenant_id=source.tenant_id, project_id=source.project_id, config=config
             )
-            + 1,
-            base_revision=source.revision,
-            config=config,
-            resources=source.resources,
-            preview=preview,
-        )
-        session.add(row)
-        session.flush()
-        return row_dict(row)
+            candidate = bundle_path(settings, holder)
+            candidate.mkdir(parents=True, exist_ok=False)
+            directory = candidate
+            for leaf, data in (("original", content), ("tables.json", normalized)):
+                target = directory / leaf
+                with target.open("xb") as stream:
+                    written.append(target)
+                    stream.write(data)
+            row = SourceFileVersion(
+                id=version_id,
+                tenant_id=user.tenant_id,
+                project_id=source.project_id,
+                source_id=source.id,
+                number=(
+                    session.scalar(
+                        select(func.max(SourceFileVersion.number)).where(
+                            SourceFileVersion.source_id == source.id
+                        )
+                    )
+                    or 1
+                )
+                + 1,
+                base_revision=source.revision,
+                config=config,
+                resources=source.resources,
+                preview=preview,
+            )
+            session.add(row)
+            session.flush()
+            result = row_dict(row)
+            commit_started = True
+            return result
+    except Exception:
+        # A lost commit response can still mean the row is durable. Preserve its
+        # files for reconciliation instead of deleting possibly committed evidence.
+        if not commit_started:
+            for target in written:
+                target.unlink(missing_ok=True)
+            if directory is not None:
+                directory.rmdir()
+        raise
 
 
 class ApplyVersion(StrictModel):

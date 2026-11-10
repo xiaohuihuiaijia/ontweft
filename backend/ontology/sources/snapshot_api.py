@@ -20,9 +20,10 @@ class SnapshotInput(StrictModel):
 
 @router.post("/sources/{source_id}/snapshots", status_code=201)
 def create_snapshot(source_id: str, data: SnapshotInput, request: Request, user=Depends(authenticated)):
-    with request.app.state.db.transaction(user.tenant_id) as session:
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         source = scoped_record(session, Source, source_id, user)
         ctx = access(session, user, source.project_id, "sources:write")
+        session.refresh(source)
         if source.revision != data.expected_source_revision:
             conflict("来源配置已改变")
         if source.kind not in request.app.state.settings.source_kinds:

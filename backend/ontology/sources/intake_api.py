@@ -59,6 +59,7 @@ def upload_tables(
     path = bundle_path(settings, source)
     path.mkdir(parents=True, exist_ok=False)
     written = []
+    commit_started = False
     try:
         for leaf, data in (("original", content), ("tables.json", normalized)):
             target = path / leaf
@@ -94,11 +95,14 @@ def upload_tables(
                 {"content_sha256": source.config["content_sha256"], "tables": len(tables)},
             )
             result = source_view(source)
+            commit_started = True
         return result
     except Exception:
-        for target in written:
-            target.unlink(missing_ok=True)
-        path.rmdir()
+        # Commit acknowledgement can fail after the database stored the source.
+        if not commit_started:
+            for target in written:
+                target.unlink(missing_ok=True)
+            path.rmdir()
         raise
 
 

@@ -10,6 +10,88 @@ from tests.support.postgres import pg_databases as pg_databases  # noqa: PLC0414
 from tests.support.postgres import pg_platform as pg_platform  # noqa: PLC0414 - pytest fixture registration
 
 
+@pytest.mark.parametrize("failure", ["write", "flush", "commit_response"])
+def test_failed_version_preview_removes_only_its_new_bundle(platform, monkeypatch, failure):
+    from contextlib import contextmanager
+    from pathlib import Path
+
+    client, app, owner, _ = platform
+    content = b"code,name\n001,Original\n"
+    source = client.post(
+        "/api/sources/upload",
+        data={"project_id": owner["project_id"]},
+        files={"file": ("data.csv", content)},
+    ).json()
+    source = client.post(
+        f"/api/sources/{source['id']}/file-identity",
+        json={"expected_revision": source["revision"], "business_keys": {"sheet_1": ["c1"]}},
+    ).json()
+
+    def preview():
+        return client.post(
+            f"/api/sources/{source['id']}/versions",
+            data={"expected_revision": source["revision"]},
+            files={"file": ("next.csv", b"code,name\n001,Changed\n")},
+        )
+
+    # Keep a previously committed preview as well as the active original.
+    previous = preview()
+    assert previous.status_code == 201, previous.text
+    root = app.state.settings.data_dir / "uploaded_versions"
+    before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    if failure == "write":
+        original_open = Path.open
+
+        def fail_write(path, *args, **kwargs):
+            if path.name == "tables.json" and "uploaded_versions" in path.parts and args == ("xb",):
+                raise OSError("synthetic write failure")
+            return original_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", fail_write)
+    elif failure == "flush":
+        from sqlalchemy.orm import Session
+        from ontology.sources.models import SourceFileVersion
+
+        original_flush = Session.flush
+
+        def fail_flush(session, *args, **kwargs):
+            if any(isinstance(row, SourceFileVersion) for row in session.new):
+                raise OSError("synthetic database flush failure")
+            return original_flush(session, *args, **kwargs)
+
+        monkeypatch.setattr(Session, "flush", fail_flush)
+    else:
+        transaction = app.state.db.transaction
+
+        @contextmanager
+        def fail_commit(*args, **kwargs):
+            with transaction(*args, **kwargs) as session:
+                yield session
+            if kwargs.get("write"):
+                raise OSError("synthetic lost commit response")
+
+        monkeypatch.setattr(app.state.db, "transaction", fail_commit)
+    with pytest.raises(OSError, match="synthetic"):
+        preview()
+    after = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    assert all(after.get(path) == content for path, content in before.items())
+    if failure == "commit_response":
+        assert len(list(root.iterdir())) == 2
+        versions = client.get(f"/api/sources/{source['id']}/versions").json()["items"]
+        assert len(versions) == 3
+        latest = max(versions, key=lambda version: version["number"])
+        assert (
+            client.get(f"/api/sources/{source['id']}/versions/{latest['id']}/original").content
+            == b"code,name\n001,Changed\n"
+        )
+    else:
+        assert after == before
+        assert len(list(root.iterdir())) == 1
+    assert client.get(f"/api/sources/{source['id']}/original").content == content
+    if failure != "commit_response":
+        assert len(client.get(f"/api/sources/{source['id']}/versions").json()["items"]) == 2
+
+
 @pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])
 def test_versions_update_by_business_key_preserve_history_and_withdraw_only_when_selected(
     request, fixture_name

@@ -10,7 +10,8 @@ from pathlib import Path
 
 from ontology.cli import bootstrap
 from ontology.core.config import Settings
-from ontology.core.db import Base, Database
+from ontology.core.db import Database
+from ontology.core.registry import register_models
 from ontology.identity.models import Tenant
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
@@ -54,7 +55,7 @@ def main():
             runtime_url = make_url(runtime_file.read_text().strip())
         connection.execute(text("REVOKE CREATE ON SCHEMA public FROM PUBLIC"))
         connection.execute(text("GRANT USAGE ON SCHEMA public TO ontology_runtime"))
-        for table in Base.metadata.sorted_tables:
+        for table in register_models().sorted_tables:
             grants = (
                 "SELECT"
                 if table.name == "tenants"

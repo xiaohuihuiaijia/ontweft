@@ -48,7 +48,11 @@ async function main() {
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
     const page = await context.newPage();
-    page.on('pageerror', error => result.pageErrors.push(error.message));
+    let phase = 'intake';
+    page.on('pageerror', error => {
+      result.pageErrors.push(error.message);
+      (result.pageErrorDetails ??= []).push({ phase, stack: error.stack, url: page.url(), time: new Date().toISOString() });
+    });
     await page.goto(base + '/#sources');
     await page.getByRole('textbox', { name: /^用户名/ }).fill('owner');
     await page.getByLabel('密码', { exact: true }).fill(password);
@@ -162,12 +166,15 @@ async function main() {
         }).map(element => ({ tag: element.tagName, class: element.className, text: element.textContent?.slice(0, 70), width: element.getBoundingClientRect().width })).slice(0, 15) }));
       assert.equal(overflow.scroll > width, false, `Overflow at ${width}: ${JSON.stringify(overflow)}`);
       const filename = `${name}-${width}.png`;
-      await page.screenshot({ path: path.join(output, filename), fullPage: true }); result.screenshots.push(filename);
+      // Chromium full-page capture can briefly resize the viewport to 1px.
+      // Keep the live WebGL view at the tested desktop/mobile width instead.
+      await page.screenshot({ path: path.join(output, filename), fullPage: name !== 'imported-objects' }); result.screenshots.push(filename);
     };
     await capture('table-intake', 1440);
     await capture('table-intake', 375);
     await capture('table-intake', 320);
     await page.setViewportSize({ width: 1440, height: 1000 });
+    phase = 'open-graph';
     await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('button', { name: '图谱探索', exact: true }).click();
     let indexReady = false;
     for (let i = 0; i < 120; i++) {
@@ -180,18 +187,24 @@ async function main() {
     const searchResponse = page.waitForResponse(response => response.url().endsWith('/api/search/objects'));
     await page.getByRole('button', { name: '搜索', exact: true }).click();
     assert.equal((await (await searchResponse).json()).total, 1);
+    phase = 'add-node';
     await page.getByRole('button', { name: '合成测试 · 更新 · 加入画布', exact: true }).click();
     result.globalAuthorizedSearch = true;
     await page.locator('.node-chips').getByRole('button', { name: '合成测试 · 更新', exact: true }).click();
     await page.locator('.graph-inspector').getByRole('heading', { name: '合成测试 · 更新', exact: true }).waitFor();
     await page.getByRole('button', { name: '固定节点', exact: true }).click();
+    phase = 'expand';
     await page.getByRole('button', { name: '展开邻域', exact: true }).click();
     await page.getByRole('button', { name: '收起邻域', exact: true }).waitFor();
     await page.getByRole('button', { name: '保存个人视图', exact: true }).click();
+    phase = 'restore';
     await page.getByRole('button', { name: '恢复个人视图', exact: true }).click();
     await page.getByText('已按当前授权恢复视图').waitFor();
     result.neighborsPinAndRestore = true;
+    phase = 'capture-graph';
     await capture('imported-objects', 1440);
+    await capture('imported-objects', 375);
+    phase = 'reload';
     await page.reload();
     const session = await (await context.request.get(base + '/api/auth/me')).json();
     const projectId = session.projects[0].id;

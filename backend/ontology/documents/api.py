@@ -27,7 +27,6 @@ from ontology.identity.security import access, audit, authenticated
 from ontology.jobs.models import Job
 
 router = APIRouter(dependencies=[Depends(prepare_content_access)])
-KNOWLEDGE_GRAPH_EDGE_LIMIT = 1000
 
 
 def document_view(session, row, *, summary=False):

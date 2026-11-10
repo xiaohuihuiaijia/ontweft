@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { scoped, write } from '../../shared/api/api';
-import { Empty, ErrorNotice, Field, JsonView, Loading } from '../../shared/ui/components';
+import { ErrorNotice, Field, JsonView, Loading } from '../../shared/ui/components';
 import { useResource } from '../../shared/hooks/hooks';
 import type { BusinessObject, ListResult, RecordData, TypeDef } from '../../shared/model/types';
 

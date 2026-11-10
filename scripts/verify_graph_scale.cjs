@@ -3,7 +3,7 @@ const fs = require('node:fs'); const path = require('node:path'); const os = req
 const crypto = require('node:crypto'); const net = require('node:net'); const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const root = path.resolve(__dirname, '..'); const output = path.join(root, 'var/reports/open-source-readiness-20261109');
+const root = path.resolve(__dirname, '..'); const output = path.join(root, 'var/reports/graph-scale');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const percentile = (values, p) => [...values].sort((a, b) => a - b)[Math.max(0, Math.ceil(values.length * p) - 1)];
 

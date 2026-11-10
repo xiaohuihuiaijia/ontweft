@@ -352,6 +352,12 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
         relation = next((r for r in definition.get("relations", []) if r["key"] == data.type_key), None)
         if not relation or relation["target_type"] != target.type_key:
             raise DomainError(422, "invalid_relation", "关系谓词或目标类型不匹配")
+        if data.properties:
+            raise DomainError(422, "undefined_relation_properties", "请先定义关系属性；当前关系没有可写属性")
+        if data.evidence:
+            from ontology.knowledge.references import validate_references
+
+            validate_references(session, ctx, data.evidence)
         existing = session.scalar(
             select(Relation).where(
                 Relation.tenant_id == user.tenant_id,
@@ -374,12 +380,6 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
             )
         ):
             conflict("该关系只允许一个目标")
-        if data.properties:
-            raise DomainError(422, "undefined_relation_properties", "请先定义关系属性；当前关系没有可写属性")
-        if data.evidence:
-            from ontology.knowledge.references import validate_references
-
-            validate_references(session, ctx, data.evidence)
         row = Relation(
             tenant_id=user.tenant_id,
             project_id=data.project_id,
@@ -406,6 +406,13 @@ def delete_relation(
         row = scoped_record(session, Relation, relation_id, user)
         ctx = access(session, user, row.project_id, "objects:write")
         ensure_model_baseline(session, ctx, data)
+        row = session.scalar(
+            select(Relation)
+            .where(Relation.id == relation_id, Relation.tenant_id == user.tenant_id)
+            .execution_options(populate_existing=True)
+        )
+        if row is None:
+            missing()
         if row.revision != data.expected_revision:
             conflict()
         from ontology.objects.rule_models import RelationContribution

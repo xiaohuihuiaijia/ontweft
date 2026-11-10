@@ -244,6 +244,9 @@ def bound_entity(session, ctx, mapping, type_def, properties):
 def project_snapshot(session, job, snapshot):
     user = session.get(User, job.owner_id)
     ctx = access(session, user, job.project_id, "sources:write")
+    source = session.get(Source, snapshot.source_id)
+    if source.revision != snapshot.source_revision:
+        conflict("来源配置版本已改变，保留原始记录并重新采集")
     if ctx.project.active_release_id != snapshot.release_id:
         conflict("本体发布基线已改变，保留原始记录并重新采集或重放")
     bindings = session.scalars(

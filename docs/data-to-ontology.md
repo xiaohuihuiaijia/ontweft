@@ -4,7 +4,7 @@
 
 ## 最短可用路径
 
-1. 按 README 启动页面，另开终端运行 `uv run --locked --extra dev python scripts/start_local_demo.py worker`。自定义目录时两端使用同一个 `--data-dir`。
+1. 按 README 启动页面，另开终端运行 `uv run --locked --no-dev python scripts/start_local_demo.py worker`。自定义目录时两端使用同一个 `--data-dir`。
 2. 打开“数据”，选择 CSV 或 XLSX，点击“上传并查看数据”。数据库则先登记连接、测试和发现资源。
 3. 查看原列名、数据类型与原始样本。CSV 可明确选择 UTF-8、GB18030 或 UTF-16，以及逗号、分号或制表符。编码不匹配会报错，不会自动丢弃坏行。
 4. 首次采集前，在“文件版本与持续更新”为每张表选择明确业务键，再生成可编辑建议。可以一次选多张工作表；不会自动保存草稿、发布或创建对象。
@@ -21,13 +21,13 @@
 本机入口默认不允许访问网络来源。已有工作空间无需重建；停止服务和 worker 后，使用同一数据目录重新启动即可。以下例子只放行本机数据库：
 
 ```sh
-uv run --locked --extra dev python scripts/start_local_demo.py --source-host 127.0.0.1 --allow-private-sources
+uv run --locked --no-dev python scripts/start_local_demo.py --source-host 127.0.0.1 --allow-private-sources
 ```
 
 另开终端，以同样的来源配置运行 worker：
 
 ```sh
-uv run --locked --extra dev python scripts/start_local_demo.py worker --source-host 127.0.0.1 --allow-private-sources
+uv run --locked --no-dev python scripts/start_local_demo.py worker --source-host 127.0.0.1 --allow-private-sources
 ```
 
 `--source-host` 填主机名或 IP，不含协议、端口和路径；可重复指定多个明确主机。内网、回环和其他非公网地址需要 `--allow-private-sources`，它不会绕过主机名单，也不会把页面服务暴露到公网。公网来源通常无需这个额外参数。主机配置只作用于本次进程，重启时仍需传入；不读取已有开发 `.env` 或接管其他数据库。
@@ -75,13 +75,13 @@ uv run --locked --extra dev python scripts/start_local_demo.py worker --source-h
 
 确认执行会在同一写事务中重新核对权限、发布版本、对象修订、字段值及已有关系；预览过期则拒绝整批写入并要求重新预览。重新预览后重复执行不会重复建边。审计事件 `relations.matched` 保留规则、确认范围和新关系对应的两端对象修订，可结合对象修订与来源贡献追溯依据。关系自身的知识引用 `evidence` 仍遵循原有合同，不塞入伪造的文档引用。
 
-这是一次性、可审核的关联操作，后续字段变化不会自动重连或删除关系；当前不提供关系贡献账本、持续同步、模糊匹配、隐式单位换算或自动合并对象。持续同步需要单独定义撤回、冲突及人工覆盖策略。
+上面的“确认执行”是一次性关联，后续字段变化不会自动重连。选择“保存为持续规则”才会维护规则自己的关系贡献，并在字段变化后增量重算；保留人工关系及其他来源支持，冲突时暂停受影响记录。两种模式均不提供模糊匹配、隐式单位换算或复杂历史对象合并。
 
 下面是合成验证数据的实际图谱：27 条上传记录、1 个目标对象和 1 条经确认建立的关系。其余记录尚未匹配，保留为独立节点；布局不补造连接。
 
 ![上传数据建立的实际对象与具名关系](images/data-graph.png)
 
-生产使用还需要相应部署、来源授权与恢复验证；模型审批继续遵循当前权限体系，同一拥有足够权限的用户可以完成。具体未完成能力见 [Alpha 状态](alpha-status.md)。
+生产使用还需要相应部署、来源授权与恢复验证。企业模式默认异人模型审批；本机学习入口保留单人操作。具体边界见 [企业 Beta 验证记录](beta-verification.md)。
 
 ## 开发验证
 
@@ -95,6 +95,6 @@ uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --i
 uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --include-database-intake
 ```
 
-浏览器脚本另需 Playwright/Chromium；创建一次性账号、临时数据库与实际后台 worker，使用合成数据，结束后停止自己的进程并清理测试目录。证据写入忽略的 `var/reports/table-intake-20261110/`。PostgreSQL 脚本需要 Docker 及已有 `postgres:17` 镜像，使用隔离容器与受限角色；不读取开发凭据。
+浏览器脚本另需 Playwright/Chromium；创建一次性账号、临时数据库与实际后台 worker，使用合成数据，结束后停止自己的进程并清理测试目录。证据写入忽略的 `var/reports/enterprise-beta-browser/`。PostgreSQL 脚本需要 Docker 及已有 `postgres:17` 镜像，使用隔离容器与受限角色；不读取开发凭据。
 
 实现为自有代码，复用已登记的 openpyxl、defusedxml、FastAPI、React 等依赖，没有新增模型服务或付费 API，也未复制外部应用源码。第三方包保持原许可证。

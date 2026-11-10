@@ -64,6 +64,23 @@ def test_continuous_matching_preserves_manual_support_and_parks_revoked_rules(re
 
     drain()
     assert len(rels()) == 1 and rels()[0]["target_id"] == b["id"] and not rels()[0]["manual"]
+    # Retaining a generated relation must honor the same input contract as creation.
+    for invalid in (
+        {"properties": {"unsupported": True}},
+        {"evidence": [{"document_id": "missing", "revision": 1}]},
+    ):
+        rejected = client.post(
+            "/api/relations",
+            json={
+                "project_id": owner["project_id"],
+                "source_id": a["id"],
+                "target_id": b["id"],
+                "type_key": "belongs",
+                **invalid,
+            },
+        )
+        assert rejected.status_code in {404, 422}, rejected.text
+        assert not rels()[0]["manual"]
     # Explicit manual support of the generated relation survives rematching.
     assert (
         client.post(

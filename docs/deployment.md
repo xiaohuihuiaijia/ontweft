@@ -43,7 +43,7 @@ docker compose --env-file /secure/ontweft.env run --rm --entrypoint ontology mig
 python deploy/backup.py create /backup/ontweft-2026-11-10
 ```
 
-输出 `database.dump`、`assets.tar` 与 SHA-256 清单。数据库先使用一致性 dump；资产原件和文件版本按追加方式保留，随后归档可以包含少量尚未引用的新文件，不会用这些额外文件改写数据库。保留备份期间不能另行手工清理历史资产。密钥与部署环境需单独安全保留，备份工具不把它们写入清单。
+输出 `database.dump`、`assets.tar` 与 SHA-256 清单。数据库先使用一致性 dump；资产原件和文件版本按追加方式保留，归档排除解析临时目录和 worker 心跳文件；随后归档可以包含少量尚未引用的新文件，不会用这些额外文件改写数据库。保留备份期间不能另行手工清理历史资产。密钥与部署环境需单独安全保留，备份工具不把它们写入清单。
 
 恢复使用**新的 Compose 项目、空数据库和空资产卷**；工具拒绝覆盖已有表或资产。
 

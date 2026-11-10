@@ -27,7 +27,6 @@ from ontology.search.content.index import enqueue_content
 from ontology.sources.models import SourceSnapshot
 
 router = APIRouter(dependencies=[Depends(prepare_content_access)])
-KNOWLEDGE_GRAPH_EDGE_LIMIT = 1000
 
 
 @router.get("/jobs")

@@ -14,7 +14,7 @@ from ontology.identity.security import ROLES, access, allowed_field, audit, auth
 from ontology.modeling.models import ChangeSet, Release
 from ontology.modeling.schemas import ChangeSetInput, ChangeSetUpdate
 from ontology.modeling.templates import starter_templates
-from ontology.modeling.validation import recheck_delta, start_validation
+from ontology.modeling.validation import discard_validation, recheck_delta, start_validation
 from ontology.objects.models import EntityKey
 
 router = APIRouter()
@@ -127,11 +127,13 @@ def get_changeset(change_id: str, request: Request, user=Depends(authenticated))
 
 @router.patch("/changesets/{change_id}")
 def edit_changeset(change_id: str, data: ChangeSetUpdate, request: Request, user=Depends(authenticated)):
-    with request.app.state.db.transaction(user.tenant_id) as session:
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         change = scoped_record(session, ChangeSet, change_id, user)
         access(session, user, change.project_id, "ontology:write")
+        session.refresh(change)
         if change.status == "published":
             conflict("已发布版本不可修改，请创建新的变更集")
+        discard_validation(session, change)
         values = {"status": "draft", "validation": {}, "approved_by": None, "author_id": user.id}
         if data.definition is not None:
             values["definition"] = data.definition.model_dump()

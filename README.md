@@ -64,7 +64,7 @@ uv run --locked --no-dev python scripts/start_local_demo.py worker
 - 10 万对象／100 万关系、约 50 并发用户及查询／传播／恢复目标以实际测量为准；8 vCPU／32 GB 是参考环境，不是最低安装配置。
 - 源码开放与局部验收不表示生产可用性、安全审计、商标或完整第三方二进制／模型分发已通过。
 
-[核心设计与迁移边界](docs/enterprise-beta.md) · [验证事实](docs/beta-verification.md) · [早期 Alpha 记录](docs/alpha-status.md)
+[核心设计与迁移边界](docs/enterprise-beta.md) · [验证事实](docs/beta-verification.md) · [项目审查与待决事项](docs/project-audit.md) · [早期 Alpha 记录](docs/alpha-status.md)
 
 ## 开发与验证
 

@@ -67,6 +67,8 @@ def demo_settings(
         allow_private_source_addresses=allow_private_sources,
         max_upload_bytes=25 * 1024 * 1024,
         feishu_frontend_origin=f"http://127.0.0.1:{port}",
+        extensions=[],
+        model_approval="single",
     )
 
 

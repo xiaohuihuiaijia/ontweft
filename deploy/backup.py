@@ -59,6 +59,8 @@ def main():
                 "api",
                 "-C",
                 "/data",
+                "--exclude=./temporary",
+                "--exclude=./worker.heartbeat",
                 "-cf",
                 "-",
                 ".",

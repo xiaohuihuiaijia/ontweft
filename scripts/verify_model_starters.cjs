@@ -8,7 +8,7 @@ const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(__dirname, '..');
-const output = path.join(root, 'var', 'reports', 'open-source-readiness-20261109');
+const output = path.join(root, 'var', 'reports', 'model-starters');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function main() {

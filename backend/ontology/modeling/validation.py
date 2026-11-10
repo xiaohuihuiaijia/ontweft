@@ -127,14 +127,27 @@ def validate_batch(session, ctx, definition, rows, report):
                 add_errors(report, [{"relation_id": rel.id, "message": "现有关系不满足一个目标的基数"}])
 
 
-def start_validation(session, ctx, change):
-    from ontology.sources.ingestion import mapping_errors
-
+def discard_validation(session, change):
+    """Remove disposable keys and stop work tied to an obsolete draft revision."""
     old = change.validation.get("generation")
     if old:
         session.execute(
-            delete(EntityKey).where(EntityKey.tenant_id == ctx.user.tenant_id, EntityKey.definition_id == old)
+            delete(EntityKey).where(
+                EntityKey.tenant_id == change.tenant_id,
+                EntityKey.project_id == change.project_id,
+                EntityKey.definition_id == old,
+            )
         )
+    job_id = change.validation.get("job_id")
+    job = session.get(Job, job_id) if job_id else None
+    if job and job.status in {"pending", "running"}:
+        job.status, job.lease_until, job.updated_at = "cancelled", 0, now()
+
+
+def start_validation(session, ctx, change):
+    from ontology.sources.ingestion import mapping_errors
+
+    discard_validation(session, change)
     errors = definition_errors(change.definition) + mapping_errors(session, ctx, change.definition)
     report = {
         "valid": not errors,

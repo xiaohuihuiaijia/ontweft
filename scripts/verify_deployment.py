@@ -7,6 +7,7 @@ import secrets
 import socket
 import subprocess
 import sys
+import tarfile
 import time
 from contextlib import closing
 from pathlib import Path
@@ -226,6 +227,15 @@ db.engine.dispose()
         report["asset_scope"] = (
             "one actual immutable CSV and its normalized table; scale records are synthetic bulk fixtures"
         )
+        compose(
+            "exec",
+            "-T",
+            "api",
+            "python",
+            "-c",
+            "from pathlib import Path; p=Path('/data/temporary/synthetic-parser'); "
+            "p.mkdir(parents=True); (p/'result.json').write_text('{}')",
+        )
         started = time.monotonic()
         subprocess.run(
             [sys.executable, "deploy/backup.py", "create", str(output / "backup")],
@@ -236,6 +246,13 @@ db.engine.dispose()
             stderr=subprocess.STDOUT,
         )
         report["backup_seconds"] = round(time.monotonic() - started, 2)
+        with tarfile.open(output / "backup/assets.tar") as archive:
+            names = [item.name.removeprefix("./") for item in archive.getmembers()]
+            assert not any(
+                name == "worker.heartbeat" or name == "temporary" or name.startswith("temporary/")
+                for name in names
+            )
+            report["transient_files_excluded"] = True
         # A separate project/database/volume proves restore without ever clearing
         # a source volume or attaching to an existing deployment.
         compose("stop", "api", "worker")
