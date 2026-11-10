@@ -40,7 +40,9 @@ it('freezes the complete server context and preview, preserves exact values and 
   fireEvent.click(screen.getByRole('button', { name: '确认保存字段裁决' }));
   await screen.findByText(/已恢复有效，将移出待核对列表/);
   expect(writes[1].body).toEqual({ ...writes[0].body, expected_preview_fingerprint: 'preview1' });
-  expect(callbacks.onDecided).toHaveBeenCalledWith(entity); expect(callbacks.onDirty).toHaveBeenLastCalledWith(false); expect(submitForm).not.toHaveBeenCalled();
+  expect(callbacks.onDecided).toHaveBeenCalledWith(entity);
+  await waitFor(() => expect(callbacks.onDirty).toHaveBeenLastCalledWith(false));
+  expect(submitForm).not.toHaveBeenCalled();
 });
 
 it('invalidates previews after edits and sends hold/clear without accidentally selecting a source', async () => {

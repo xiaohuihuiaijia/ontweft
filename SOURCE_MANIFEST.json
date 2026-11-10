@@ -2171,9 +2171,9 @@
     },
     {
       "path": "frontend/src/features/objects/contributions/ContributionDecisions.test.tsx",
-      "bytes": 20431,
-      "sha256": "1de176f35e50344e51d2e187f7b9b3bde08b0ac7cc352471e0d1df78856c5bdb",
-      "source": "frontend/src/features/objects/contributions/ContributionDecisions.test.tsx"
+      "bytes": 20456,
+      "sha256": "96253ebdbb69eeb6203617ff3a740b22f38435eeee6e0baca3529d00c62e26dc",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/objects/contributions/ContributionDecisions.tsx",
