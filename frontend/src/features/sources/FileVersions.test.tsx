@@ -15,3 +15,20 @@ it('reuses the source CSV encoding and delimiter when previewing a new version',
   expect(upload!.get('encoding')).toBe('gb18030');
   expect(upload!.get('delimiter')).toBe(';');
 });
+
+
+it('pages back through retained versions and returns to the newer page', async () => {
+  const reads: string[] = [];
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    reads.push(String(url)); const older = String(url).includes('before=88');
+    return new Response(JSON.stringify({ total: 108, original_bytes: 1024, next_before: older ? null : 88,
+      items: [{ id: older ? 'v87' : 'v108', number: older ? 87 : 108, jobs: [], applied_revision: 1 }] }));
+  });
+  render(<FileVersions source={{ id: 's', name: 'Inventory', kind: 'tabular', revision: 1, config: {} }} onUpdated={vi.fn()} />);
+  fireEvent.click(await screen.findByText('保留的文件版本（108）'));
+  fireEvent.click(screen.getByRole('button', { name: '更早版本' }));
+  await waitFor(() => expect(reads.at(-1)).toContain('before=88'));
+  await screen.findByText(/版本 87/);
+  fireEvent.click(screen.getByRole('button', { name: '较新版本' }));
+  await screen.findByText(/版本 108/);
+});

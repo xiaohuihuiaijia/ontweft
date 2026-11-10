@@ -1,11 +1,11 @@
 import json
 import re
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, update
 
 from ontology.core.errors import DomainError, conflict, missing
+from ontology.core.scalars import bounded_decimal, canonical_time
 from ontology.identity.models import Project
 from ontology.identity.security import ROLES, allowed_field
 from ontology.modeling.models import Release
@@ -70,13 +70,7 @@ def coerce_value(prop, value):
     elif kind == "number":
         if isinstance(value, bool) or not isinstance(value, (int, float, str)):
             raise ValueError("应为十进制数")
-        try:
-            decimal = Decimal(str(value))
-            if not decimal.is_finite():
-                raise ValueError("数值必须有限")
-            value = str(decimal)
-        except InvalidOperation as exc:
-            raise ValueError("无效十进制数") from exc
+        value = str(bounded_decimal(value))
     elif kind == "boolean":
         if not isinstance(value, bool):
             raise ValueError("应为布尔值")
@@ -105,6 +99,12 @@ def validate_properties(type_def, values, *, partial=False):
             continue
         try:
             result[key] = coerce_value(prop, values[key])
+            if (
+                result[key] is not None
+                and prop["data_type"] in {"date", "datetime"}
+                and type_def.get("key_semantics") == "canonical"
+            ):
+                canonical_time(prop["data_type"], result[key])
         except (ValueError, TypeError) as exc:
             errors.append({"field": key, "message": str(exc)})
     if errors:

@@ -15,11 +15,11 @@ from ontology.modeling.models import Release
 from ontology.objects.models import Entity
 from ontology.sources.ingestion import schema_fingerprint
 from ontology.sources.models import Source, SourceIdentity, SourceRecordRevision
-from sqlalchemy import func, inspect, select, text
+from sqlalchemy import MetaData, Table, func, inspect, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from tests.support.cdc import native_event
-from tests.support.cdc_evidence_migrations import isolated_database, seed_old
+from tests.support.cdc_evidence_migrations import historical_stream, isolated_database, seed_old
 from tests.support.platform import publish
 from tests.support.postgres import pg_databases as pg_databases  # noqa: PLC0414 - pytest fixture registration
 from tests.support.postgres import pg_platform as pg_platform  # noqa: PLC0414 - pytest fixture registration
@@ -493,11 +493,12 @@ def test_projection_migration_preserves_history_or_rejects_before_any_ddl(tmp_pa
         migrate("8c4f2d9a6b13")
         owner = seeded["owner"]
         with database.transaction(owner["tenant_id"]) as session:
-            stream = seed_stream(
+            stream = historical_stream(
                 session,
                 owner,
                 source_id=seeded["source_id"],
                 project_id=seeded["second_project"] if invalid_scope else owner["project_id"],
+                received_sequence=1,
             )
             raw = native_event(stream.generation)
             session.add(
@@ -512,7 +513,6 @@ def test_projection_migration_preserves_history_or_rejects_before_any_ddl(tmp_pa
                     record=raw,
                 )
             )
-            stream.received_sequence = 1
         models = (Source, Release, CdcStream, CdcEvent, SourceRecordRevision, SourceIdentity)
 
         def stored_rows():
@@ -520,7 +520,11 @@ def test_projection_migration_preserves_history_or_rejects_before_any_ddl(tmp_pa
                 return {
                     model.__tablename__: [
                         dict(row)
-                        for row in session.execute(select(model.__table__).order_by(model.id)).mappings()
+                        for row in session.execute(
+                            select(
+                                Table(model.__tablename__, MetaData(), autoload_with=session.connection())
+                            ).order_by(text("id"))
+                        ).mappings()
                     ]
                     for model in models
                 }

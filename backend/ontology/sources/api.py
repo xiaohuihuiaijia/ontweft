@@ -6,7 +6,7 @@ from pydantic import Field
 from sqlalchemy import select
 
 from ontology.core.domain import exact_json_text, scoped_record
-from ontology.core.errors import DomainError
+from ontology.core.errors import DomainError, conflict
 from ontology.core.schemas import StrictModel
 from ontology.identity.security import access, audit, authenticated
 from ontology.sources.models import Source
@@ -69,51 +69,55 @@ def create_source(data: SourceInput, request: Request, user=Depends(authenticate
         return source_view(source)
 
 
+def checked_source(session, user, source_id, baseline=None):
+    source = scoped_record(session, Source, source_id, user)
+    access(session, user, source.project_id, "sources:write")
+    session.refresh(source)
+    require_source_read_identity(source)
+    if baseline and (source.revision != baseline.revision or source.resources != baseline.resources):
+        conflict("读取期间来源配置或目录已改变，请刷新后重试")
+    return source
+
+
 @router.post("/sources/{source_id}/test")
 def test_source(source_id: str, request: Request, user=Depends(authenticated)):
-    with request.app.state.db.transaction(user.tenant_id) as session:
-        source = scoped_record(session, Source, source_id, user)
-        access(session, user, source.project_id, "sources:write")
-        require_source_read_identity(source)
-        connector = connector_for(source, request.app.state.settings)
-        try:
-            result = connector.test_connection()
-            source.status = "connected" if result.ok else "error"
-            source.last_error = None if result.ok else result.message
-            return result.model_dump()
-        finally:
-            connector.close()
+    db = request.app.state.db
+    with db.transaction(user.tenant_id) as session:
+        baseline = checked_source(session, user, source_id)
+    connector = connector_for(baseline, request.app.state.settings)
+    try:
+        result = connector.test_connection()
+    finally:
+        connector.close()
+    with db.transaction(user.tenant_id, write=True) as session:
+        source = checked_source(session, user, source_id, baseline)
+        source.status = "connected" if result.ok else "error"
+        source.last_error = None if result.ok else result.message
+    return result.model_dump()
 
 
 @router.post("/sources/{source_id}/discover")
 def discover_source(source_id: str, request: Request, user=Depends(authenticated)):
-    with request.app.state.db.transaction(user.tenant_id) as session:
-        source = scoped_record(session, Source, source_id, user)
-        access(session, user, source.project_id, "sources:write")
-        require_source_read_identity(source)
-        connector = connector_for(source, request.app.state.settings)
-        try:
-            resources = [r.model_dump(mode="json") for r in connector.discover()]
-            from ontology.sources.ingestion import schema_fingerprint
+    from ontology.sources.ingestion import schema_fingerprint
 
-            for resource in resources:
-                resource["schema_fingerprint"] = schema_fingerprint(resource)
-            source.resources, source.status, source.last_error = resources, "discovered", None
-            audit(
-                session,
-                user,
-                source.project_id,
-                "source.discovered",
-                source.id,
-                {"resources": len(resources)},
-            )
-            return {
-                "source": source_view(source),
-                "resources": resources,
-                "capabilities": connector.capabilities.model_dump(),
-            }
-        finally:
-            connector.close()
+    db = request.app.state.db
+    with db.transaction(user.tenant_id) as session:
+        baseline = checked_source(session, user, source_id)
+    connector = connector_for(baseline, request.app.state.settings)
+    try:
+        resources = [r.model_dump(mode="json") for r in connector.discover()]
+        capabilities = connector.capabilities.model_dump()
+    finally:
+        connector.close()
+    for resource in resources:
+        resource["schema_fingerprint"] = schema_fingerprint(resource)
+    with db.transaction(user.tenant_id, write=True) as session:
+        source = checked_source(session, user, source_id, baseline)
+        if source.resources and source.resources != resources:
+            source.revision += 1
+        source.resources, source.status, source.last_error = resources, "discovered", None
+        audit(session, user, source.project_id, "source.discovered", source.id, {"resources": len(resources)})
+        return {"source": source_view(source), "resources": resources, "capabilities": capabilities}
 
 
 @router.get("/sources/{source_id}/sample")
@@ -124,15 +128,15 @@ def sample_source(
     limit: int = Query(20, ge=1, le=100),
     user=Depends(authenticated),
 ):
-    with request.app.state.db.transaction(user.tenant_id) as session:
-        source = scoped_record(session, Source, source_id, user)
-        access(session, user, source.project_id, "sources:write")
-        require_source_read_identity(source)
-        connector = connector_for(source, request.app.state.settings)
-        try:
-            connector.discover()
-            result = connector.sample(resource, limit=limit)
-            value = result.model_dump(mode="json")
-            return {**value, "sample_json": exact_json_text(value)}
-        finally:
-            connector.close()
+    db = request.app.state.db
+    with db.transaction(user.tenant_id) as session:
+        baseline = checked_source(session, user, source_id)
+    connector = connector_for(baseline, request.app.state.settings)
+    try:
+        connector.discover()
+        value = connector.sample(resource, limit=limit).model_dump(mode="json")
+    finally:
+        connector.close()
+    with db.transaction(user.tenant_id) as session:
+        checked_source(session, user, source_id, baseline)
+    return {**value, "sample_json": exact_json_text(value)}

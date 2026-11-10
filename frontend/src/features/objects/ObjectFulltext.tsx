@@ -6,8 +6,8 @@ import { ObjectTable } from './ObjectTable';
 import type { BusinessObject, TypeList } from '../../shared/model/types';
 
 export interface FulltextIndex { kind: 'object_fulltext'; generation: string | null; tokenizer_version: string; status: 'not_ready' | 'updating' | 'ready' | 'failed' }
-interface SearchInput { project_id: string; q: string; type_key?: string; limit: number; offset: number; expected_release_id: string | null; expected_model_version: number }
-interface SearchResult { items: BusinessObject[]; total: number; limit: number; offset: number; query: { text: string; terms: string[]; mode: 'all_terms' }; release_id: string | null; model_version: number; index: FulltextIndex; matches: Record<string, { fields: string[] }> }
+interface SearchInput { count_total: boolean; project_id: string; q: string; type_key?: string; limit: number; offset: number; expected_release_id: string | null; expected_model_version: number }
+interface SearchResult { items: BusinessObject[]; total: number | null; has_more: boolean; limit: number; offset: number; query: { text: string; terms: string[]; mode: 'all_terms' }; release_id: string | null; model_version: number; index: FulltextIndex; matches: Record<string, { fields: string[] }> }
 interface ModelBaseline { releaseId: string | null; version: number }
 interface Props { projectId: string; types?: TypeList; modelError?: unknown; loadingTypes: boolean; refreshTypes: () => void; opening: boolean; onOpen: (id: string) => void; refreshKey: number; canManage?: boolean }
 const indexLabels: Record<FulltextIndex['status'], string> = { not_ready: '全文索引尚未就绪', updating: '全文索引更新中，结果暂不完整', ready: '对象全文索引已就绪', failed: '全文索引处理失败，不能确认结果完整性' };
@@ -56,7 +56,7 @@ function FulltextSession({ projectId, types, modelError, loadingTypes, refreshTy
   };
   const submit = (event: React.FormEvent) => {
     event.preventDefault(); if (!baseline || !q.trim() || q.trim().length > 200 || loading || loadingTypes || typeUnavailable) return;
-    void execute({ project_id: projectId, q: q.trim(), ...(typeKey ? { type_key: typeKey } : {}), limit: 20, offset: 0, expected_release_id: baseline.releaseId, expected_model_version: baseline.version });
+    void execute({ count_total: false, project_id: projectId, q: q.trim(), ...(typeKey ? { type_key: typeKey } : {}), limit: 20, offset: 0, expected_release_id: baseline.releaseId, expected_model_version: baseline.version });
   };
   const rebuild = async () => {
     if (!canManage || rebuildDenied || loading || loadingTypes || !baseline?.releaseId || conflict || modelChanged || protectedError) return;
@@ -88,8 +88,8 @@ function FulltextSession({ projectId, types, modelError, loadingTypes, refreshTy
       <div className="inline-info"><span>本次关键词：{result.query.text} · 全部词匹配：{result.query.terms.join('、')}</span><button type="button" className="text-button" disabled={!applied || conflict || modelChanged} onClick={() => applied && void execute({ ...applied, offset: 0 })}>重新执行上次全文查询</button></div>
       <p className={`notice ${result.index.status === 'ready' ? '' : 'warning'}`}>本次读取：{indexLabels[result.index.status]}。{result.index.status !== 'ready' ? '已返回的安全结果仅是当前可检索部分；零条结果不能证明没有匹配对象。' : '分页按每次查询时的索引读取，更新期间结果可能变化。'} 索引代次：<code>{result.index.generation ?? '尚未建立'}</code></p>
       {result.items.length ? <ObjectTable items={result.items} types={displayTypes} disabled={opening} onOpen={onOpen} matches={result.matches} /> : <Empty title={result.index.status === 'ready' ? '没有符合全文条件的对象' : '当前暂无可返回的全文结果'} />}
-      <div className="pager"><span>本次可读匹配 {result.total} 条{result.index.status !== 'ready' ? '（索引结果暂不完整）' : ''} · 当前偏移 {result.offset}</span><button type="button" className="secondary" disabled={!result.offset || !applied || conflict || modelChanged} onClick={() => applied && void execute({ ...applied, offset: Math.max(0, result.offset - result.limit) })}>上一页全文结果</button><button type="button" className="secondary" disabled={!applied || result.offset + result.limit >= result.total || result.offset + result.limit > 1000 || conflict || modelChanged} onClick={() => applied && void execute({ ...applied, offset: result.offset + result.limit })}>下一页全文结果</button></div>
-      {result.total > 1020 && <p className="muted">本入口最多查看到偏移 1000，请缩小关键词或类型范围。</p>}
+      <div className="pager"><span>本页显示 {result.items.length} 条{result.has_more ? '，还有更多结果' : ''}{result.index.status !== 'ready' ? '（索引结果暂不完整）' : ''} · 当前偏移 {result.offset}</span><button type="button" className="secondary" disabled={!result.offset || !applied || conflict || modelChanged} onClick={() => applied && void execute({ ...applied, offset: Math.max(0, result.offset - result.limit) })}>上一页全文结果</button><button type="button" className="secondary" disabled={!applied || !result.has_more || result.offset + result.limit > 1000 || conflict || modelChanged} onClick={() => applied && void execute({ ...applied, offset: result.offset + result.limit })}>下一页全文结果</button></div>
+      {result.has_more && result.offset + result.limit > 1000 && <p className="muted">本入口最多查看到偏移 1000，请缩小关键词或类型范围。</p>}
     </> : !error && <Empty title="输入关键词并执行全文检索">索引状态刷新不会自动执行查询。</Empty>}
   </section>;
 }

@@ -7,8 +7,10 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
+    Index,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,7 +21,14 @@ from ontology.core.models import ProjectRecord
 class CdcStream(ProjectRecord, Base):
     __tablename__ = "cdc_streams"
     __table_args__ = (
-        UniqueConstraint("source_id"),
+        Index(
+            "uq_cdc_current_source",
+            "source_id",
+            unique=True,
+            postgresql_where=text("state <> 'retired'"),
+            sqlite_where=text("state <> 'retired'"),
+        ),
+        UniqueConstraint("previous_stream_id"),
         UniqueConstraint("tenant_id", "project_id", "id", name="uq_cdc_stream_scope"),
         UniqueConstraint(
             "tenant_id",
@@ -37,6 +46,7 @@ class CdcStream(ProjectRecord, Base):
         ),
     )
     source_id: Mapped[str] = mapped_column(ForeignKey("sources.id"))
+    previous_stream_id: Mapped[str | None] = mapped_column(ForeignKey("cdc_streams.id"), nullable=True)
     source_revision: Mapped[int] = mapped_column(Integer)
     generation: Mapped[str] = mapped_column(String(36))
     connector: Mapped[str] = mapped_column(String(30))

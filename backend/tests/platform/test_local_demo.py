@@ -134,3 +134,39 @@ assert 'lark_oapi' not in sys.modules
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_local_demo_generation_upgrade_backs_up_and_preserves_history(tmp_path):
+    import json
+    import sqlite3
+    from tests.support.cdc_evidence_migrations import isolated_database, seed_old, historical_stream
+
+    with isolated_database(tmp_path, "sqlite") as (database, migrate, _):
+        seeded = seed_old(database)
+        migrate("ef311029a400")
+        with database.transaction(seeded["owner"]["tenant_id"]) as session:
+            old = historical_stream(
+                session, seeded["owner"], seeded["source_id"], seeded["owner"]["project_id"]
+            )
+        data = tmp_path / "demo"
+        data.mkdir()
+        (data / demo.MARKER).write_text(json.dumps(demo.PROFILE), encoding="utf-8")
+        with (
+            sqlite3.connect(database.engine.url.database) as source,
+            sqlite3.connect(data / "demo.db") as target,
+        ):
+            source.backup(target)
+        backup = demo.upgrade_demo_schema(data)
+        assert backup.is_file() and not demo.needs_schema_upgrade(data)
+        with sqlite3.connect(backup) as connection:
+            assert "previous_stream_id" not in {
+                row[1] for row in connection.execute("PRAGMA table_info(cdc_streams)")
+            }
+            assert connection.execute("SELECT id FROM cdc_streams").fetchone()[0] == old.id
+        with sqlite3.connect(data / "demo.db") as connection:
+            assert connection.execute("SELECT id,previous_stream_id FROM cdc_streams").fetchone() == (
+                old.id,
+                None,
+            )
+            assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+        assert demo.upgrade_demo_schema(data) is None

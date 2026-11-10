@@ -61,6 +61,11 @@ def main():
     serve.add_argument("--port", type=int, default=8000)
     work = sub.add_parser("worker")
     work.add_argument("--once", action="store_true")
+    storage = sub.add_parser("storage", help="停 API/worker 后核对上传文件；默认只生成清单")
+    storage.add_argument(
+        "--quarantine", action="store_true", help="将过期且无数据库引用的文件移入隔离目录，不永久删除"
+    )
+    storage.add_argument("--min-age-days", type=int, default=7)
     args = parser.parse_args()
     if args.command == "init":
         db = Database(Settings())
@@ -77,6 +82,22 @@ def main():
         import uvicorn
 
         uvicorn.run("ontology.api:create_app", factory=True, host=args.host, port=args.port)
+    elif args.command == "storage":
+        import json
+        from ontology.sources.storage import inventory
+
+        settings = Settings()
+        db = Database(settings)
+        try:
+            print(
+                json.dumps(
+                    inventory(db, settings, min_age_days=args.min_age_days, quarantine=args.quarantine),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        finally:
+            db.engine.dispose()
     else:
         from ontology.worker import run_worker
 

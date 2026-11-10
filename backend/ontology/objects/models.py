@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +22,15 @@ class Entity(ProjectRecord, Base):
     __tablename__ = "entities"
     __table_args__ = (
         UniqueConstraint("tenant_id", "project_id", "id", name="uq_entity_scope"),
+        Index(
+            "ix_entity_browse",
+            "tenant_id",
+            "project_id",
+            text("updated_at DESC"),
+            "id",
+            postgresql_where=text("deleted IS FALSE AND data_status = 'active'"),
+            sqlite_where=text("deleted IS FALSE AND data_status = 'active'"),
+        ),
         Index("ix_entity_type", "tenant_id", "project_id", "type_key"),
         Index("ix_entity_changes", "tenant_id", "project_id", "changed_seq", "id"),
         CheckConstraint(

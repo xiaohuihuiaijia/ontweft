@@ -18,6 +18,7 @@ from ontology.core.errors import DomainError, conflict
 from ontology.core.models import now
 from ontology.identity.models import User
 from ontology.identity.security import access, audit
+from ontology.modeling.models import Release
 from ontology.jobs.service import check_job_authority, fenced_job, finish
 from ontology.objects.contributions.service import ensure_legacy_contributions, replace_contribution
 from ontology.objects.models import Entity
@@ -168,7 +169,7 @@ def mapped_properties(record, mapping, type_def, *, allow_incomplete=False):
     )
 
 
-def resolve_identity(session, job, snapshot, mapping, record):
+def resolve_identity(session, job, snapshot, mapping, record, *, candidates=None):
     scope = (
         SourceIdentity.source_id == snapshot.source_id,
         SourceIdentity.resource_id == snapshot.resource_id,
@@ -176,18 +177,20 @@ def resolve_identity(session, job, snapshot, mapping, record):
         SourceIdentity.tenant_id == job.tenant_id,
     )
     codec = "typed-v1" if record.identity_key is not None else "legacy-json-v1"
-    identity = session.scalar(
-        select(SourceIdentity).where(*scope, SourceIdentity.key_hash == record.key_hash)
-    )
+    if candidates is None:
+        candidates = session.scalars(
+            select(SourceIdentity).where(
+                *scope, SourceIdentity.key_hash.in_({record.key_hash, fingerprint(record.source_key)})
+            )
+        ).all()
+    identity = next((row for row in candidates if row.key_hash == record.key_hash), None)
     if identity and identity.key_codec != codec:
         conflict("来源身份编码冲突，需要审核身份迁移")
     if codec == "typed-v1":
-        legacy = session.scalar(
-            select(SourceIdentity).where(
-                *scope,
-                SourceIdentity.key_codec == "legacy-json-v1",
-                SourceIdentity.key_hash == fingerprint(record.source_key),
-            )
+        legacy_hash = fingerprint(record.source_key)
+        legacy = next(
+            (row for row in candidates if row.key_codec == "legacy-json-v1" and row.key_hash == legacy_hash),
+            None,
         )
         if legacy:
             if identity and identity.id != legacy.id:
@@ -272,7 +275,8 @@ def project_snapshot(session, job, snapshot):
     )
     if newer:
         conflict("已有更新的采集请求，旧快照保留原始记录但不能覆盖对象")
-    definition = active_definition(session, ctx.project)
+    release = session.get(Release, snapshot.release_id)
+    definition = release.definition
     errors = mapping_errors(session, ctx, definition)
     if errors:
         raise DomainError(422, "mapping_invalid", "映射校验未通过", errors)
@@ -312,7 +316,9 @@ def project_snapshot(session, job, snapshot):
                     ).all()
                     for candidate in candidates:
                         ensure_legacy_contributions(session, ctx, session.get(Entity, candidate.entity_id))
-                    identity, codec = resolve_identity(session, job, snapshot, mapping, record)
+                    identity, codec = resolve_identity(
+                        session, job, snapshot, mapping, record, candidates=candidates
+                    )
                     codecs.add(codec)
                     if len(codecs) > 1:
                         conflict("同一资源的来源身份编码不一致")

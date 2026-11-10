@@ -12,6 +12,15 @@ class Tenant(Base):
     name: Mapped[str] = mapped_column(String(200))
 
 
+class LoginThrottle(Base):
+    """Shared pre-authentication counters, containing no account or tenant records."""
+
+    __tablename__ = "login_throttles"
+    key_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    attempts: Mapped[int] = mapped_column(Integer)
+    expires_at: Mapped[float] = mapped_column(Float, index=True)
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (

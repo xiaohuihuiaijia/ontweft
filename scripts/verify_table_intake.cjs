@@ -186,7 +186,10 @@ async function main() {
     await page.getByLabel('全库对象搜索', { exact: true }).fill('更新');
     const searchResponse = page.waitForResponse(response => response.url().endsWith('/api/search/objects'));
     await page.getByRole('button', { name: '搜索', exact: true }).click();
-    assert.equal((await (await searchResponse).json()).total, 1);
+    const searched = await (await searchResponse).json();
+    assert.equal(searched.items.length, 1);
+    assert.equal(searched.has_more, false);
+    assert.equal(searched.total, null);
     phase = 'add-node';
     await page.getByRole('button', { name: '合成测试 · 更新 · 加入画布', exact: true }).click();
     result.globalAuthorizedSearch = true;

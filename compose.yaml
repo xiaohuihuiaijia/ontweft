@@ -33,6 +33,7 @@ services:
       ONTOLOGY_ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set a JSON array containing the HTTPS application origin}
       ONTOLOGY_EXTENSIONS: '[]'
       WEB_CONCURRENCY: ${API_WORKERS:-1}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1,::1}
     ports:
       - "127.0.0.1:${PORT:-8000}:8000"
     volumes:

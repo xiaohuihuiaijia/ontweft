@@ -7,7 +7,8 @@ lease service. Search never treats an outbox insertion as indexing success.
 
 import logging
 
-from sqlalchemy import and_, delete, exists, or_, select, update
+from sqlalchemy import and_, delete, exists, or_, select, text, update
+from sqlalchemy.exc import DBAPIError
 
 from ontology.cdc.models import CdcStream
 from ontology.cdc.projection_models import CdcProjectionBinding, CdcProjectionWindow
@@ -117,6 +118,8 @@ def index_status(session, project, *, state=None):
 
 
 def cdc_index_status(session, project, stream):
+    from ontology.cdc.projection import binding_matches_model
+
     status = index_status(session, project)
     checkpoint = session.scalar(
         select(SearchCdcCheckpoint).where(
@@ -133,7 +136,7 @@ def cdc_index_status(session, project, stream):
     sequence = checkpoint.sequence if checkpoint and checkpoint.generation == status["generation"] else 0
     if not binding or not status["generation"]:
         state, message = "not_ready", "等待对象全文索引初始化及有效的投影绑定"
-    elif binding.release_id != project.active_release_id:
+    elif not binding_matches_model(session, project, binding):
         state, message = "not_ready", "投影绑定与当前模型不同，不能声明本代全文索引已追平"
     elif status["status"] == "failed":
         state, message = "failed", "全文索引有失败项，已提交的对象投影不受影响"
@@ -197,7 +200,7 @@ def _index_entity(session, project, state, entity, definitions):
             ObjectSearchField.entity_id == entity.id,
         )
     )
-    for key, chunk, text in chunks if not error else []:
+    for key, chunk, lexeme in chunks if not error else []:
         session.add(
             ObjectSearchField(
                 tenant_id=project.tenant_id,
@@ -205,7 +208,7 @@ def _index_entity(session, project, state, entity, definitions):
                 entity_id=entity.id,
                 field_key=key,
                 chunk=chunk,
-                token_text=text,
+                token_text=lexeme,
                 generation=state.generation,
             )
         )
@@ -231,14 +234,20 @@ def _index_entity(session, project, state, entity, definitions):
 
 def _advance_checkpoints(session, project, state):
     """Only consecutive committed windows whose current objects are indexed."""
+    from ontology.cdc.projection import binding_matches_model
+
     changed = False
     bindings = session.scalars(
-        select(CdcProjectionBinding).where(
+        select(CdcProjectionBinding)
+        .join(CdcStream, CdcStream.id == CdcProjectionBinding.stream_id)
+        .where(
             *scoped(CdcProjectionBinding, project),
-            CdcProjectionBinding.release_id == project.active_release_id,
+            CdcStream.state != "retired",
         )
     ).all()
     for binding in bindings:
+        if not binding_matches_model(session, project, binding):
+            continue
         stream = session.get(CdcStream, binding.stream_id)
         checkpoint = session.scalar(
             select(SearchCdcCheckpoint).where(
@@ -361,6 +370,10 @@ def process_one_index(db, tenant_id, *, batch_size=BATCH_SIZE):
     initial_updated_at = None
     try:
         with db.transaction(tenant_id) as session:
+            if session.bind.dialect.name == "postgresql":
+                # Join the lock queue briefly instead of always skipping busy
+                # projects: continuous authorized reads must not starve indexing.
+                session.execute(text("SET LOCAL lock_timeout = '1000ms'"))
             pending = exists(
                 select(ObjectSearchRequest.id).where(
                     ObjectSearchRequest.project_id == Project.id,
@@ -378,7 +391,18 @@ def process_one_index(db, tenant_id, *, batch_size=BATCH_SIZE):
                 .where(
                     CdcStream.project_id == Project.id,
                     CdcStream.tenant_id == tenant_id,
-                    CdcProjectionBinding.release_id == Project.active_release_id,
+                    CdcStream.state != "retired",
+                    or_(
+                        CdcProjectionBinding.release_id == Project.active_release_id,
+                        exists(
+                            select(CdcProjectionWindow.id).where(
+                                CdcProjectionWindow.stream_id == CdcStream.id,
+                                CdcProjectionWindow.end_sequence == CdcStream.projected_sequence,
+                                CdcProjectionWindow.result["release_id"].as_string()
+                                == Project.active_release_id,
+                            )
+                        ).correlate(CdcStream, Project),
+                    ),
                     CdcStream.projected_sequence > 0,
                     or_(
                         SearchCdcCheckpoint.id.is_(None),
@@ -407,7 +431,7 @@ def process_one_index(db, tenant_id, *, batch_size=BATCH_SIZE):
                     ),
                 )
                 .order_by(SearchProjectState.updated_at, Project.id)
-                .with_for_update(of=Project, skip_locked=True)
+                .with_for_update(of=Project)
                 .limit(1)
             )
             if project is None:
@@ -421,6 +445,13 @@ def process_one_index(db, tenant_id, *, batch_size=BATCH_SIZE):
             attempt_generation = state.generation
             return _maintain_project(session, project, state, batch_size)
     except Exception as exc:  # noqa: BLE001 -- index boundary persists a sanitized, fenced failure.
+        if isinstance(exc, DBAPIError):
+            detail = exc.orig.args[0] if getattr(exc.orig, "args", ()) else None
+            state = getattr(exc.orig, "sqlstate", None) or (
+                detail.get("C") if isinstance(detail, dict) else None
+            )
+            if state == "55P03":
+                return False  # Contention keeps durable work pending; it is not corrupt data.
         # Persist a safe diagnostic, never source text/SQL parameters. A failed
         # transaction cannot leave fields, receipts or a checkpoint committed.
         logger.error("Object index maintenance failed (%s), project=%s", type(exc).__name__, project_id)

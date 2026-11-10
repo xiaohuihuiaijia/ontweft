@@ -1,13 +1,12 @@
 """Explicit, version-bound relation matching over already authorized typed objects."""
 
-from decimal import Decimal, InvalidOperation
-
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import select
 
 from ontology.core.domain import active_definition, wire_value
 from ontology.core.errors import DomainError, conflict, forbidden
+from ontology.core.scalars import bounded_decimal, canonical_time
 from ontology.core.models import uid
 from ontology.core.schemas import StrictModel
 from ontology.identity.security import access, allowed_field, audit, authenticated
@@ -49,10 +48,12 @@ def _property(type_def, key, role):
         forbidden()
     if prop["data_type"] == "json":
         raise DomainError(422, "unsupported_match", "请选择明确的标量字段，JSON 不用于隐式关系匹配")
-    return prop
+    return {**prop, "key_semantics": type_def.get("key_semantics", "legacy")}
 
 
 def _family(prop):
+    if prop["data_type"] in {"date", "datetime"} and prop.get("key_semantics") == "canonical":
+        return prop["data_type"] + "-canonical"
     return "text" if prop["data_type"] in {"string", "enum"} else prop["data_type"]
 
 
@@ -62,11 +63,11 @@ def _value_key(value, family):
     if family == "number":
         # Decimal equality preserves exact value without a floating point round trip.
         try:
-            value = Decimal(str(value))
-            if not value.is_finite():
-                raise InvalidOperation()
-        except (ValueError, InvalidOperation):
+            value = bounded_decimal(value)
+        except ValueError:
             raise DomainError(422, "invalid_match_value", "对象包含无效十进制值，请先修正数据") from None
+    elif family in {"date-canonical", "datetime-canonical"}:
+        value = canonical_time(family.split("-")[0], value)
     return family, value
 
 

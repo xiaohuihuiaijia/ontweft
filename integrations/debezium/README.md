@@ -34,6 +34,14 @@ POST `.../lease` `{holder_id:进程UUID}`取得fencing_token/lease_seconds/gener
 
 ACK的accepted_event_ids须与请求顺序完全一致（含重复），并有received_sequence。全部拆分HTTP chunks取得持久ACK后才逐条markProcessed，原Debezium batch末尾仅一次markBatchFinished。已提交前缀会在后续chunk失败后重投，由Python去重。收件ACK不代表业务投影/索引完成，也不是跨系统事务。
 
+## 重建采集基线
+
+模型的相关映射／类型语义变化、来源修订变化或旧 WAL 不可续读时，在来源页面选择“从完整快照重建基线”。请求同时绑定当前模型发布、来源修订、旧绑定 ID 与全部映射资源，重复旧请求返回冲突，不能生成第二个当前代。
+
+旧采集代立即退出，旧令牌和租约失效，历史事件／绑定／窗口保留。给新采集进程配置新通道的 `inbox.stream.url`、返回的 `inbox.generation`，并更新 `inbox.token.file` 指向的新令牌文件，使用**新的** `name`、`topic.prefix`、`slot.name`、独立的 `offset.storage.file.filename`，保持固定的 `snapshot.mode=initial` 和与新绑定一致的 `table.include.list`。先停止旧采集进程；publication 按经授权的完整表范围配置。不复用旧 offset，不自动删除旧 slot 或外部数据。
+
+新的完整快照完成前，当前业务对象继续保留。快照完成后复用来源业务键及对象身份，按当前贡献裁决物化；人工值与其他来源支持不被无条件覆盖。历史代可在来源页面只读查阅。旧复制槽的 WAL 占用由来源管理员在确认停用和保留要求后处理。
+
 ## 原生基线完成证据
 
 初始快照通知使用现有 `event_kind=control` 原样保存 key/value/offset；首次 STARTED 的实际 offset 可为空，仅已识别的原生 Notification schema 允许这一情况。通知 UUID 是上游控制记录身份，重启可能生成新 UUID；不据此宣称业务事件具有跨尝试稳定身份。
@@ -48,6 +56,6 @@ Python `next_cdc_window(..., expected_snapshot_resources=[...])` 必须收到 ST
 
 真实验收覆盖快照/精确值、同事务同键重复更新、PK变更、delete/tombstone/newkey headers、提交后丢ACK硬重启去重续接、拒收期间offset不前进、ALTER ADD事件schema、TRUNCATE。接收是实际Python API+独立SQLite inbox；PG并发/RLS另有后端测试。
 
-该版本PG transaction.id实为 `txId:当前LSN`，事务内也变化；必须依BEGIN/COMMIT、source txId、源commit时间和ordinal/计数聚合，不能按显示ID全等。snapshot可为first，不能只识别bool。已实际验证空表、多表含空表、初始扫描中断同 generation 重扫和完成通知间隙恢复。当前基线证明限原生完整表 initial snapshot、无歧义 schema.table 标识；上游逗号列表无法安全表达包含逗号/额外点号的标识，予以拒绝。空表的完整schema仍须另有版本化发现；空表DDL、WAL过期重基线、超过预算的大快照/大事务业务投影、TOAST治理和生产性能待补。不得据局部事件推断缺行删除或自动发布本体。心跳暂关闭，未验收源提交→对象查询P95≤30秒。
+该版本PG transaction.id实为 `txId:当前LSN`，事务内也变化；必须依BEGIN/COMMIT、source txId、源commit时间和ordinal/计数聚合，不能按显示ID全等。snapshot可为first，不能只识别bool。已实际验证空表、多表含空表、初始扫描中断同 generation 重扫和完成通知间隙恢复。当前基线证明限原生完整表 initial snapshot、无歧义 schema.table 标识；上游逗号列表无法安全表达包含逗号/额外点号的标识，予以拒绝。空表的完整schema仍须另有版本化发现；空表DDL的真实采集端端到端验证、WAL过期后新代重建的真实采集端验证、超过预算的大快照/大事务业务投影、TOAST治理和生产性能待补。不得据局部事件推断缺行删除或自动发布本体。心跳暂关闭，未验收源提交→对象查询P95≤30秒。
 
 `upstream/`保存固定上游许可证；本仓库不包含此前归档的依赖/JAR/镜像研究材料，公开范围见 [源码发行说明](../../third_party/README.md)。原 shade JAR 不能自动保留各依赖的全部 LICENSE/NOTICE；治理已补取无内嵌正文组件的固定上游材料，并核验旧应用的补充 notices 镜像。新增 snapshot-notifications 构建必须重新绑定应用/镜像哈希；不能沿用旧镜像材料完整性结论。JNI、适用源码与 JDK/OS 等履约仍待审，当前测试产物不标为已获商业发行批准。未运行上游完整测试。

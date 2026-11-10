@@ -20,6 +20,7 @@ from ontology.search.tokens import SearchBudgetError
 from sqlalchemy import func, select
 
 from tests.support.cdc_projection import append_events, fixtures, run, setup_projection, view
+from tests.support.platform import publish
 from tests.support.postgres import pg_databases as pg_databases  # noqa: PLC0414 - pytest fixture registration
 from tests.support.postgres import pg_platform as pg_platform  # noqa: PLC0414 - pytest fixture registration
 
@@ -61,6 +62,39 @@ def find(state, query):
 def index_once(state, batch_size=10):
     _, app, owner, _ = state["platform"]
     return process_one_index(app.state.db, owner["tenant_id"], batch_size=batch_size)
+
+
+def test_compatible_release_keeps_cdc_search_checkpoint_progressing(indexed_cdc):
+    import copy
+
+    state = indexed_cdc
+    client, _, owner, _ = state["platform"]
+    drain(state)
+    model = client.get("/api/ontology/definition", params={"project_id": owner["project_id"]}).json()
+    definition = copy.deepcopy(model["definition"])
+    definition["types"][0]["label"] = "Renamed display only"
+    publish(client, owner["project_id"], definition)
+    drain(state)
+    assert view(state)["fulltext"]["status"] == "ready"
+    # The first native update has a deliberately oversized token; the third
+    # update replaces it with bounded text, as in the original capture.
+    append_events(state, state["native"][6:15])
+    for _ in range(3):
+        run(state)
+    assert view(state)["projected_sequence"] == 15
+    drain(state)
+    assert view(state)["fulltext"]["sequence"] == 15
+    assert view(state)["fulltext"]["status"] == "ready"
+    assert not index_once(state)
+    heartbeat = copy.deepcopy(state["native"][7])
+    heartbeat["event_kind"], heartbeat["operation"] = "heartbeat", None
+    append_events(state, [heartbeat])
+    assert run(state)["projected_sequence"] == 16
+    # No changed object/outbox record: the committed window alone must wake
+    # checkpoint maintenance under the compatible new model release.
+    assert index_once(state)
+    assert view(state)["fulltext"]["sequence"] == 16
+    assert not index_once(state)
 
 
 def drain(state):

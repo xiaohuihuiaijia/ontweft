@@ -30,6 +30,7 @@ class TypeDefinition(StrictModel):
     description: str = Field(default="", max_length=4000)
     properties: list[PropertyDefinition] = Field(default_factory=list, max_length=200)
     unique_keys: list[list[str]] = Field(default_factory=list, max_length=16)
+    key_semantics: Literal["legacy", "canonical"] = "canonical"
     relations: list[RelationDefinition] = Field(default_factory=list, max_length=100)
 
 

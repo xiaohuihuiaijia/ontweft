@@ -32,7 +32,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="企业本体工作台", version="0.1.0", lifespan=lifespan)
     app.state.db, app.state.settings = database, settings
-    app.state.login_attempts = {}
     app.state.action_adapters = {}
     app.add_middleware(
         CORSMiddleware,

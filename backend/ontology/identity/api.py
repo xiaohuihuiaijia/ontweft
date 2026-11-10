@@ -8,6 +8,7 @@ from ontology.core.domain import row_dict
 from ontology.core.errors import DomainError, forbidden, missing
 from ontology.identity.models import LoginSession, Membership, Project, Tenant, User
 from ontology.identity.schemas import LoginInput, MemberInput, ProjectInput, UserInput
+from ontology.identity.throttle import clear_login, reserve_login
 from ontology.identity.security import (
     DUMMY_PASSWORD,
     PASSWORDS,
@@ -25,10 +26,11 @@ def register_identity_routes(app, database, settings):
     def login(data: LoginInput, request: Request, response: Response):
         address = request.client.host if request.client else "unknown"
         identifier = (data.username if data.username is not None else data.email).strip().lower()
+        tenant_slug = settings.login_tenant_slug or data.tenant_slug
+        rate_key = reserve_login(database, address, tenant_slug or "", identifier)
         with database.transaction() as session:
             # Resolve the enterprise before querying RLS-protected users. Never
             # search all enterprises for a matching name or password.
-            tenant_slug = settings.login_tenant_slug or data.tenant_slug
             if tenant_slug:
                 tenant = session.scalar(select(Tenant).where(Tenant.slug == tenant_slug))
             else:
@@ -36,10 +38,6 @@ def register_identity_routes(app, database, settings):
                 tenant = tenants[0] if len(tenants) == 1 else None
             if settings.login_tenant_slug and data.tenant_slug not in (None, settings.login_tenant_slug):
                 tenant = None
-            rate_key = (address, tenant_slug or "", identifier)
-            attempts = [t for t in app.state.login_attempts.get(rate_key, []) if t > time.time() - 300]
-            if len(attempts) >= 10:
-                raise DomainError(429, "rate_limited", "登录失败次数过多，请稍后重试")
             if tenant and database.engine.dialect.name == "postgresql":
                 session.execute(
                     text("SELECT set_config('app.tenant_id', :tenant, true)"), {"tenant": tenant.id}
@@ -58,9 +56,7 @@ def register_identity_routes(app, database, settings):
             )
             valid = verify_password(user.password_hash if user else DUMMY_PASSWORD, data.password)
             if not user or not valid or not user.active:
-                app.state.login_attempts[rate_key] = attempts + [time.time()]
                 raise DomainError(401, "invalid_credentials", "用户名或密码不正确")
-            app.state.login_attempts.pop(rate_key, None)
             if database.engine.dialect.name == "postgresql":
                 session.execute(
                     text("SELECT set_config('app.tenant_id', :tenant, true)"), {"tenant": user.tenant_id}
@@ -85,6 +81,7 @@ def register_identity_routes(app, database, settings):
                 samesite="strict",
                 path="/",
             )
+        clear_login(database, rate_key)
         return {"user": row_dict(user, exclude=("password_hash",))}
 
     @app.post("/api/auth/logout")

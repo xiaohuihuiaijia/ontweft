@@ -5,6 +5,21 @@ import { useGraphExploration } from './useGraphExploration';
 
 const graph = (label: string, truncated = false): GraphResult => ({ release_id: 'r1', version: 1, nodes: [{ id: 'a', label, type_key: 'item', kind: 'object', properties: {} }], edges: [], truncated });
 
+it('retains branch collapse and pagination after refreshing edited values', async () => {
+  const initial = graph('Old');
+  const neighbor = { ...initial.nodes[0], id: 'b', label: 'Neighbor' };
+  vi.spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(new Response(JSON.stringify({ ...initial, nodes: [...initial.nodes, neighbor], next_cursor: 'page-2' })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ ...graph('Edited'), nodes: [...graph('Edited').nodes, { ...neighbor, label: 'Updated neighbor' }] })));
+  const { result } = renderHook(() => useGraphExploration('p', 'u', initial, true, 200, vi.fn()));
+  await act(async () => { await result.current.expand('a'); });
+  await act(async () => { await result.current.refresh(); });
+  expect(result.current.slices.a.next_cursor).toBe('page-2');
+  expect(result.current.data.nodes.find(node => node.id === 'b')?.label).toBe('Updated neighbor');
+  act(() => result.current.collapse('a'));
+  expect(result.current.data.nodes).toEqual(graph('Edited').nodes);
+});
+
 it('uses the newest authorized node values and keeps server truncation visible', async () => {
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ...graph('Updated', true), next_cursor: null })));
   const { result } = renderHook(() => useGraphExploration('p', 'u', graph('Old'), true, 200, vi.fn()));

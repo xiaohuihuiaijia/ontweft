@@ -25,6 +25,7 @@ from ontology.identity.models import Project, User
 from ontology.identity.security import access, audit
 from ontology.jobs.models import Job
 from ontology.jobs.service import check_job_authority, fenced_job, finish
+from ontology.modeling.models import Release
 from ontology.objects.contributions.models import SourceContribution
 from ontology.objects.contributions.service import ensure_legacy_contributions, replace_contribution
 from ontology.objects.models import Entity
@@ -40,6 +41,41 @@ from ontology.sources.service import connector_for
 
 MAX_EVENTS = 10_000
 MAX_BYTES = 64 * 1024 * 1024
+
+
+def binding_matches_model(session, project, binding):
+    if project.active_release_id == binding.release_id:
+        return True
+    old = session.get(Release, binding.release_id)
+    current = active_definition(session, project)
+
+    def contract(definition):
+        mappings = sorted(
+            (m for m in definition.get("mappings", []) if m["source_id"] == binding.source_id),
+            key=lambda m: m["key"],
+        )
+        keys = {m["type_key"] for m in mappings}
+        types = []
+        for definition_type in definition["types"]:
+            if definition_type["key"] not in keys:
+                continue
+            # Presentation-only renames do not invalidate source decoding.
+            semantic = {
+                key: value for key, value in definition_type.items() if key not in {"label", "description"}
+            }
+            semantic["key_semantics"] = definition_type.get("key_semantics", "legacy")
+            for section in ("properties", "relations"):
+                semantic[section] = sorted(
+                    (
+                        {key: value for key, value in item.items() if key != "label"}
+                        for item in definition_type.get(section, [])
+                    ),
+                    key=lambda item: item["key"],
+                )
+            types.append(semantic)
+        return mappings, sorted(types, key=lambda t: t["key"])
+
+    return old is not None and contract(old.definition) == contract(current)
 
 
 def enqueue_projection(session, stream, state, owner_id):
@@ -154,7 +190,7 @@ def context_for_run(session, run):
         or source.revision != binding.source_revision
         or stream.source_revision != binding.source_revision
         or stream.generation != binding.generation
-        or ctx.project.active_release_id != binding.release_id
+        or not binding_matches_model(session, ctx.project, binding)
     ):
         raise DomainError(409, "binding_changed", "模型或来源配置已改变，需要审核迁移和重建基线")
     if stream.state != "active":
@@ -251,7 +287,7 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
             ctx,
             identity,
             record,
-            binding.release_id,
+            ctx.project.active_release_id,
             mapping,
             type_def,
             None,
@@ -292,7 +328,7 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
             type_key=mapping["type_key"],
             properties={},
             evidence=[],
-            release_id=binding.release_id,
+            release_id=ctx.project.active_release_id,
         )
         session.add(entity)
         session.flush()
@@ -317,7 +353,7 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
         ctx,
         identity,
         record,
-        binding.release_id,
+        ctx.project.active_release_id,
         mapping,
         type_def,
         mapped,
@@ -422,7 +458,7 @@ def project_window(session, ctx, stream, state, binding, unit, events):
                         ctx,
                         identity,
                         reference_record(session, ctx, completion),
-                        binding.release_id,
+                        ctx.project.active_release_id,
                         mapping,
                         types[mapping["type_key"]],
                         None,
@@ -443,7 +479,7 @@ def project_window(session, ctx, stream, state, binding, unit, events):
         kind=unit.kind,
         proof=asdict(unit.snapshot_proof) if unit.snapshot_proof else None,
         schema_fingerprints=unit.schema_fingerprints,
-        result=counts,
+        result={**counts, "release_id": ctx.project.active_release_id},
         entity_ids=sorted(touched),
         source_position=last_change.source_position,
     )

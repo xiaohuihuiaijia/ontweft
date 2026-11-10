@@ -55,7 +55,11 @@ def test_migrate_old_evidence_and_reference_only_database_contract(tmp_path, dia
                 ).one()
                 assert all(nulls)
                 assert session.get(CdcEvent, event_id).record == native
-                stream = session.get(CdcStream, stream_id)
+                stream = session.execute(
+                    select(
+                        CdcStream.received_sequence, CdcStream.projected_sequence, CdcStream.indexed_sequence
+                    ).where(CdcStream.id == stream_id)
+                ).one()
                 assert (stream.received_sequence, stream.projected_sequence, stream.indexed_sequence) == (
                     1,
                     0,
@@ -139,6 +143,9 @@ def test_migrate_old_evidence_and_reference_only_database_contract(tmp_path, dia
             # Check historical invariants above at the original revision, then
             # run today's API against today's complete schema.
             migrate("head")
+            if db is not admin:
+                db.engine.dispose()
+                db = runtime_db(admin, runtime_url, tmp_path)
             settings = Settings(
                 database_url=db.engine.url.render_as_string(hide_password=False), data_dir=tmp_path / "api"
             )

@@ -2,11 +2,11 @@
 
 import hashlib
 import json
-from decimal import Decimal
 
 from sqlalchemy import delete, select, update
 
 from ontology.core.errors import conflict
+from ontology.core.scalars import bounded_decimal, canonical_time
 from ontology.identity.models import Project
 from ontology.modeling.models import Release
 from ontology.objects.models import EntityKey
@@ -21,7 +21,7 @@ def digest(value):
 def number_text(value):
     # normalize() rounds to the current Decimal context (normally 28 digits).
     # Business identities must preserve every supplied digit.
-    number = Decimal(str(value))
+    number = bounded_decimal(value)
     if number.is_zero():
         return "0"
     result = format(number, "f")
@@ -38,6 +38,8 @@ def key_values(definition, properties, fields):
         kind = props[field]["data_type"]
         if kind == "number":
             value = number_text(value)
+        elif kind in {"date", "datetime"} and definition.get("key_semantics") == "canonical":
+            value = canonical_time(kind, value)
         values.append([kind, value])
     return digest(sorted(fields)), digest(values)
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import Field
 from sqlalchemy import func, select
@@ -98,17 +98,35 @@ def configure_identity(source_id: str, data: FileIdentity, request: Request, use
 
 
 @router.get("/sources/{source_id}/versions")
-def versions(source_id: str, request: Request, user=Depends(authenticated)):
+def versions(
+    source_id: str,
+    request: Request,
+    before: int | None = Query(None, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    user=Depends(authenticated),
+):
     with request.app.state.db.transaction(user.tenant_id) as session:
         source = scoped_record(session, Source, source_id, user)
         access(session, user, source.project_id, "sources:write")
+        scope = (SourceFileVersion.tenant_id == user.tenant_id, SourceFileVersion.source_id == source_id)
+        total, original_bytes = session.execute(
+            select(
+                func.count(), func.coalesce(func.sum(SourceFileVersion.config["size"].as_integer()), 0)
+            ).where(*scope)
+        ).one()
         rows = session.scalars(
             select(SourceFileVersion)
-            .where(SourceFileVersion.tenant_id == user.tenant_id, SourceFileVersion.source_id == source_id)
+            .where(*scope, *([SourceFileVersion.number < before] if before is not None else []))
             .order_by(SourceFileVersion.number.desc())
-            .limit(100)
+            .limit(limit + 1)
         ).all()
-        return {"items": [row_dict(r) for r in rows]}
+        page = rows[:limit]
+        return {
+            "items": [row_dict(r) for r in page],
+            "total": total,
+            "original_bytes": original_bytes,
+            "next_before": page[-1].number if len(rows) > limit else None,
+        }
 
 
 @router.post("/sources/{source_id}/versions", status_code=201)

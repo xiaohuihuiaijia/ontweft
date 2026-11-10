@@ -24,7 +24,18 @@ router = APIRouter()
 def read_transaction(db, tenant_id):
     try:
         with db.transaction(tenant_id) as session:
-            if session.bind.dialect.name == "postgresql":
+            if session.bind.dialect.name == "postgresql" and session.bind.dialect.server_version_info >= (
+                17,
+            ):
+                # PG 17 bounds the whole read transaction itself. No extra SET
+                # round trip before every ORM SELECT on the supported deployment.
+                session.execute(
+                    text(
+                        "SELECT set_config('transaction_timeout','3000ms',true), "
+                        "set_config('lock_timeout','1000ms',true)"
+                    )
+                )
+            elif session.bind.dialect.name == "postgresql":
                 session.execute(text("SET LOCAL statement_timeout = '3000ms'"))
                 session.execute(text("SET LOCAL lock_timeout = '1000ms'"))
                 deadline = monotonic() + 3
@@ -49,7 +60,11 @@ def read_transaction(db, tenant_id):
         state = getattr(exc.orig, "sqlstate", None) or (
             diagnostic.get("C") if isinstance(diagnostic, dict) else None
         )
-        if state in {"57014", "55P03"}:
+        if exc.connection_invalidated:
+            # pg8000 reports a server-terminated transaction as a disconnected
+            # socket rather than exposing PG 17's 25P04 diagnostic.
+            raise DomainError(503, "search_unavailable", "检索连接已中断或超过总时间预算，请重试") from None
+        if state in {"57014", "55P03", "25P04"}:
             raise DomainError(
                 503, "search_time_budget", "全文查询超过时间或锁等待预算，请缩小范围后重试"
             ) from None
@@ -64,6 +79,7 @@ class SearchBaseline(StrictModel):
 
 class SearchInput(SearchBaseline):
     q: str = Field(min_length=1, max_length=200)
+    count_total: bool = True
     type_key: str | None = None
     limit: int = Field(default=20, ge=1, le=50)
     offset: int = Field(default=0, ge=0, le=1000)
@@ -132,7 +148,8 @@ def search(data: SearchInput, request: Request, user=Depends(authenticated)):
         state = current_state(session, ctx.project)
         result = {
             "items": [],
-            "total": 0,
+            "total": 0 if data.count_total else None,
+            "has_more": False,
             "limit": data.limit,
             "offset": data.offset,
             "query": {"text": data.q, "terms": terms, "mode": "all_terms"},
@@ -194,10 +211,13 @@ def search(data: SearchInput, request: Request, user=Depends(authenticated)):
             .join(ObjectSearchDocument, ObjectSearchDocument.entity_id == Entity.id)
             .where(*conditions)
         )
-        result["total"] = session.scalar(select(func.count()).select_from(query.subquery()))
+        if data.count_total:
+            result["total"] = session.scalar(select(func.count()).select_from(query.subquery()))
         entities = session.scalars(
-            query.order_by(Entity.updated_at.desc(), Entity.id).offset(data.offset).limit(data.limit)
+            query.order_by(Entity.updated_at.desc(), Entity.id).offset(data.offset).limit(data.limit + 1)
         ).all()
+        result["has_more"] = len(entities) > data.limit
+        entities = entities[: data.limit]
         by_type = {definition["key"]: definition for definition in definitions}
         result["items"] = [
             entity_view(session, entity, ctx, definition=by_type[entity.type_key]) for entity in entities

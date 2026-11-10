@@ -5,7 +5,7 @@ export interface ListResult<T> { items: T[]; total: number }
 export type DataType = 'string' | 'integer' | 'number' | 'boolean' | 'date' | 'datetime' | 'enum' | 'json';
 export interface PropertyDef { key: string; label: string; data_type: DataType; required?: boolean; enum?: string[]; unit?: string; source_owned?: boolean; read_roles?: string[]; write_roles?: string[] }
 export interface RelationDef { key: string; label: string; target_type: string; cardinality: 'one' | 'many' }
-export interface TypeDef { key: string; label: string; description?: string; properties: PropertyDef[]; unique_keys?: string[][]; relations: RelationDef[] }
+export interface TypeDef { key: string; label: string; description?: string; properties: PropertyDef[]; unique_keys?: string[][]; key_semantics?: 'legacy' | 'canonical'; relations: RelationDef[] }
 export interface TypeList extends ListResult<TypeDef> { release_id?: string | null; version?: number }
 export interface FieldMapping { source_field: string; transform: 'identity' | 'trim' | 'lower' | 'upper' | 'integer' | 'number' | 'boolean' | 'date' }
 export interface MappingDef { key: string; source_id: string; resource_id: string; type_key: string; schema_fingerprint: string; identity_fields?: string[]; fields: Record<string, FieldMapping> }

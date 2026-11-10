@@ -162,6 +162,9 @@ def test_hidden_fields_cannot_supply_terms_count_or_matches(search_platform):
             ).status_code
             == 200
         )
+        bounded = search(reader, owner, "量子材料", limit=1, count_total=False).json()
+        assert bounded["total"] is None and bounded["has_more"] is False
+        assert [row["id"] for row in bounded["items"]] == [second["id"]]
         result = search(reader, owner, "量子材料", limit=1).json()
         assert result["total"] == 1 and [item["id"] for item in result["items"]] == [second["id"]]
         assert first["id"] not in result["matches"] and "secret" not in result["items"][0]["properties"]
@@ -300,3 +303,96 @@ def test_postgres_search_lock_budget_returns_error_not_empty(pg_platform):
     assert search(client, owner, "查询").json()["total"] == 1
     with app.state.db.transaction(owner["tenant_id"]) as session:
         assert session.scalar(text("SHOW statement_timeout")) == "0"
+
+
+def test_postgres_native_total_budget_releases_connection(pg_platform):
+    import time
+    from ontology.core.errors import DomainError
+    from ontology.search.objects.api import read_transaction
+
+    _, app, owner, _ = pg_platform
+    started = time.monotonic()
+    with pytest.raises(DomainError) as error, read_transaction(app.state.db, owner["tenant_id"]) as session:
+        session.execute(text("SELECT pg_sleep(2)"))
+        session.execute(text("SELECT pg_sleep(2)"))
+    assert error.value.status == 503
+    assert error.value.code in {"search_time_budget", "search_unavailable"}
+    assert time.monotonic() - started < 4.5
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        assert session.scalar(text("SELECT 1")) == 1
+        assert session.scalar(text("SHOW statement_timeout")) == "0"
+
+
+def test_bounded_search_pages_without_claiming_an_exact_total(search_platform):
+    client, app, owner, _ = setup(search_platform)
+    ids = {create(client, owner, name="sharedasset " + str(i))["id"] for i in range(3)}
+    drain(app, owner)
+    first = search(client, owner, "sharedasset", count_total=False, limit=2).json()
+    last = search(client, owner, "sharedasset", count_total=False, limit=2, offset=2).json()
+    assert first["total"] is None and last["total"] is None
+    assert first["has_more"] is True and last["has_more"] is False
+    assert len(first["items"]) == 2 and len(last["items"]) == 1
+    assert {item["id"] for item in first["items"] + last["items"]} == ids
+    assert search(client, owner, "sharedasset").json()["total"] == 3
+
+
+def test_postgres_browse_order_has_an_eligible_index(pg_platform):
+    client, app, owner, _ = setup(pg_platform)
+    obj = create(client, owner, name="Ordered browse")
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        # Tiny fixtures normally prefer a sequential scan. This verifies that
+        # the production predicate admits an ordered index path at all: PG
+        # does not infer IS FALSE from a partial-index predicate using = false.
+        session.execute(text("SET LOCAL enable_seqscan = off"))
+        query = (
+            select(Entity.id)
+            .where(
+                Entity.tenant_id == owner["tenant_id"],
+                Entity.project_id == owner["project_id"],
+                Entity.deleted.is_(False),
+                Entity.data_status == "active",
+            )
+            .order_by(Entity.updated_at.desc(), Entity.id)
+            .limit(21)
+        )
+        assert list(session.scalars(query)) == [obj["id"]]
+        sql = query.compile(dialect=session.bind.dialect, compile_kwargs={"literal_binds": True})
+        plan = "\n".join(session.scalars(text("EXPLAIN " + str(sql))))
+        assert "ix_entity_browse" in plan and "Sort" not in plan
+
+
+def test_index_waits_for_brief_read_lock_and_preserves_work_on_timeout(pg_platform):
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+    from threading import Event
+    from sqlalchemy import event
+
+    client, app, owner, _ = setup(pg_platform)
+    create(client, owner, name="Queued indexing")
+    attempted = Event()
+
+    def observe(_connection, _cursor, statement, *_):
+        if "FOR UPDATE OF projects" in statement:
+            attempted.set()
+
+    event.listen(app.state.db.engine, "before_cursor_execute", observe)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with app.state.db.transaction(owner["tenant_id"]) as session:
+                session.scalar(
+                    select(Project).where(Project.id == owner["project_id"]).with_for_update(read=True)
+                )
+                future = pool.submit(process_one_index, app.state.db, owner["tenant_id"])
+                assert attempted.wait(3)
+                with pytest.raises(TimeoutError):
+                    future.result(timeout=0.2)
+            assert future.result(timeout=5)
+            create(client, owner, name="Retained on contention")
+            with app.state.db.transaction(owner["tenant_id"]) as session:
+                session.scalar(
+                    select(Project).where(Project.id == owner["project_id"]).with_for_update(read=True)
+                )
+                assert not pool.submit(process_one_index, app.state.db, owner["tenant_id"]).result(timeout=4)
+            assert process_one_index(app.state.db, owner["tenant_id"])
+            assert search(client, owner, "contention").json()["total"] == 1
+    finally:
+        event.remove(app.state.db.engine, "before_cursor_execute", observe)

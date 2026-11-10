@@ -83,6 +83,15 @@ def changesets(request: Request, project_id: str, user=Depends(authenticated)):
         return {"items": [row_dict(x) for x in items], "total": len(items)}
 
 
+def definition_input(value, previous):
+    result = value.model_dump()
+    known = {item["key"]: item for item in previous.get("types", [])}
+    for submitted, item in zip(value.types, result["types"], strict=True):
+        if "key_semantics" not in submitted.model_fields_set and item["key"] in known:
+            item["key_semantics"] = known[item["key"]].get("key_semantics", "legacy")
+    return result
+
+
 @router.post("/changesets", status_code=201)
 def create_changeset(data: ChangeSetInput, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id) as session:
@@ -93,7 +102,7 @@ def create_changeset(data: ChangeSetInput, request: Request, user=Depends(authen
             tenant_id=user.tenant_id,
             project_id=data.project_id,
             title=data.title,
-            definition=data.definition.model_dump(),
+            definition=definition_input(data.definition, active_definition(session, ctx.project)),
             author_id=user.id,
             baseline_release_id=ctx.project.active_release_id,
         )
@@ -136,7 +145,7 @@ def edit_changeset(change_id: str, data: ChangeSetUpdate, request: Request, user
         discard_validation(session, change)
         values = {"status": "draft", "validation": {}, "approved_by": None, "author_id": user.id}
         if data.definition is not None:
-            values["definition"] = data.definition.model_dump()
+            values["definition"] = definition_input(data.definition, change.definition)
         if data.title is not None:
             values["title"] = data.title
         compare_and_swap(session, change, data.expected_revision, values)

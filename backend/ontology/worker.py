@@ -210,6 +210,11 @@ def process_one(db: Database, settings: Settings, worker_id: str | None = None) 
 
 
 def run_worker(settings: Settings, once=False, action_registry=None):
+    from ontology.search.tokens import tokenizer
+
+    # Dictionary initialization belongs to process startup, never the first
+    # project's indexing transaction (which excludes object writes/searches).
+    tokenizer()
     db = Database(settings)
     worker_id = str(uuid4())
     registry = action_registry or {}

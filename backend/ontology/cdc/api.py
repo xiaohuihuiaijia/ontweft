@@ -8,12 +8,15 @@ from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
 from ontology.cdc.models import CdcEvent, CdcStream
+from ontology.cdc.projection_api import ProjectionInput, configure_binding
+from ontology.cdc.projection_models import CdcProjectionState
 from ontology.cdc.runtime import LEASE_SECONDS, authenticated_stream, issue_token, read_batch, receive_batch
 from ontology.core.domain import row_dict, scoped_record
-from ontology.core.errors import DomainError, conflict
+from ontology.core.errors import DomainError, conflict, forbidden
 from ontology.core.models import uid
 from ontology.core.schemas import StrictModel
 from ontology.identity.security import access, audit, authenticated
+from ontology.jobs.models import Job
 from ontology.sources.models import Source
 
 router = APIRouter()
@@ -28,16 +31,18 @@ class LeaseInput(StrictModel):
     holder_id: str = Field(min_length=36, max_length=36)
 
 
-def stream_view(row, session):
-    from ontology.cdc.projection_models import CdcProjectionState
+class RebuildInput(ProjectionInput):
+    expected_binding_id: str | None = None
 
+
+def stream_view(row, session):
     status = session.scalar(select(CdcProjectionState.status).where(CdcProjectionState.stream_id == row.id))
     return {**row_dict(row, exclude=("token_hash",)), "projection_status": status or "not_configured"}
 
 
 @router.post("/cdc/streams", status_code=201)
 def create_stream(data: StreamInput, request: Request, user=Depends(authenticated)):
-    with request.app.state.db.transaction(user.tenant_id) as session:
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         source = scoped_record(session, Source, data.source_id, user)
         access(session, user, source.project_id, "sources:write")
         session.refresh(source)
@@ -75,7 +80,7 @@ def streams(request: Request, project_id: str, user=Depends(authenticated)):
         rows = session.scalars(
             select(CdcStream)
             .where(CdcStream.project_id == project_id, CdcStream.tenant_id == user.tenant_id)
-            .order_by(CdcStream.created_at)
+            .order_by(CdcStream.created_at.desc())
         ).all()
         return {"items": [stream_view(row, session) for row in rows]}
 
@@ -120,12 +125,62 @@ def commit_batch(db, authorization, stream_id, batch):
     return response
 
 
+@router.post("/cdc/streams/{stream_id}/rebuild", status_code=201)
+def rebuild(stream_id: str, data: RebuildInput, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
+        old = scoped_record(session, CdcStream, stream_id, user)
+        ctx = access(session, user, old.project_id, "sources:write")
+        if "ontology:write" not in ctx.permissions:
+            forbidden()
+        session.refresh(ctx.project)
+        session.refresh(old, with_for_update=True)
+        if old.state == "retired":
+            conflict("该代已退出，请读取当前通道；不会重复建立新代")
+        state = session.scalar(select(CdcProjectionState).where(CdcProjectionState.stream_id == old.id))
+        if (state.binding_id if state else None) != data.expected_binding_id:
+            conflict("投影绑定已改变，请刷新后重建")
+        source = scoped_record(session, Source, old.source_id, user)
+        old.state, old.lease_holder, old.lease_until = "retired", None, 0
+        old.fencing_token += 1
+        if state and state.last_job_id:
+            job = session.get(Job, state.last_job_id)
+            if job and job.status in {"pending", "running"}:
+                job.status, job.lease_until = "cancelled", 0
+        session.flush()
+        stream = CdcStream(
+            id=uid(),
+            tenant_id=user.tenant_id,
+            project_id=old.project_id,
+            source_id=source.id,
+            source_revision=source.revision,
+            previous_stream_id=old.id,
+            generation=uid(),
+            connector="postgresql",
+            owner_id=user.id,
+        )
+        token = issue_token(stream)
+        session.add(stream)
+        session.flush()
+        configure_binding(session, ctx, stream, data)
+        audit(
+            session,
+            user,
+            old.project_id,
+            "cdc.baseline.rebuild",
+            stream.id,
+            {"previous_stream_id": old.id, "previous_projected_sequence": old.projected_sequence},
+        )
+        return {"stream": stream_view(stream, session), "token": token}
+
+
 @router.post("/cdc/streams/{stream_id}/{operation}")
 def operate(stream_id: str, operation: str, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id) as session:
         row = scoped_record(session, CdcStream, stream_id, user)
         access(session, user, row.project_id, "sources:write")
         session.refresh(row)
+        if row.state == "retired":
+            conflict("历史采集代只读，不能恢复或换令牌")
         token = None
         if operation == "pause" and row.state == "active":
             row.state = "paused"

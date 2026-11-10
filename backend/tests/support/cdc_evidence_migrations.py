@@ -6,10 +6,11 @@ import subprocess
 import sys
 from contextlib import contextmanager
 from unittest.mock import patch
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from ontology.cdc.models import CdcEvent, CdcStream
+from ontology.cdc.models import CdcEvent
 from ontology.core.config import Settings
 from ontology.core.db import Database
 from ontology.core.models import now
@@ -208,24 +209,37 @@ def seed_old(db, invalid=None):
     return result
 
 
+def historical_stream(session, owner, source_id, project_id, *, received_sequence=0):
+    values = dict(
+        id=str(uuid4()),
+        tenant_id=owner["tenant_id"],
+        project_id=project_id,
+        source_id=source_id,
+        source_revision=1,
+        generation=str(uuid4()),
+        connector="postgresql",
+        owner_id=owner["user_id"],
+        token_hash="a" * 64,
+        received_sequence=received_sequence,
+        projected_sequence=0,
+        indexed_sequence=0,
+        lease_until=0,
+        fencing_token=0,
+        state="active",
+        created_at=now(),
+    )
+    table = Table("cdc_streams", MetaData(), autoload_with=session.connection())
+    session.execute(table.insert().values(**values))
+    return SimpleNamespace(**values)
+
+
 def seed_event(db, owner, project_id=None):
     scope = {"tenant_id": owner["tenant_id"], "project_id": project_id or owner["project_id"]}
     with db.transaction(owner["tenant_id"]) as session:
         source = Source(**scope, name="Synthetic native evidence", kind="postgres", config={})
         session.add(source)
         session.flush()
-        stream = CdcStream(
-            **scope,
-            source_id=source.id,
-            source_revision=1,
-            generation=str(uuid4()),
-            connector="postgresql",
-            owner_id=owner["user_id"],
-            token_hash="a" * 64,
-            received_sequence=1,
-        )
-        session.add(stream)
-        session.flush()
+        stream = historical_stream(session, owner, source.id, scope["project_id"], received_sequence=1)
         raw = native_event(stream.generation)
         event = CdcEvent(
             **scope,

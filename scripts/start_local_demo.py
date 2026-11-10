@@ -5,6 +5,7 @@ import getpass
 import ipaddress
 import json
 import re
+import sqlite3
 from pathlib import Path
 
 import uvicorn
@@ -28,6 +29,58 @@ def inspect_directory(data: Path) -> bool:
     if data.exists() and any(data.iterdir()):
         raise ValueError("目标目录已有其他文件；请选择空目录，避免修改现有数据库。")
     return False
+
+
+def needs_schema_upgrade(data: Path) -> bool:
+    with sqlite3.connect(data / "demo.db") as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(cdc_streams)")}
+        indexes = {row[1] for row in connection.execute("PRAGMA index_list(entities)")}
+    return bool(columns) and ("previous_stream_id" not in columns or "ix_entity_browse" not in indexes)
+
+
+def upgrade_demo_schema(data: Path):
+    """One offline upgrade for pre-generation local workspaces, with a real SQLite backup."""
+    if not inspect_directory(data):
+        raise ValueError("体验目录尚未创建")
+    if not needs_schema_upgrade(data):
+        return None
+    import importlib.util
+    from uuid import uuid4
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import create_engine
+
+    backup = data / ("demo-before-generations-" + uuid4().hex[:8] + ".db")
+    with sqlite3.connect(data / "demo.db") as source, sqlite3.connect(backup) as target:
+        source.backup(target)
+    engine = create_engine(f"sqlite:///{(data / 'demo.db').as_posix()}")
+    try:
+        with engine.connect() as connection:
+            connection.exec_driver_sql("BEGIN EXCLUSIVE")
+            try:
+                with Operations.context(MigrationContext.configure(connection)):
+                    columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(cdc_streams)")}
+                    indexes = {row[1] for row in connection.exec_driver_sql("PRAGMA index_list(entities)")}
+                    required = (
+                        [] if "previous_stream_id" in columns else ["ef311029a600_cdc_generations.py"]
+                    ) + ([] if "ix_entity_browse" in indexes else ["ef311029a700_entity_browse.py"])
+                    for filename in required:
+                        spec = importlib.util.spec_from_file_location(
+                            "local_schema_upgrade", ROOT / "backend/migrations/versions" / filename
+                        )
+                        module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                        module.upgrade()
+                if connection.exec_driver_sql("PRAGMA foreign_key_check").first():
+                    raise ValueError("升级后的外键检查失败，原事务已回滚")
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
+    finally:
+        engine.dispose()
+    return backup
 
 
 def source_allowlist(values: list[str] | None) -> list[str]:
@@ -82,6 +135,10 @@ def create_demo_app(
 ):
     data = data.resolve()
     existing = inspect_directory(data)
+    if existing and needs_schema_upgrade(data):
+        raise ValueError(
+            "请停止体验 API/worker 后先运行 start_local_demo.py migrate --data-dir <原目录>；升级会保留数据库备份。"
+        )
     if not existing and (password is None or len(password) < 12):
         raise ValueError("首次启动需要至少 12 个字符的密码。")
     assets = ROOT / "frontend" / "dist"
@@ -108,7 +165,7 @@ def create_demo_app(
 
 def main():
     parser = argparse.ArgumentParser(description="序枢本机体验：SQLite 持久保存，仅监听 127.0.0.1")
-    parser.add_argument("command", nargs="?", choices=["serve", "worker"], default="serve")
+    parser.add_argument("command", nargs="?", choices=["serve", "worker", "migrate"], default="serve")
     parser.add_argument("--data-dir", type=Path, default=ROOT / "var" / "local-demo")
     parser.add_argument("--port", type=int, default=8020)
     parser.add_argument(
@@ -133,9 +190,15 @@ def main():
             data, args.port, source_hosts=args.source_host, allow_private_sources=args.allow_private_sources
         )
         existing = inspect_directory(data)
+        if args.command == "migrate":
+            backup = upgrade_demo_schema(data)
+            print(f"本机数据库已升级，原库备份：{backup}" if backup else "本机数据库无需此项升级。")
+            return
         if args.command == "worker":
             if not existing:
                 parser.error("请先启动一次 serve，创建体验工作空间。")
+            if needs_schema_upgrade(data):
+                raise ValueError("请先停止体验 API/worker 并运行 migrate 升级原目录，再启动 worker。")
             from ontology.worker import run_worker
 
             run_worker(settings)
