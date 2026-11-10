@@ -33,6 +33,7 @@ PowerShell：
 $env:PLAYWRIGHT_MODULE = (Resolve-Path var/browser-tools/node_modules/playwright).Path
 node scripts/verify_model_starters.cjs
 node scripts/verify_graph_scale.cjs
+node scripts/verify_table_intake.cjs
 ```
 
 POSIX shell：

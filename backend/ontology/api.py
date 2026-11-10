@@ -120,6 +120,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from ontology.search.content.api import router as content_search_router
     from ontology.search.objects.api import router as search_router
     from ontology.sources.api import router as sources_router
+    from ontology.sources.intake_api import router as intake_router
     from ontology.sources.mapping_preview import router as mapping_preview_router
     from ontology.sources.snapshot_api import router as ingestion_router
 
@@ -134,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(content_search_router, prefix="/api")
     app.include_router(document_router, prefix="/api")
     app.include_router(sources_router, prefix="/api")
+    app.include_router(intake_router, prefix="/api")
     from ontology.integrations.feishu.api import router as feishu_router
 
     app.include_router(feishu_router, prefix="/api")

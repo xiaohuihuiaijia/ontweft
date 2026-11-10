@@ -1,0 +1,143 @@
+import hashlib
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import Field
+
+from ontology.core.domain import active_definition, scoped_record
+from ontology.core.errors import DomainError, conflict
+from ontology.core.models import uid
+from ontology.core.schemas import StrictModel
+from ontology.identity.security import access, audit, authenticated
+from ontology.sources.ingestion import schema_fingerprint
+from ontology.sources.models import Source
+from ontology.sources.proposals import propose
+from ontology.sources.service import require_source_read_identity, source_view
+from ontology.sources.tabular import MAX_BYTES, MAX_EXPANDED_BYTES, TabularError, read_tables
+from ontology.sources.tabular_connector import UploadedTablesConnector, bundle_path, serialize_tables
+
+router = APIRouter()
+
+
+@router.post("/sources/upload", status_code=201)
+def upload_tables(
+    request: Request,
+    project_id: str = Form(...),
+    name: str = Form(""),
+    encoding: str = Form("utf-8-sig"),
+    delimiter: str = Form(","),
+    file: UploadFile = File(...),
+    user=Depends(authenticated),
+):
+    db, settings = request.app.state.db, request.app.state.settings
+    with db.transaction(user.tenant_id) as session:
+        access(session, user, project_id, "sources:write")
+    filename = Path((file.filename or "data.csv").replace("\\", "/")).name[:250]
+    name = name.strip() or filename[:200]
+    if len(name) > 200:
+        raise DomainError(422, "invalid_name", "数据源名称最多 200 个字符")
+    content = file.file.read(min(MAX_BYTES, settings.max_upload_bytes) + 1)
+    if not content or len(content) > min(MAX_BYTES, settings.max_upload_bytes):
+        raise DomainError(413, "upload_size", "表格不能为空，且不能超过 10 MiB 或服务端配置限制")
+    try:
+        tables = read_tables(content, filename, encoding=encoding, delimiter=delimiter)
+    except TabularError as exc:
+        raise DomainError(422, "invalid_table", str(exc)) from None
+    normalized = serialize_tables(tables)
+    if len(normalized) > MAX_EXPANDED_BYTES:
+        raise DomainError(422, "table_budget", "规范化数据超出处理预算，请拆分文件")
+    source = Source(
+        id=uid(),
+        tenant_id=user.tenant_id,
+        project_id=project_id,
+        name=name,
+        kind="tabular",
+        secret="",
+        status="discovered",
+        config={
+            "filename": filename,
+            "content_sha256": hashlib.sha256(content).hexdigest(),
+            "tables_sha256": hashlib.sha256(normalized).hexdigest(),
+            "size": len(content),
+            "encoding": encoding,
+            "delimiter": delimiter,
+            "version": 1,
+        },
+    )
+    path = bundle_path(settings, source)
+    path.mkdir(parents=True, exist_ok=False)
+    written = []
+    try:
+        for leaf, data in (("original", content), ("tables.json", normalized)):
+            target = path / leaf
+            with target.open("xb") as stream:
+                written.append(target)
+                stream.write(data)
+        connector = UploadedTablesConnector(source, settings)
+        source.resources = [r.model_dump(mode="json") for r in connector.discover()]
+        for resource in source.resources:
+            resource["schema_fingerprint"] = schema_fingerprint(resource)
+        with db.transaction(user.tenant_id) as session:
+            access(session, user, project_id, "sources:write")
+            session.add(source)
+            session.flush()
+            audit(
+                session,
+                user,
+                project_id,
+                "source.uploaded",
+                source.id,
+                {"content_sha256": source.config["content_sha256"], "tables": len(tables)},
+            )
+            result = source_view(source)
+        return result
+    except Exception:
+        for target in written:
+            target.unlink(missing_ok=True)
+        path.rmdir()
+        raise
+
+
+@router.get("/sources/{source_id}/original")
+def original_upload(source_id: str, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        source = scoped_record(session, Source, source_id, user)
+        access(session, user, source.project_id, "sources:write")
+        if source.kind != "tabular":
+            raise DomainError(404, "not_found", "该来源没有上传原文件")
+        path = bundle_path(request.app.state.settings, source) / "original"
+        try:
+            with path.open("rb") as stream:
+                data = stream.read(MAX_BYTES + 1)
+            if len(data) > MAX_BYTES or hashlib.sha256(data).hexdigest() != source.config["content_sha256"]:
+                raise ValueError()
+        except (OSError, ValueError):
+            raise DomainError(409, "original_unavailable", "原文件不存在或完整性校验未通过") from None
+        return FileResponse(
+            path,
+            filename=source.config["filename"],
+            media_type="application/octet-stream",
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
+
+
+class ProposalInput(StrictModel):
+    expected_source_revision: int = Field(ge=1)
+    resource_ids: list[str] = Field(min_length=1, max_length=32)
+
+
+@router.post("/sources/{source_id}/model-proposal")
+def model_proposal(source_id: str, data: ProposalInput, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        source = scoped_record(session, Source, source_id, user)
+        ctx = access(session, user, source.project_id, "sources:write")
+        access(session, user, source.project_id, "ontology:write")
+        require_source_read_identity(source)
+        if source.revision != data.expected_source_revision:
+            conflict("来源配置已改变，请重新发现资源")
+        return {
+            **propose(source, data.resource_ids, active_definition(session, ctx.project)),
+            "baseline_release_id": ctx.project.active_release_id,
+            "source_revision": source.revision,
+        }

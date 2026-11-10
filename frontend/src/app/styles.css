@@ -184,9 +184,10 @@ h1{font-size:23px}
 .source-detail{background:var(--color-surface);border:1px solid var(--line);border-radius:9px;padding:var(--space-6);margin-top:var(--space-6)}
 .source-detail>.section-heading{margin-top:0}
 .resource-browser{display:grid;grid-template-columns:200px minmax(0,1fr);gap:var(--space-6);margin-top:var(--space-5)}
+.resource-browser>*{min-width:0}
 .resource-list{display:flex;flex-direction:column;gap:var(--space-2)}
 .resource-list button{text-align:left;overflow-wrap:anywhere;font-size:12px}
-@media(max-width:720px){.resource-browser{grid-template-columns:1fr}
+@media(max-width:720px){.resource-browser{grid-template-columns:minmax(0,1fr)}
 }
 .settings-section{margin-top:var(--space-6)}
 .settings-form{border-top:1px solid var(--line);margin-top:var(--space-6);padding-top:var(--space-6)}

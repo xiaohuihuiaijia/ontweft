@@ -44,6 +44,10 @@ def safe_config(data):
 
 
 def connector_for(source, settings):
+    if source.kind == "tabular":
+        from ontology.sources.tabular_connector import UploadedTablesConnector
+
+        return UploadedTablesConnector(source, settings)
     config = dict(source.config)
     if source.secret:
         config.update(json.loads(cipher(settings).decrypt(source.secret.encode())))
