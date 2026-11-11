@@ -53,3 +53,15 @@ it('reuses label widths during camera movement and remeasures changed labels or 
   width = 280; layer.refresh(); expect(measure).toHaveBeenCalledTimes(3);
   layer.destroy(); host.remove();
 });
+
+
+it('keeps selected self-loops legible against the dark graph canvas', () => {
+  const host = document.createElement('div'); document.body.append(host);
+  const sigma = { getDimensions: () => ({ width: 360, height: 280 }), getNodeDisplayData: () => ({ x: .5, y: .5, size: 10 }), framedGraphToViewport: () => ({ x: 150, y: 150 }), scaleSize: (size: number) => size, on: vi.fn(), off: vi.fn() };
+  const layer = attachSelfLoopLayer(sigma as unknown as Sigma, host, () => ({ data, visible: data, dark: true, selection: { edge: edges[0].id }, onSelectEdge: vi.fn() }));
+  layer.refresh();
+  const selected = host.querySelector('[data-edge-id="self-a"]')!;
+  expect(selected.querySelector('.loop-line')!.getAttribute('stroke')).toBe('#9dd7b5');
+  expect(selected.querySelector('.loop-arrow')!.getAttribute('fill')).toBe('#9dd7b5');
+  layer.destroy(); host.remove();
+});

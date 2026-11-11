@@ -7,10 +7,10 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 const ref = { document_id: 'doc', page: 27, quote: '合成规格 12 V', parse_id: 'ai-page-id' };
 const page = { page_number: 27, label: '规格页', text: '合成原件第二十七页', elements: [], status: 'parsed', has_image: true, image_count: 2 };
 
-it('reads source records only on demand with permission and limits evidence to currently visible contributing fields', async () => {
+it.each([undefined, 'snapshot-old', 'native'])('reads only visible source evidence and preserves the native parse binding (%s)', async nativeParseId => {
   let denied = false;
   const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
-    if (String(input) === '/api/source-records/record') return json({ values: { __ontweft_field_evidence: { voltage: [ref], secret: [{ ...ref, document_id: 'hidden', page: 99, quote: '隐藏字段' }] } } });
+    if (String(input) === '/api/source-records/record') return json({ values: { __ontweft_field_evidence: { voltage: [{ ...ref, native_parse_id: nativeParseId }], secret: [{ ...ref, document_id: 'hidden', page: 99, quote: '隐藏字段' }] } } });
     return denied ? json({ error: { message: '文档权限已撤销' } }, 403) : json({ items: [page], total: 40, revision: 3, content_hash: 'hash' });
   });
   const props = { evidence: [{ source_record_id: 'record', fields: ['voltage', 'secret'] }], visibleFields: ['voltage'] };
@@ -23,9 +23,9 @@ it('reads source records only on demand with permission and limits evidence to c
   await screen.findByText('合成原件第二十七页');
   expect(screen.queryByText('隐藏字段')).toBeNull();
   expect(screen.queryByRole('button', { name: /99 页/ })).toBeNull();
-  expect(fetch.mock.calls.map(([path]) => String(path))).toEqual(['/api/source-records/record', '/api/documents/doc/pages?limit=1&offset=26']);
+  expect(fetch.mock.calls.map(([path]) => String(path))).toEqual(['/api/source-records/record', `/api/documents/doc/pages?limit=1&offset=26${nativeParseId ? `&native_parse_id=${nativeParseId}` : ''}`]);
   expect(screen.getAllByRole('img')).toHaveLength(2);
-  expect(screen.getAllByRole('img')[1].getAttribute('src')).toBe('/api/documents/doc/pages/27/image?expected_revision=3&expected_hash=hash&image_index=1');
+  expect(screen.getAllByRole('img')[1].getAttribute('src')).toBe(`/api/documents/doc/pages/27/image?expected_revision=3&expected_hash=hash&image_index=1${nativeParseId ? `&native_parse_id=${nativeParseId}` : ''}`);
   denied = true; fireEvent.click(screen.getByRole('button', { name: '重新核对页面权限' }));
   await screen.findByText('文档权限已撤销');
   expect(screen.queryByText(ref.quote)).toBeNull(); expect(screen.queryAllByRole('img')).toHaveLength(0);

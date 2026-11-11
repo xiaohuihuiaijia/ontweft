@@ -398,6 +398,7 @@ def _document_ir(
                     ir.warnings.append("Image budget reached; subsequent text was still processed")
                 continue
             images += 1
+            ir.complete, ir.quality = False, "needs_review"
             image = getattr(item, "image", None)
             if image is not None:
                 metadata["width"], metadata["height"] = image.size.width, image.size.height

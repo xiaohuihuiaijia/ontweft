@@ -18,3 +18,20 @@ it('saves compatible model roles and keeps the existing credential when editing 
   expect(submitted?.api_key).toBeUndefined();
   expect(submitted?.roles).toEqual({ extraction: 'synthetic-v2', synthesis: 'synthetic-v2' });
 });
+
+it('tracks invalid parameter edits and preserves them while renaming the model', async () => {
+  const connection = { id: 'm1', name: '合成模型', base_url: 'http://localhost:9100/v1', revision: 1, enabled: true, models: [{ id: 'synthetic', label: '合成模型', text: true, vision: false, json_schema: false, context_window: 8192, max_output_tokens: 4096, parameters: {}, input_price_per_million: 0, output_price_per_million: 0 }], roles: { extraction: 'synthetic', synthesis: 'synthetic' } };
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ items: [connection], total: 1 })));
+  const onDirty = vi.fn();
+  render(<ModelConnections onDirty={onDirty} />);
+  fireEvent.click(await screen.findByRole('button', { name: '编辑连接' }));
+  onDirty.mockClear();
+  fireEvent.change(screen.getByLabelText('额外参数（JSON）'), { target: { value: '{"temperature":' } });
+  expect(onDirty).toHaveBeenCalledWith(true);
+  fireEvent.change(screen.getByLabelText('模型 ID'), { target: { value: 'renamed' } });
+  const parameters = screen.getByLabelText('额外参数（JSON）') as HTMLTextAreaElement;
+  expect(parameters.value).toBe('{"temperature":');
+  expect(parameters.validity.valid).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: '编辑连接' }));
+  expect((screen.getByLabelText('额外参数（JSON）') as HTMLTextAreaElement).value).toBe('{}');
+});

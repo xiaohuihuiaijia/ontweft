@@ -130,7 +130,7 @@ def query_objects(session, ctx, query: ObjectQuery):
         .limit(query.limit)
     ).all()
     return {
-        "items": [entity_view(session, obj, ctx) for obj in objects],
+        "items": [entity_view(session, obj, ctx, definition=type_def) for obj in objects],
         "total": total,
         "release_id": ctx.project.active_release_id,
         "version": ctx.project.version,
@@ -203,8 +203,9 @@ def objects(
             .offset(offset)
             .limit(limit)
         ).all()
+        by_type = {definition["key"]: definition for definition in definitions}
         return {
-            "items": [entity_view(session, x, ctx) for x in rows],
+            "items": [entity_view(session, x, ctx, definition=by_type.get(x.type_key)) for x in rows],
             "total": total,
             "release_id": ctx.project.active_release_id,
         }
@@ -218,16 +219,17 @@ def create_object(data: ObjectInput, request: Request, user=Depends(authenticate
         definition = type_definition(session, ctx.project, data.type_key)
         ensure_writable(definition, data.properties, ctx.role)
         values = validate_properties(definition, data.properties)
+        evidence = []
         if data.evidence:
             from ontology.knowledge.references import validate_references
 
-            validate_references(session, ctx, data.evidence)
+            evidence = validate_references(session, ctx, data.evidence)
         obj = Entity(
             tenant_id=user.tenant_id,
             project_id=data.project_id,
             type_key=data.type_key,
             properties=values,
-            evidence=data.evidence,
+            evidence=evidence,
             release_id=ctx.project.active_release_id,
         )
         session.add(obj)
@@ -307,6 +309,7 @@ def relations(
     project_id: str,
     object_id: str | None = None,
     limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     user=Depends(authenticated),
 ):
     with request.app.state.db.transaction(user.tenant_id) as session:
@@ -325,10 +328,14 @@ def relations(
         ]
         if object_id:
             conditions.append(or_(Relation.source_id == object_id, Relation.target_id == object_id))
-        rows = session.scalars(select(Relation).where(*conditions).order_by(Relation.id).limit(limit)).all()
+        rows = session.scalars(
+            select(Relation).where(*conditions).order_by(Relation.id).offset(offset).limit(limit)
+        ).all()
         return {
             "items": [row_dict(x) for x in rows],
             "total": session.scalar(select(func.count()).select_from(Relation).where(*conditions)),
+            "limit": limit,
+            "offset": offset,
         }
 
 
@@ -354,10 +361,11 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
             raise DomainError(422, "invalid_relation", "关系谓词或目标类型不匹配")
         if data.properties:
             raise DomainError(422, "undefined_relation_properties", "请先定义关系属性；当前关系没有可写属性")
+        evidence = []
         if data.evidence:
             from ontology.knowledge.references import validate_references
 
-            validate_references(session, ctx, data.evidence)
+            evidence = validate_references(session, ctx, data.evidence)
         existing = session.scalar(
             select(Relation).where(
                 Relation.tenant_id == user.tenant_id,
@@ -387,7 +395,7 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
             source_id=source.id,
             target_id=target.id,
             properties={},
-            evidence=data.evidence,
+            evidence=evidence,
         )
         session.add(row)
         from ontology.objects.constraints import touch_entity

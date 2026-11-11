@@ -11,6 +11,65 @@ from tests.support.postgres import pg_platform as pg_platform  # noqa: PLC0414 -
 
 
 @pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])
+def test_model_semantics_reindex_rules_without_removing_manual_support(request, fixture_name):
+    client, app, owner, _ = request.getfixturevalue(fixture_name)
+    model = {"types": [
+        {"key": "Item", "label": "Item", "key_semantics": "legacy",
+         "properties": [{"key": "at", "label": "At", "data_type": "datetime"}],
+         "relations": [{"key": "matches", "label": "Matches", "target_type": "Group", "cardinality": "many"}]},
+        {"key": "Group", "label": "Group", "key_semantics": "legacy",
+         "properties": [{"key": "at", "label": "At", "data_type": "datetime"}]},
+    ]}
+    release = publish(client, owner["project_id"], model)["release_id"]
+    objects = []
+    for kind in ("Item", "Group"):
+        result = client.post("/api/objects", json={"project_id": owner["project_id"],
+            "type_key": kind, "properties": {"at": "2026-11-11T08:00:00+08:00"}})
+        assert result.status_code == 201, result.text
+        objects.append(result.json())
+    result = client.post("/api/relation-rules", json={"name": "Same timestamp", "rule": {
+        "project_id": owner["project_id"], "expected_model_release_id": release,
+        "source_type": "Item", "relation_key": "matches", "source_field": "at", "target_field": "at"}})
+    assert result.status_code == 201, result.text
+    rule_id = result.json()["id"]
+
+    def drain():
+        for _ in range(20):
+            if not process_one(app.state.db, app.state.settings):
+                return
+        raise AssertionError("Rule queue did not converge")
+
+    drain()
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        old_job = session.get(RelationRule, rule_id).job_id
+    model["types"][0]["label"] = "Renamed label"
+    publish(client, owner["project_id"], model)
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        rule = session.get(RelationRule, rule_id)
+        assert rule.indexed and rule.job_id == old_job
+    response = client.post("/api/relations", json={"project_id": owner["project_id"],
+        "source_id": objects[0]["id"], "target_id": objects[1]["id"], "type_key": "matches"})
+    assert response.status_code == 201, response.text
+    relation_id = response.json()["id"]
+    for definition in model["types"]:
+        definition["key_semantics"] = "canonical"
+    publish(client, owner["project_id"], model)
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        rule = session.get(RelationRule, rule_id)
+        assert not rule.indexed and rule.job_id != old_job
+        assert session.get(Relation, relation_id).manual
+    drain()
+    response = client.patch(f"/api/objects/{objects[0]['id']}", json={
+        "expected_revision": objects[0]["revision"], "properties": {"at": "2026-11-11T00:00:00Z"}})
+    assert response.status_code == 200, response.text
+    drain()
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        support = session.scalar(select(RelationContribution).where(RelationContribution.rule_id == rule_id))
+        assert support and support.relation_id == relation_id
+        assert session.get(Relation, relation_id).manual
+
+
+@pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])
 def test_continuous_matching_preserves_manual_support_and_parks_revoked_rules(request, fixture_name):
     client, app, owner, _ = request.getfixturevalue(fixture_name)
     model = {

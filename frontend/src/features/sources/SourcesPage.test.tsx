@@ -1,6 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { SourcesPage } from './SourcesPage';
+
+let finishVersion: () => void;
+vi.mock('./FileVersions', () => ({ FileVersions: ({ source, onUpdated }: { source: { id: string; name: string; kind: string }; onUpdated: (value: unknown) => void }) => <button onClick={() => { void new Promise<void>(resolve => { finishVersion = resolve; }).then(() => onUpdated({ ...source, revision: 2, resources: [] })); }}>测试：提交文件版本</button> }));
 
 it('retains historical resources and snapshots without offering disabled connector operations', async () => {
   const calls: string[] = [];
@@ -65,3 +68,35 @@ it.each([true, false])('shows exact sample text without parsing, or explicitly w
   expect(screen.queryByText(/9223372036854776000/)).toBeNull();
 });
 
+
+
+it('clears previously displayed source samples after current access is denied', async () => {
+  let revoked = false;
+  const source = { id: 's', name: '测试来源', kind: 'sqlite', revision: 1, config: {}, resources: [{ resource_id: 'A', name: 'A', fields: [], primary_key: ['id'], foreign_keys: [] }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    if (String(url).includes('/sample')) return revoked ? new Response(JSON.stringify({ error: { message: '来源访问已撤销' } }), { status: 403 }) : new Response(JSON.stringify({ sample_json: '{"secret":"先前授权样本"}' }));
+    return new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [], total: 0 } : { items: [source], total: 1 }));
+  });
+  render(<SourcesPage projectId="p" canWrite onDirty={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看资源 →' }));
+  fireEvent.click(screen.getByRole('button', { name: 'A' }));
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  await screen.findByText(/先前授权样本/);
+  revoked = true;
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  await screen.findByText('来源访问已撤销');
+  expect(screen.queryByText(/先前授权样本/)).toBeNull();
+  expect(screen.queryByRole('button', { name: '收起' })).toBeNull();
+});
+
+it('does not reopen the old source when its file version finishes after a source switch', async () => {
+  const sources = ['first', 'second'].map(id => ({ id, name: `来源 ${id}`, kind: 'tabular', revision: 1, config: {}, resources: [] }));
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [], total: 0 } : { items: sources, total: 2 })));
+  render(<SourcesPage projectId="p" canWrite onDirty={() => {}} />);
+  fireEvent.click((await screen.findAllByRole('button', { name: '查看资源 →' }))[0]);
+  fireEvent.click(screen.getByRole('button', { name: '测试：提交文件版本' }));
+  fireEvent.click(screen.getAllByRole('button', { name: '查看资源 →' })[1]);
+  await act(async () => { finishVersion(); });
+  expect(screen.getByRole('heading', { name: '来源 second', level: 2 })).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: '来源 first', level: 2 })).toBeNull();
+});

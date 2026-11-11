@@ -318,6 +318,9 @@ def _docx(data: bytes, b: _Builder) -> None:
                     },
                 )
                 image_count += 1
+                b.ir.complete, b.ir.quality = False, "needs_review"
+                if "Embedded images require visual understanding" not in b.ir.warnings:
+                    b.ir.warnings.append("Embedded images require visual understanding")
         for member in archive.namelist():
             if member in {"word/footnotes.xml", "word/endnotes.xml"} or re.fullmatch(
                 r"word/(?:header|footer)\d+\.xml", member

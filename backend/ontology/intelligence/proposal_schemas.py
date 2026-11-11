@@ -27,6 +27,7 @@ class Evidence(StrictModel):
     page: int = Field(ge=1)
     quote: str = Field(min_length=1, max_length=12000)
     parse_id: str | None = None
+    native_parse_id: str | None = None
 
 
 class Candidate(StrictModel):

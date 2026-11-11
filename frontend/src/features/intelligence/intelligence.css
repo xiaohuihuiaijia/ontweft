@@ -44,7 +44,6 @@
 .ai-evidence-links span { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; color:#52695e; font-size:12px; font-weight:400; margin-top:4px; }
 .ai-adoption-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:20px; padding-top:16px; border-top:1px solid var(--ai-line); }
 .ai-adoption-actions small { flex-basis:100%; color:#5e746a; line-height:1.6; }
-.ai-candidate-edit { border:1px solid #8eac9c; padding:16px; margin-top:16px; border-radius:8px; background:#f2f7f3; }
 .ai-connection-row { padding:16px 0; border-bottom:1px solid #dbe6df; }
 .ai-connection-row > div:first-child { flex:1; min-width:200px; }
 .ai-connection-form { padding-top:20px; }

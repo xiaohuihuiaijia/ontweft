@@ -22,8 +22,8 @@ from ontology.objects.rule_models import RelationContribution, RelationMatchInde
 router = APIRouter()
 
 
-def definition_for(session, ctx, config):
-    definitions = {t["key"]: t for t in active_definition(session, ctx.project)["types"]}
+def definition_for(session, ctx, config, *, model=None):
+    definitions = {t["key"]: t for t in (model or active_definition(session, ctx.project))["types"]}
     source = definitions.get(config["source_type"])
     relation = next(
         (r for r in (source or {}).get("relations", []) if r["key"] == config["relation_key"]), None
@@ -52,6 +52,56 @@ def enqueue_rule(session, rule):
     session.add(job)
     session.flush()
     rule.job_id = job.id
+
+
+def rebuild_rule(session, rule):
+    """Rebuild the existing projection without withdrawing its relation support."""
+    rule.cursor, rule.indexed = "", False
+    session.execute(delete(RelationMatchIndex).where(RelationMatchIndex.rule_id == rule.id))
+    ids = session.scalars(
+        select(RelationContribution.source_id).where(RelationContribution.rule_id == rule.id)
+    )
+    queue_entities(session, rule, ids)
+    session.execute(
+        update(RelationWork).where(RelationWork.rule_id == rule.id).values(status="pending", error=None)
+    )
+    previous = session.get(Job, rule.job_id) if rule.job_id else None
+    if previous and previous.status in {"pending", "running"}:
+        previous.status = "cancelled"
+    enqueue_rule(session, rule)
+
+
+def recheck_rules_after_publish(session, ctx, previous_model):
+    rules = session.scalars(
+        select(RelationRule).where(
+            RelationRule.tenant_id == ctx.project.tenant_id,
+            RelationRule.project_id == ctx.project.id,
+            RelationRule.enabled.is_(True),
+        )
+    ).all()
+    current = active_definition(session, ctx.project)
+
+    def signature(definition):
+        source, target, relation, family = definition
+        return source["key"], target["key"], relation["cardinality"], family
+
+    for rule in rules:
+        try:
+            owner = session.get(User, rule.owner_id)
+            if not owner or not owner.active:
+                raise DomainError(403, "rule_owner_unavailable", "规则创建者已停用，请由有权限成员重新启用")
+            authorized = access(session, owner, rule.project_id, "objects:write")
+            after = definition_for(session, authorized, rule.config, model=current)
+        except DomainError as exc:
+            rule.enabled, rule.error = False, exc.message
+            continue
+        try:
+            before = definition_for(session, authorized, rule.config, model=previous_model)
+            changed = signature(before) != signature(after)
+        except DomainError:
+            changed = True
+        if changed:
+            rebuild_rule(session, rule)
 
 
 def queue_entities(session, rule, ids):
@@ -427,21 +477,7 @@ def update_rule(rule_id: str, data: RuleUpdate, request: Request, user=Depends(a
         rule.revision += 1
         if data.enabled:
             definition_for(session, ctx, rule.config)
-            rule.cursor, rule.indexed = "", False
-            session.execute(delete(RelationMatchIndex).where(RelationMatchIndex.rule_id == rule.id))
-            ids = session.scalars(
-                select(RelationContribution.source_id).where(RelationContribution.rule_id == rule.id)
-            )
-            queue_entities(session, rule, ids)
-            session.execute(
-                update(RelationWork)
-                .where(RelationWork.rule_id == rule.id)
-                .values(status="pending", error=None)
-            )
-            previous = session.get(Job, rule.job_id) if rule.job_id else None
-            if previous and previous.status in {"pending", "running"}:
-                previous.status = "cancelled"
-            enqueue_rule(session, rule)
+            rebuild_rule(session, rule)
         audit(
             session,
             user,

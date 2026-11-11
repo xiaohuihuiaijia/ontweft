@@ -74,6 +74,11 @@ def coerce_value(prop, value):
     elif kind == "boolean":
         if not isinstance(value, bool):
             raise ValueError("应为布尔值")
+    elif kind == "json":
+        try:
+            json.dumps(value, allow_nan=False)
+        except (TypeError, ValueError, RecursionError):
+            raise ValueError("应为合法 JSON，数值必须有限") from None
     elif kind == "enum":
         if value not in prop.get("enum", []):
             raise ValueError("不在已定义枚举中")

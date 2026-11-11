@@ -34,7 +34,7 @@ export function ModelStarter({ projectId, disabled, onChoose }: {
 }
 
 export function ModelWorkflow({ status, dirty }: { status?: string; dirty: boolean }) {
-  const current = dirty || !status || status === 'draft' ? 0 : status === 'validated' ? 1 : status === 'approved' ? 2 : 3;
+  const current = dirty || !status || status === 'draft' ? 0 : ['validating', 'validated'].includes(status) ? 1 : status === 'approved' ? 2 : status === 'published' ? 3 : 0;
   const steps = ['定义与保存', '校验与修正', '审批当前修订', '发布后创建对象'];
   return <ol className="model-workflow" aria-label="本体构建步骤">{steps.map((step, index) => <li key={step} className={index === current ? 'current' : index < current ? 'done' : ''} aria-current={index === current ? 'step' : undefined}><span>{String(index + 1).padStart(2, '0')}</span><strong>{step}</strong></li>)}</ol>;
 }

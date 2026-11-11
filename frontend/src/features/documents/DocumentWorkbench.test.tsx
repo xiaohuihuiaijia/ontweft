@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { DocumentWorkbench } from './DocumentWorkbench';
 
-vi.mock('../intelligence/AIProposalPanel', () => ({ AIProposalPanel: ({ onEvidence }: { onEvidence: (value: unknown) => void }) => <button onClick={() => onEvidence({ document_id: 'd1', page: 27, quote: '已授权的原文引文' })}>查看候选证据</button> }));
+vi.mock('../intelligence/AIProposalPanel', () => ({ AIProposalPanel: ({ onEvidence }: { onEvidence: (value: unknown) => void }) => <button onClick={() => onEvidence({ document_id: 'd1', page: 27, quote: '已授权的原文引文', native_parse_id: 'snapshot-old' })}>查看候选证据</button> }));
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 
 it('pages original material and clears source text and images when access is revoked', async () => {
@@ -26,11 +26,13 @@ it('pages original material and clears source text and images when access is rev
   expect(screen.getAllByRole('img')[1].getAttribute('src')).toContain('image_index=1');
   fireEvent.click(screen.getByRole('button', { name: '查看候选证据' }));
   await screen.findByText('已授权的原文引文');
-  expect(screen.getByRole('button', { name: '查看第 27 页' }).getAttribute('aria-pressed')).toBe('true');
+  expect((await screen.findByRole('button', { name: '查看第 27 页' })).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getAllByRole('img')[0].getAttribute('src')).toContain('native_parse_id=snapshot-old');
+  expect(paths.some(path => path.includes('/pages?') && path.includes('native_parse_id=snapshot-old'))).toBe(true);
   revoked = true;
   fireEvent.click(screen.getByRole('button', { name: '刷新文档' }));
   await screen.findByText('文档权限已撤销');
   await waitFor(() => expect(screen.queryByText('已授权的原文引文')).toBeNull());
   expect(screen.queryAllByRole('img')).toHaveLength(0);
-  expect(paths.some(path => path.endsWith('offset=25'))).toBe(true);
+  expect(paths.some(path => path.includes('offset=25'))).toBe(true);
 });

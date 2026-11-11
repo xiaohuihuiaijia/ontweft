@@ -13,9 +13,10 @@ function tableRows(element: Element): number[] {
 }
 
 export function DocumentPreview({ value, compact = false }: { value: unknown; compact?: boolean }) {
-  const [selected, setSelected] = useState<Element>();
+  const [selection, setSelected] = useState<Element>();
   if (!value || typeof value !== 'object' || !Array.isArray((value as IR).elements)) return <p className="muted">尚无结构化解析结果，请查看任务状态。</p>;
   const ir = value as IR;
+  const selected = selection && ir.elements.includes(selection) ? selection : undefined;
   const native = ir.format === 'feishu_docx';
   return <>
     {!compact && <div className="inline-info"><span>{ir.parser} · {ir.parser_version}</span><Status value={ir.complete ? 'succeeded' : 'partial'} /></div>}

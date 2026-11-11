@@ -1,47 +1,35 @@
-<p align="center">
-  <img src="frontend/public/brand/ontweft-favicon.svg" width="64" height="64" alt="序枢标志" />
-</p>
-
+<p align="center"><img src="frontend/public/brand/ontweft-favicon.svg" width="64" height="64" alt="序枢标志" /></p>
 <h1 align="center">序枢 Ontweft</h1>
+<p align="center"><strong>让知识连接业务。</strong><br />从文档和数据库，构建有来源、可编辑、持续更新的业务本体。</p>
+<p align="center">AI 辅助建模 · 交互式图谱 · 自部署 · Apache-2.0</p>
+<p align="center">简体中文 · <a href="README.en.md">English</a> · <a href="#开始使用">开始使用</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md">部署文档</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/issues">反馈场景</a></p>
 
-<p align="center"><strong>让知识连接业务。</strong><br />把分散的数据，变成可理解、可编辑、持续更新的业务关系。</p>
+![Ontweft 真实工作台：探索具名业务关系，查看并编辑客户全景对象](docs/images/graph-workbench.png)
 
-<p align="center">开源企业本体工作台 · 自部署 · Apache-2.0</p>
+<p align="center"><sub>真实应用与 API，22 个合成对象、30 条关系。通过实际拖动整理个人视图；点击节点进入详情与编辑。非客户数据。</sub></p>
 
-<p align="center">
-  简体中文 · <a href="README.en.md">English</a> ·
-  <a href="#本机体验">开始使用</a> ·
-  <a href="https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md">部署文档</a> ·
-  <a href="https://github.com/xiaohuihuiaijia/ontweft/issues">反馈与建议</a>
-</p>
+> **当前试用版本：Enterprise Beta。** 展示与下方命令对应 `codex/slim-enterprise-beta`，功能代码在 [PR #1](https://github.com/xiaohuihuiaijia/ontweft/pull/1) 中审核；`main` 的应用代码仍是此前 Alpha。界面以中文为主。
 
-![Ontweft 真实图谱工作台：业务关系、可拖动节点与客户全景属性面板](docs/images/graph-workbench.png)
+## 把业务含义、数据与证据连起来
 
-<p align="center"><sub>真实界面，22 个合成对象、30 条具名关系。可拖动节点、展开邻域，并从详情进入对象编辑。截图不是客户数据。</sub></p>
+一份产品手册、一组业务表、一套数据库，往往描述着同一个业务的不同部分。Ontweft 帮你定义其中的类型、属性和关系，再把原始记录映射成可以检索、追溯与编辑的对象。
 
-> **当前试用版本：企业 Beta 分支。** 本页展示 `codex/slim-enterprise-beta`，功能代码正在 [PR #1](https://github.com/xiaohuihuiaijia/ontweft/pull/1) 中审核；`main` 的应用代码仍是此前 Alpha。下面的命令会明确检出 Beta。界面目前以中文为主。
+**选择材料 → 描述业务目标 → 审阅模型与事实候选 → 发布、导入 → 持续更新与图谱探索。**
 
-## 从数据，到可操作的业务图谱
-
-客户、订单、资产、项目散落在文件与数据库中。Ontweft 让你先定义它们的业务含义，再用有来源、受权限约束的对象和关系连接起来。适合数据团队、内部工具开发者和希望从一个小场景开始验证本体的团队。
-
-**选择文件或 PostgreSQL → 手工建模或 AI 起草 → 审阅、校验并发布 → 按业务键持续更新 → 在图谱中探索与编辑。**
-
-| 你想做的事 | Beta 已实现 |
+| 工作环节 | 你可以做什么 |
 | --- | --- |
-| 把现有数据带进来 | CSV/XLSX 上传、PostgreSQL 接入、可编辑来源映射；保留原件和记录位置 |
-| 从业务资料起草本体 | 理解 PDF、DOCX、XLSX、PPTX、图片及文本；自动归纳或按你的业务要求生成模型与实例候选，对照来源编辑采纳 |
-| 用业务语言定义模型 | 自定义类型、字段、枚举、具名关系、组合唯一键与关系基数；从模板或空白开始 |
-| 让关系跟着数据变化 | 文件不可变版本、业务键更新、精确跨来源绑定、持续关联规则；保留人工关系 |
-| 直接在图谱里工作 | 授权全库搜索、邻域分页、鼠标／触屏拖动、节点固定、个人视图；单击节点或双击关系打开编辑器 |
-| 让团队协作有依据 | 项目与字段权限、版本化模型、来源证据、审计；企业模式默认异人模型审批 |
-| 保持部署简单 | 一个 API 服务、一套 PostgreSQL、现有 worker；知识、非核心连接器和自动化按需开启 |
+| **理解资料** | 读取 PDF、Office、图片与文本；按所选范围自动归纳，或按自定义业务要求提取；候选可跳回来源 |
+| **起草本体** | AI 建议类型、属性、关系和映射；复用已有模型，编辑后进入既有校验、审批与发布流程 |
+| **接入数据** | CSV/XLSX 与 PostgreSQL；明确业务键、不可变文件版本、来源映射和精确跨来源绑定 |
+| **维护关系** | 持续规则随字段变化增量重算；区分人工关系与来源贡献，保留历史依据 |
+| **在图谱中工作** | 授权全库搜索、按需展开邻域、拖动与固定节点、恢复个人视图；单击节点编辑，选择关系查看和修改 |
+| **团队协作** | 项目与字段权限、模型修订、版本化证据和审计；企业模式默认异人模型审批 |
 
-默认工作台只有 **数据、本体、对象、图谱、设置** 五个入口。AI 使用可配置的兼容模型 API；本机手工建模与图谱仍不需要 AI Key、向量数据库或外部模型服务，不要求独立 OCR 或本地 GPU。
+只有 **数据、本体、对象、图谱、设置** 五个主入口。核心是一套 PostgreSQL、一个 API 服务和现有 worker。无需额外图数据库或向量服务；手工建模和确定性采集无需 AI Key。非核心连接器、知识与自动化按需启用。
 
-## 本机体验
+## 开始使用
 
-准备 **Python 3.12、uv、Node.js 22.12+**。以下体验使用本机 SQLite，数据与账号会保留：
+准备 **Python 3.12、uv、Node.js 22.12+**，运行：
 
 ```sh
 git clone --branch codex/slim-enterprise-beta https://github.com/xiaohuihuiaijia/ontweft.git
@@ -52,66 +40,43 @@ npm --prefix frontend run build
 uv run --locked --no-dev python scripts/start_local_demo.py
 ```
 
-首次运行设置至少 12 个字符的密码，终端不会回显。打开 **http://127.0.0.1:8020**，使用 `owner` 和刚设置的密码登录。
+首次运行设置至少 12 个字符的密码，终端不回显。打开 **http://127.0.0.1:8020**，使用 `owner` 登录。
 
-1. 在“本体”新建变更集，选择“项目与任务”或“资产与位置”模板。
-2. 编辑业务名称与字段，保存、验证、批准并发布。
-3. 在“对象”创建记录和关系，进入“图谱”查看、拖动和编辑。
-
-要从自己的表格开始，另开终端启动 worker，再从“数据”上传 CSV/XLSX：
+- **先体验图谱：** 在“本体”选择模板并编辑、验证、发布，在“对象”添加记录，再进入“图谱”拖动与编辑。
+- **从自己的数据开始：** 另开终端启动下面的 worker，从“数据”上传 CSV/XLSX，选择业务键并生成模型建议。
+- **让 AI 辅助起草：** 在“设置 → 模型连接”配置兼容服务，在“数据 → 文档理解”或“本体 → AI 起草”选择材料、范围与业务要求。
 
 ```sh
 uv run --locked --no-dev python scripts/start_local_demo.py worker
 ```
 
-worker 负责采集、持续关系、全文索引、大规模模型校验与 AI 起草。数据保存在 `var/local-demo/`；入口只监听回环地址，用于本机体验。连接数据库的主机名单、企业 PostgreSQL/TLS 部署和旧版本升级分别见下方文档。
+本机体验使用持久化 SQLite，数据保存在 `var/local-demo/`，仅监听回环地址。团队部署使用 PostgreSQL 与 HTTPS；见[部署指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md)。
 
-## 用大模型理解资料，保留人的判断
+## AI 提建议，业务事实由你确认
 
-1. 管理员在“设置 → 模型连接”填写兼容 Chat Completions 的服务地址、密钥与模型，分别测试常规提取和复杂建模用途。百炼是首个实测服务，更换地址和能力配置不需要改业务代码。
-2. 从“数据 → 文档理解”上传材料，或从“本体 → AI 起草”选择文件／PostgreSQL 资源。可自动归纳，也可描述具体业务目标、选择页面与预算。默认单文件上限 **256 MiB**。
-3. 在原文与候选之间定位、编辑和排除不成立的内容。类型、属性、关系和映射进入既有模型草稿；发布后再确认文档实例导入，不让模型直接修改正式本体。
+接入层使用可配置的 OpenAI-compatible Chat Completions，文字、视觉与结构化输出能力分别声明和测试。百炼是首个实测服务；不把接口兼容视作其他供应商已通过验证。
 
-PDF 本地分页渲染，复杂图文由视觉模型理解；页面结果可复用，任务失败可沿用已完成进度。当前支持 PNG／JPEG、Office、CSV、文本／Markdown；Office 页码指逻辑单元。准确率、跨页表格与领域判断仍须依据实际材料验收，不能把可调用模型当作可靠事实。[配置、处理流程与当前边界 →](docs/enterprise-beta.md#文档理解与-ai-本体起草)
+PDF 在本地分页渲染并提取原生文字，表格结构与复杂页面交给所配置的视觉模型；Office 和表格文件保留可直接读取的结构。支持 PDF、DOCX、XLSX、PPTX、PNG/JPEG、CSV、文本/Markdown；Office 页码是逻辑单元。文档上传默认 **256 MiB**，确定性表格导入另有[行列及大小预算](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/data-to-ontology.md)。
 
-## 实测进展与边界
+页面进度与证据版本可追溯；修改业务要求可复用基础识别。模型产出进入可编辑候选，不能执行任意 SQL、直接发布模型或绕过实例导入确认。**无需独立 OCR、GPU 或常驻本地模型服务；配置外部模型后，调用按供应商计费。**
 
-截至 **2026-11-10**，已完成核心依赖隔离安装、真实浏览器接入与图谱交互、Linux/PostgreSQL 部署和备份恢复验证。各项测试范围与跳过项都有记录；当前提交的自动检查以 [GitHub Actions](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks) 为准。
+## 已验证什么
 
-**2026-11-11 新增 AI 流程**：通用模型、文档贡献及 SQLite／显式隔离 PostgreSQL 集成回归 136 项通过、10 项跳过；前端 191 项测试及真实浏览器流程通过，见[验证记录](docs/beta-verification.md)。百炼 Flash／Max 的合成文字、图像与结构化输出探测通过。复杂材料的人工质量和整本处理尚未完成验收，下方既有规模成绩不代表 AI 处理吞吐或准确率。
+已运行隔离数据库回归、真实 Chromium 工作流、Linux/PostgreSQL CI，以及合成数据部署与恢复验证。本轮进一步修复了来源投影范围、关系匹配索引、历史证据定位、页面竞态和重复查询，详见[项目审查](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md)与[当前 CI](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks)。
 
-规模夹具：**10 万对象、100 万关系、50 个用户**；Windows 上 4 个 API 进程，Docker PostgreSQL 17.11，可用 6 CPU／11.68 GiB。数据与初始索引预建，结果不代表首次导入吞吐或生产 SLA。
+已有 **10 万对象 / 100 万关系 / 50 用户**的合成规模测量；唯一编码搜索 P95 仍高于 1 秒目标，不能据此宣称生产 SLA。复杂文档的人工准确率、整本处理、真实 CDC 故障恢复与大附件灾难恢复仍需专项验收。[完整测量与限制 →](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/beta-verification.md)
 
-| 实际测量 | 结果 |
+## 文档与参与
+
+| 想了解什么 | 入口 |
 | --- | --- |
-| 50 并发客户端的查询 | 1,000 次混合查询成功；常见词搜索／邻域／详情 P95 为 0.765／0.772／0.657 秒 |
-| 唯一编码全文搜索 | P95 **2.135 秒**，尚未达到 1 秒目标 |
-| 50 次并发写入传播到检索与关系 | 50/50 完成，P95 **22.420 秒**，包含等待与重试；观察期间有 25 次临时 503 |
+| 第一次建立本体 | [入门指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/getting-started.md) · [从数据建模](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/data-to-ontology.md) |
+| 模型与图谱如何工作 | [本体方法论](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/ontology-methodology.md) · [图谱操作](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/graph.md) |
+| 部署、升级与扩展 | [部署指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md) · [核心与扩展](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/enterprise-beta.md) |
+| 核对实现或提交代码 | [贡献指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/CONTRIBUTING.md) · [审查与待审核项](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md) |
 
-图谱按需载入授权子图，画布最多 500 节点／1,000 条关系，并非一次渲染全库。真实 WAL 过期后的 CDC 重建、大批首次导入、大附件恢复和持续生产负载仍需专项验收。完整 OWL/SHACL、通用推理、自然语言查询与向量能力不是默认核心；业务要求驱动的 AI 起草不等于任意查询或自动执行。飞书和可选专用识别能力分别配置、分别验收。
+**Python / FastAPI / SQLAlchemy / PostgreSQL · React / TypeScript / Sigma / Graphology。** 保持模块化单体，优先解决具体场景，不建设额外的平台层。
 
-[查看完整测量、复现方法与剩余问题 →](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/beta-verification.md)
+如果这正是你需要的方向，欢迎 **Star** 关注进展。也欢迎[带着一个业务场景来提 Issue](https://github.com/xiaohuihuiaijia/ontweft/issues)：你要连接什么数据、回答什么问题、在哪一步遇到了阻碍。请使用脱敏示例；安全问题按[安全说明](SECURITY.md)私下报告。
 
-## 文档与源码
-
-以下使用与部署文档对应本页的 Beta 分支：
-
-| 目的 | 入口 |
-| --- | --- |
-| 完成第一次建模 | [入门指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/getting-started.md) |
-| 接入文件或自己的数据库 | [从数据建立本体](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/data-to-ontology.md) |
-| 理解模型与图谱的用法 | [本体方法论](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/ontology-methodology.md) · [图谱操作](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/graph.md) |
-| 自部署、升级、备份与恢复 | [部署指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md) · [核心与扩展](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/enterprise-beta.md) |
-| 参与开发与核对实现 | [贡献指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/CONTRIBUTING.md) · [项目审查](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md) |
-
-技术栈为 **Python / FastAPI / SQLAlchemy / PostgreSQL** 与 **React / TypeScript / Sigma / Graphology**。后端在 `backend/ontology/`，前端在 `frontend/src/`，CDC 适配源码在 `integrations/debezium/`。核心保持模块化单体，不要求额外图数据库或搜索服务。
-
-## 一起把它做得更好
-
-如果这个方向对你有用，欢迎给项目一个 **Star**，方便关注后续进展。更有价值的反馈是一个具体场景：你想连接哪些数据、回答什么业务问题、在哪一步遇到了阻碍。
-
-- [报告问题或提出场景](https://github.com/xiaohuihuiaijia/ontweft/issues)：附版本、复现步骤与脱敏示例。
-- [提交贡献](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/CONTRIBUTING.md)：文档、可访问性、用例与有测量依据的优化都欢迎；优先小而明确的改动。
-- 安全问题请按 [安全说明](SECURITY.md) 私下报告，不在公开 Issue 中贴凭据。
-
-自有代码采用 [Apache-2.0](LICENSE)，版权声明见 [NOTICE](NOTICE)。第三方包保留各自许可与[必要通知](frontend/public/THIRD_PARTY_NOTICES.txt)；截图的[来源与复现方式](docs/images/README.md)随仓库提供。源码开放不代表生产可用性、安全审计、商标清查或全部第三方二进制／模型再分发验收通过。
+自有代码采用 [Apache-2.0](LICENSE)，第三方组件保留原许可与[必要通知](frontend/public/THIRD_PARTY_NOTICES.txt)。[截图来源](docs/images/README.md)与 [NOTICE](NOTICE)随仓库提供。当前不宣称生产可用性、完整安全审计、商标清查或全部二进制/模型再分发验收通过。

@@ -1,6 +1,5 @@
 """Reparse and immutable-history reads using the existing jobs and project lock."""
 
-import hashlib
 from typing import Literal
 from urllib.parse import urlencode
 
@@ -12,7 +11,7 @@ from ontology.content_access.service import content_context, prepare_content_acc
 from ontology.core.domain import exact_json_text, row_dict, scoped_record, wire_value
 from ontology.core.errors import DomainError, conflict, missing
 from ontology.core.schemas import StrictModel
-from ontology.documents import DocumentError, detect_format
+from ontology.documents import DocumentError, ParseLimits
 from ontology.documents.api import document_view
 from ontology.documents.history import (
     active_parse_job,
@@ -22,6 +21,8 @@ from ontology.documents.history import (
     snapshot_as_document,
 )
 from ontology.documents.history_models import DocumentParseVersion
+from ontology.documents.pages import file_digest
+from ontology.documents.parser import detect_format_path
 from ontology.documents.storage_models import Document
 from ontology.identity.security import audit, authenticated
 from ontology.jobs.models import Job
@@ -81,12 +82,12 @@ def reparse(document_id: str, data: ReparseInput, request: Request, user=Depends
         path = request.app.state.settings.data_dir / "assets" / doc.storage_key
         if not path.is_file():
             raise DomainError(409, "asset_missing", "原件缺失，请先恢复原件")
-        with path.open("rb") as source:
-            content = source.read(request.app.state.settings.max_upload_bytes + 1)
-        if len(content) != doc.size or hashlib.sha256(content).hexdigest() != doc.content_hash:
+        if path.stat().st_size != doc.size or file_digest(path) != doc.content_hash:
             conflict("原件校验失败，未创建解析任务")
         try:
-            file_format = detect_format(content, doc.filename)
+            file_format = detect_format_path(
+                path, doc.filename, ParseLimits(max_bytes=request.app.state.settings.max_upload_bytes)
+            )
         except DocumentError as exc:
             raise DomainError(422, exc.code, str(exc)) from None
         engine = data.engine if data.engine != "auto" else "basic"

@@ -106,7 +106,7 @@ tbody tr:hover { background: var(--color-sidebar); }
 .drawer > header h2 { font-size: var(--text-lg); font-weight: 600; }
 .drawer-body { padding: var(--space-6); }
 .drawer-actions { gap: var(--space-3); background: var(--color-sidebar); }
-.type-editor, .query-editor, .upload-panel, .source-detail, .content-index-panel, .content-hit { border-radius: var(--radius-panel); }
+.type-editor, .query-editor, .source-detail, .content-index-panel, .content-hit { border-radius: var(--radius-panel); }
 .json-view { background: var(--color-neutral-soft); color: var(--color-ink); }
 .pager { font-size: var(--text-xs); }
 .pager button { font-size: var(--text-xs); min-height: 36px; }

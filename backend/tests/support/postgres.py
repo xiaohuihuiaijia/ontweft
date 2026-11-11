@@ -14,7 +14,8 @@ from fastapi.testclient import TestClient
 from ontology.api import create_app
 from ontology.cli import bootstrap
 from ontology.core.config import Settings
-from ontology.core.db import Base, Database
+from ontology.core.db import Database
+from ontology.core.registry import grant_runtime_access
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
@@ -41,9 +42,15 @@ def pg_databases(tmp_path_factory):
     )
     try:
         result = subprocess.run(
-            [sys.executable, "-c", ("from ontology.core.config import Settings; "
-             "Settings.model_config['env_file'] = None; "
-             "from alembic.config import main; main(['upgrade', 'head'])")],
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from ontology.core.config import Settings; "
+                    "Settings.model_config['env_file'] = None; "
+                    "from alembic.config import main; main(['upgrade', 'head'])"
+                ),
+            ],
             env={**os.environ, "ONTOLOGY_DATABASE_URL": admin_url.render_as_string(hide_password=False)},
             capture_output=True,
             check=False,
@@ -51,37 +58,8 @@ def pg_databases(tmp_path_factory):
             timeout=60,
         )
         assert result.returncode == 0, result.stderr
-        role = admin.engine.dialect.identifier_preparer.quote(runtime_url.username)
         with admin.engine.begin() as connection:
-            connection.execute(text("REVOKE CREATE ON SCHEMA public FROM PUBLIC"))
-            connection.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
-            for table in Base.metadata.sorted_tables:
-                grants = (
-                    "SELECT"
-                    if table.name == "tenants"
-                    else "SELECT, INSERT"
-                    if table.name
-                    in {
-                        "releases",
-                        "entity_revisions",
-                        "knowledge_revisions",
-                        "document_sources",
-                        "knowledge_source_dependencies",
-                        "document_parse_versions",
-                        "audit_events",
-                        "source_record_revisions",
-                        "action_attempts",
-                        "function_runs",
-                        "cdc_events",
-                        "contribution_revisions",
-                        "contribution_decisions",
-                        "cdc_projection_bindings",
-                        "cdc_projection_windows",
-                    }
-                    else "SELECT, INSERT, UPDATE, DELETE"
-                )
-                connection.execute(text(f'GRANT {grants} ON TABLE "{table.name}" TO {role}'))
-            connection.execute(text(f"GRANT SELECT ON alembic_version TO {role}"))
+            grant_runtime_access(connection, runtime_url.username)
         yield admin, runtime_url.render_as_string(hide_password=False)
     finally:
         admin.engine.dispose()

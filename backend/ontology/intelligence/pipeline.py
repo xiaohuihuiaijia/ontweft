@@ -9,7 +9,10 @@ from sqlalchemy import select
 
 from ontology.core.domain import validate_source_properties, wire_value
 from ontology.core.errors import DomainError, conflict
-from ontology.documents.pages import file_digest, iter_page_inputs, page_count
+from ontology.documents.history_models import DocumentParseVersion
+from ontology.documents.models import ParseLimits
+from ontology.documents.pages import file_digest, iter_page_inputs, page_count, page_structure
+from ontology.documents.parser import detect_format_path
 from ontology.documents.storage_models import Document
 from ontology.intelligence.client import ModelCallError, ModelClient
 from ontology.intelligence.connections import model_for
@@ -130,21 +133,47 @@ def collect_pages(state):
     pages = dict(cp.get("pages", {}))
     documents = []
     total = 0
+    input_versions = dict(cp.get("page_input_versions", {}))
+    limits = ParseLimits(max_bytes=state.settings.max_upload_bytes)
     for selected in state.proposal.inputs["documents"]:
         with state.db.transaction(state.run["tenant_id"]) as session:
             state.verify(session)
             doc = session.get(Document, selected["id"])
+            ir = doc.ir
+            if "native_parse_id" in selected:
+                snapshot = session.get(DocumentParseVersion, selected["native_parse_id"]) if selected["native_parse_id"] else None
+                if selected["native_parse_id"] and (
+                    not snapshot or snapshot.document_id != doc.id
+                    or snapshot.source_revision != doc.revision or snapshot.content_hash != doc.content_hash
+                ):
+                    conflict("提案绑定的原生解析版本不可用，请重新选择来源")
+                ir = snapshot.ir if snapshot else None
         path = state.settings.data_dir / "assets" / doc.storage_key
         if file_digest(path) != selected["hash"]:
             conflict("来源文件内容已改变，不能沿用旧解析证据")
-        count = page_count(path, doc.filename, source_id=doc.id, source_revision=str(doc.revision), ir=doc.ir)
+        fmt = detect_format_path(path, doc.filename, limits)
+        if fmt not in {"pdf", "png", "jpeg"}:
+            ir = page_structure(
+                path, doc.filename, source_id=doc.id,
+                source_revision=str(doc.revision), ir=ir, limits=limits,
+            )
+            input_version = fingerprint(ir)
+            if doc.id in input_versions and input_versions[doc.id] != input_version:
+                conflict("逻辑分页解析已改变，不能混用旧任务的页面进度")
+            if doc.id not in input_versions and any(key.startswith(doc.id + ":") for key in pages):
+                conflict("旧任务的逻辑分页未绑定解析版本，请保留结果并重新生成")
+            input_versions[doc.id] = input_version
+        else:
+            input_version = None  # Physical pages come directly from immutable source bytes.
+        count = page_count(path, doc.filename, source_id=doc.id, source_revision=str(doc.revision), ir=ir, limits=limits)
         chosen = state.proposal.inputs.get("pages", {}).get(doc.id, list(range(1, count + 1)))
         if any(n < 1 or n > count for n in chosen):
             raise DomainError(422, "invalid_page_selection", "页码超出文档范围")
-        documents.append((doc, path, chosen))
+        native_locator = (selected["native_parse_id"] or "native") if "native_parse_id" in selected else None
+        documents.append((doc, path, chosen, ir, input_version, native_locator))
         total += len(chosen)
-    state.save(stage="reading", pages=pages, pages_total=total, pages_completed=len(pages))
-    for doc, path, chosen in documents:
+    state.save(stage="reading", pages=pages, page_input_versions=input_versions, pages_total=total, pages_completed=len(pages))
+    for doc, path, chosen, ir, input_version, native_locator in documents:
         for number in chosen:
             location = f"{doc.id}:{number}"
             if location in pages:
@@ -160,6 +189,7 @@ def collect_pages(state):
                     "config_revision": state.connection.revision,
                     "quality": state.proposal.inputs["quality"],
                     "prompt": VERSION,
+                    **({"native_parse": input_version} if input_version else {}),
                 }
             )
             with state.db.transaction(state.run["tenant_id"]) as session:
@@ -180,9 +210,11 @@ def collect_pages(state):
                         doc.filename,
                         source_id=doc.id,
                         source_revision=str(doc.revision),
-                        ir=doc.ir,
+                        ir=ir,
                         page_numbers=[number],
                         include_images=True,
+                        verified_hash=doc.content_hash,
+                        limits=limits,
                     )
                 ) as inputs:
                     page = next(inputs)
@@ -200,11 +232,13 @@ def collect_pages(state):
                                 doc.filename,
                                 source_id=doc.id,
                                 source_revision=str(doc.revision),
-                                ir=doc.ir,
+                                ir=ir,
                                 page_numbers=[number],
                                 image_max_edge=3900,
                                 include_images=True,
                                 detail_images=True,
+                                verified_hash=doc.content_hash,
+                                limits=limits,
                             )
                         ) as inputs:
                             detailed = next(inputs)
@@ -237,7 +271,7 @@ def collect_pages(state):
                             page_number=number,
                             cache_key=key,
                             model=result.model,
-                            result=result.data,
+                            result={**result.data, **({"native_parse_id": native_locator} if native_locator else {})},
                             usage=result.usage,
                         )
                         session.add(cached)
@@ -401,6 +435,7 @@ def normalize_facts(data, page, definition, context_pages=()):
                             "page": origin.page_number,
                             "quote": quote,
                             "parse_id": origin.id,
+                            **({"native_parse_id": origin.result["native_parse_id"]} if origin.result.get("native_parse_id") else {}),
                         }
                     )
                     break
@@ -422,6 +457,7 @@ def normalize_facts(data, page, definition, context_pages=()):
             }
             if len(values) != len(item["values"]):
                 raise ValueError("duplicate property")
+            json.dumps(values, allow_nan=False)
             values = wire_value(validate_source_properties(type_def, values))
         except (ValueError, TypeError, DomainError):
             gaps.append(f"第 {page.page_number} 页有候选属性格式不满足模型，待复核")

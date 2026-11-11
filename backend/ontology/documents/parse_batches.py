@@ -55,6 +55,25 @@ def parse_pdf_batches(db, settings, run, request, execute):
                 },
             )
         )
+    result = None
+    # Backups intentionally exclude temporary files. Validate retained batches
+    # before doing more work, so a restored job never reparses its entire tail
+    # only to discover that its earlier evidence is unavailable.
+    for record in checkpoint["batches"]:
+        batch_path = (directory / record["name"]).resolve()
+        if batch_path.parent != directory:
+            conflict("解析进度引用不属于当前任务")
+        try:
+            raw = batch_path.read_bytes()
+        except FileNotFoundError:
+            conflict("本地解析进度文件已缺失，请重新提交解析")
+        if hashlib.sha256(raw).hexdigest() != record["sha256"]:
+            conflict("本地解析进度摘要不一致，请重新提交解析")
+        batch = json.loads(raw)
+        if result is None:
+            result = {**batch, "elements": [], "pages": []}
+        result["elements"].extend(batch["elements"])
+        result["pages"].extend(batch["pages"])
     while checkpoint["pages_total"] is None or checkpoint["pages_completed"] < checkpoint["pages_total"]:
         with db.transaction(run["tenant_id"]) as session:
             _check(session, run)
@@ -93,22 +112,10 @@ def parse_pdf_batches(db, settings, run, request, execute):
                 "pages_completed": completed,
                 "pages_total": parsed["page_count"],
             }
-    result = None
-    for record in checkpoint["batches"]:
-        batch_path = (directory / record["name"]).resolve()
-        if batch_path.parent != directory:
-            conflict("解析进度引用不属于当前任务")
-        try:
-            raw = batch_path.read_bytes()
-        except FileNotFoundError:
-            conflict("本地解析进度文件已缺失，请重新提交解析")
-        if hashlib.sha256(raw).hexdigest() != record["sha256"]:
-            conflict("本地解析进度摘要不一致，请重新提交解析")
-        batch = json.loads(raw)
         if result is None:
-            result = {**batch, "elements": [], "pages": []}
-        result["elements"].extend(batch["elements"])
-        result["pages"].extend(batch["pages"])
+            result = {**ir, "elements": [], "pages": []}
+        result["elements"].extend(ir["elements"])
+        result["pages"].extend(ir["pages"])
     for order, element in enumerate(result["elements"]):
         element["order"] = order
     result["complete"] = len(result["pages"]) == checkpoint["pages_total"] and all(

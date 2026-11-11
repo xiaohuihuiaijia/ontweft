@@ -4,7 +4,7 @@ import { selectionContext, type GraphSelection } from './graph-model';
 
 const SVG = 'http://www.w3.org/2000/svg';
 type Point = { x: number; y: number };
-type State = { data: GraphResult; visible: GraphResult; selection: GraphSelection; showEdgeLabels?: boolean; onSelectEdge: (edge: GraphEdge) => void };
+type State = { data: GraphResult; visible: GraphResult; selection: GraphSelection; dark?: boolean; showEdgeLabels?: boolean; onSelectEdge: (edge: GraphEdge) => void };
 
 /** Original cubic geometry. No synthetic graph nodes or semantic edges are added. */
 export function loopGeometry(center: Point, radius: number, lane: number, count = lane + 1) {
@@ -77,7 +77,7 @@ export function attachSelfLoopLayer(sigma: Sigma, host: HTMLElement, current: ()
       entry.group.style.display = '';
       const geometry = loopGeometry(center, radius, lanes.get(id) ?? 0, counts.get(edge.source));
       const related = context.edges.has(id); const selected = state.selection.edge === id;
-      const color = context.active ? related ? '#285d6c' : '#d6dfdf' : '#607d88';
+      const color = state.dark ? context.active ? related ? '#9dd7b5' : '#354e42' : '#668878' : context.active ? related ? '#285d6c' : '#d6dfdf' : '#607d88';
       for (const path of [entry.line, entry.hit, entry.halo]) path.setAttribute('d', geometry.path);
       entry.line.setAttribute('stroke', color); entry.line.setAttribute('stroke-width', related ? '2.7' : '1.6');
       entry.arrow.setAttribute('points', geometry.arrow); entry.arrow.setAttribute('fill', color);

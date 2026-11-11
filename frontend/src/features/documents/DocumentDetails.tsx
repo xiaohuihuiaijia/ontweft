@@ -15,8 +15,8 @@ interface InspectorProps { documentId: string; fixedParseId?: string; canReparse
 const denied = protectedReadUnavailable;
 const hasIR = (ir: unknown) => !!ir && typeof ir === 'object' && Array.isArray((ir as { elements?: unknown }).elements);
 
-export function DocumentDetails({ onClose, page, quote, ...props }: InspectorProps & { onClose: () => void; page?: number; quote?: string }) {
-  return <Drawer title={page ? '文档来源页' : props.fixedParseId ? '固定历史解析版本' : '文档解析与原件'} onClose={onClose}><div className="drawer-body">{page ? <DocumentPagePreview documentId={props.documentId} page={page} quote={quote} /> : <DocumentInspector {...props} />}</div></Drawer>;
+export function DocumentDetails({ onClose, page, quote, nativeParseId, ...props }: InspectorProps & { onClose: () => void; page?: number; quote?: string; nativeParseId?: string }) {
+  return <Drawer title={page ? '文档来源页' : props.fixedParseId ? '固定历史解析版本' : '文档解析与原件'} onClose={onClose}><div className="drawer-body">{page ? <DocumentPagePreview documentId={props.documentId} page={page} quote={quote} nativeParseId={nativeParseId} /> : <DocumentInspector {...props} />}</div></Drawer>;
 }
 
 export function DocumentInspector(props: InspectorProps) { return <InspectorSession key={`${props.documentId}:${props.fixedParseId ?? 'current'}`} {...props} />; }

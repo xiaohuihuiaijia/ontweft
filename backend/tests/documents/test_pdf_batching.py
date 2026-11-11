@@ -172,3 +172,36 @@ def test_global_character_budget_is_not_reset_for_each_pdf_batch(platform, monke
     with app.state.db.transaction(owner["tenant_id"]) as session:
         assert session.get(Job, run["id"]).checkpoint["pages_completed"] == 1
         assert session.get(Document, doc.id).parse_revision == 0
+
+
+@pytest.mark.parametrize("damage", ["missing", "changed"])
+def test_restored_or_damaged_checkpoint_fails_before_parsing_remaining_pages(platform, monkeypatch, damage):
+    client, app, owner, _ = platform
+    created = upload(client, owner["project_id"], native_pdf(35), "synthetic.pdf")
+    original = worker.execute_parse
+    calls = []
+
+    def interrupted(request, settings, environment):
+        start = request["pdf_batch"]["start_page"]
+        calls.append(start)
+        if start > 1:
+            raise subprocess.TimeoutExpired("synthetic", 180)
+        return original(request, settings, environment)
+
+    monkeypatch.setattr(worker, "execute_parse", interrupted)
+    assert worker.process_one(app.state.db, app.state.settings)
+    job_id = created["job"]["id"]
+    directory = app.state.settings.data_dir / "temporary" / ("pdf-" + job_id)
+    batch = next(directory.glob("batch-*.json"))
+    if damage == "missing":
+        batch.unlink()
+    else:
+        batch.write_bytes(b"changed synthetic checkpoint")
+    assert client.post(f"/api/jobs/{job_id}/retry").status_code == 200
+    calls.clear()
+    assert worker.process_one(app.state.db, app.state.settings)
+    assert calls == []
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        assert session.get(Job, job_id).status == "failed"
+        assert session.get(Job, job_id).checkpoint["pages_completed"] == 32
+        assert session.get(Document, created["document"]["id"]).parse_revision == 0

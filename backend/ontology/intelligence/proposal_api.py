@@ -1,7 +1,7 @@
 """Goal-directed proposals are reviewed through existing model/import contracts."""
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ontology.content_access.models import DocumentSource
 from ontology.core.domain import (
@@ -14,6 +14,7 @@ from ontology.core.domain import (
 )
 from ontology.core.errors import DomainError, conflict
 from ontology.core.schemas import RevisionInput
+from ontology.documents.history import capture_current_parse
 from ontology.documents.storage_models import Document
 from ontology.identity.security import access, audit, authenticated
 from ontology.intelligence.models import ModelConnection
@@ -129,7 +130,13 @@ def create_proposal(data: ProposalInput, request: Request, user=Depends(authenti
         }
         for doc_id in dict.fromkeys(data.document_ids):
             doc = scoped_record(session, Document, doc_id, user)
-            inputs["documents"].append({"id": doc.id, "revision": doc.revision, "hash": doc.content_hash})
+            selected = {"id": doc.id, "revision": doc.revision, "hash": doc.content_hash}
+            if not doc.filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg")):
+                # Logical Office/text pages depend on interpretation as well as
+                # original bytes. None explicitly freezes the native fallback.
+                snapshot = capture_current_parse(session, doc)
+                selected["native_parse_id"] = snapshot.id if snapshot else None
+            inputs["documents"].append(selected)
         for selection in data.source_selections:
             source = scoped_record(session, Source, selection.source_id, user)
             resources = {r["resource_id"]: r for r in source.resources}
@@ -170,17 +177,30 @@ def create_proposal(data: ProposalInput, request: Request, user=Depends(authenti
 
 
 @router.get("/ai/proposals")
-def proposals(request: Request, project_id: str, user=Depends(authenticated)):
+def proposals(
+    request: Request,
+    project_id: str,
+    limit: int = Query(100, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user=Depends(authenticated),
+):
     with request.app.state.db.transaction(user.tenant_id) as session:
         access(session, user, project_id, "ontology:write")
         access(session, user, project_id, "sources:write")
+        conditions = (AIProposal.tenant_id == user.tenant_id, AIProposal.project_id == project_id)
         rows = session.scalars(
             select(AIProposal)
-            .where(AIProposal.tenant_id == user.tenant_id, AIProposal.project_id == project_id)
-            .order_by(AIProposal.created_at.desc())
-            .limit(100)
+            .where(*conditions)
+            .order_by(AIProposal.created_at.desc(), AIProposal.id.desc())
+            .offset(offset)
+            .limit(limit)
         )
-        return {"items": [view(session, row, summary=True) for row in rows]}
+        return {
+            "items": [view(session, row, summary=True) for row in rows],
+            "total": session.scalar(select(func.count()).select_from(AIProposal).where(*conditions)),
+            "limit": limit,
+            "offset": offset,
+        }
 
 
 @router.get("/ai/proposals/{proposal_id}")
@@ -235,6 +255,7 @@ def check_evidence(session, proposal, items):
             )
         )
     }
+    page_text = {id: "".join(page.result.get("text", "").split()) for id, page in pages.items()}
     for item in items:
         for evidence in item.get("evidence", []):
             page = pages.get(evidence.get("parse_id"))
@@ -243,11 +264,11 @@ def check_evidence(session, proposal, items):
                 or evidence["document_id"] not in allowed
                 or page.document_id != evidence["document_id"]
                 or page.page_number != evidence["page"]
+                or page.result.get("native_parse_id") != evidence.get("native_parse_id")
             ):
                 raise DomainError(422, "invalid_ai_evidence", "候选证据必须来自本次已处理的原始页面")
-            text = page.result.get("text", "")
             quote = "".join(evidence["quote"].split())
-            if not quote or quote not in "".join(text.split()):
+            if not quote or quote not in page_text[page.id]:
                 raise DomainError(422, "invalid_ai_quote", "候选引文不在对应解析文本中")
 
 

@@ -13,7 +13,7 @@ import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 
-from ontology.documents.models import DocumentError
+from ontology.documents.models import DocumentError, ParseLimits
 from ontology.documents.parser import detect_format_path, parse_document
 
 
@@ -22,11 +22,28 @@ def file_digest(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def page_structure(path, filename, *, source_id, source_revision, ir=None, limits=None):
+    """Reuse an interpretation and retain source images without guessing layout joins."""
+    if not ir:
+        return parse_document(
+            path.read_bytes(), filename, source_id=source_id, source_revision=source_revision, limits=limits
+        ).model_dump(mode="json")
+    if ir.get("format") == "docx" and ir.get("parser", "").startswith("docling/") and "native_images" not in ir:
+        native = parse_document(
+            path.read_bytes(), filename, source_id=source_id, source_revision=source_revision, limits=limits
+        )
+        # Docling picture nodes have no archive-member identity. Native image
+        # references are separate logical units; never pair them by position.
+        return {**ir, "native_images": [e.model_dump(mode="json") for e in native.elements if e.kind == "image"]}
+    return ir
+
+
 def page_count(
-    path: Path, filename: str, *, source_id: str, source_revision: str, ir: dict | None = None
+    path: Path, filename: str, *, source_id: str, source_revision: str, ir: dict | None = None,
+    limits: ParseLimits | None = None,
 ) -> int:
     """Count without rendering; callers can paginate before opening image inputs."""
-    fmt = detect_format_path(path, filename)
+    fmt = detect_format_path(path, filename, limits)
     if fmt == "pdf":
         import pypdfium2 as pdfium
 
@@ -37,10 +54,7 @@ def page_count(
             raise DocumentError("invalid_pdf", "PDF cannot be opened") from None
     if fmt in {"png", "jpeg"}:
         return 1
-    if not ir:
-        ir = parse_document(
-            path.read_bytes(), filename, source_id=source_id, source_revision=source_revision
-        ).model_dump(mode="json")
+    ir = page_structure(path, filename, source_id=source_id, source_revision=source_revision, ir=ir, limits=limits)
     return sum(1 for _ in _logical_units(ir))
 
 
@@ -121,6 +135,9 @@ def _text(elements: list[dict]) -> str:
 def _logical_units(ir: dict) -> Iterator[tuple[str, list[dict]]]:
     elements = ir.get("source_elements") if ir.get("format") == "xlsx" else None
     elements = elements or ir.get("elements", [])
+    native_images = ir.get("native_images")
+    if native_images is not None:
+        elements = [element for element in elements if element.get("kind") != "image"]
     if ir.get("format") == "pptx":
         for status in ir.get("pages", []):
             number = status["page_number"]
@@ -158,6 +175,8 @@ def _logical_units(ir: dict) -> Iterator[tuple[str, list[dict]]]:
             length += size
         if batch or not elements:
             yield "文档结构片段", batch
+    for element in native_images or []:
+        yield "原生内嵌图像", [element]
 
 
 def iter_page_inputs(
@@ -171,20 +190,24 @@ def iter_page_inputs(
     image_max_edge: int = 2560,
     include_images: bool = True,
     detail_images: bool = False,
+    verified_hash: str | None = None,
+    limits: ParseLimits | None = None,
 ) -> Iterator[dict]:
     """Yield one input at a time. `page_number` is a logical-unit ID for Office.
 
     PDF/image evidence contains physical pages. Office block/cell evidence is
     unchanged. `image_data_urls` retains all embedded images; `image_data_url`
     is the first image for simple consumers. Callers must authorize the source.
+    `verified_hash` is internal: supply only after checking this immutable file
+    during the current request/run, to avoid hashing it again for every page.
     """
     if not 256 <= image_max_edge <= 8192:
         raise DocumentError("invalid_resolution", "Image edge must be between 256 and 8192 pixels")
     selected = set(page_numbers) if page_numbers is not None else None
     if selected is not None and any(number < 1 for number in selected):
         raise DocumentError("invalid_page", "Pages start at 1")
-    fmt = detect_format_path(path, filename)
-    digest = file_digest(path)
+    fmt = detect_format_path(path, filename, limits)
+    digest = verified_hash if verified_hash is not None else file_digest(path)
     common = {"source_id": source_id, "source_revision": source_revision, "content_hash": digest}
     found = set()
     if fmt == "pdf":
@@ -250,10 +273,7 @@ def iter_page_inputs(
                 "evidence": {**common, "element_path": "image/1", "page_number": 1},
             }
     else:
-        if not ir:
-            ir = parse_document(
-                path.read_bytes(), filename, source_id=source_id, source_revision=source_revision
-            ).model_dump(mode="json")
+        ir = page_structure(path, filename, source_id=source_id, source_revision=source_revision, ir=ir, limits=limits)
         archive = zipfile.ZipFile(path) if fmt in {"docx", "pptx", "xlsx"} else None
         try:
             for number, (label, elements) in enumerate(_logical_units(ir), 1):
@@ -307,6 +327,8 @@ def page_image(
     ir: dict | None = None,
     image_index: int = 0,
     max_edge: int = 2560,
+    verified_hash: str | None = None,
+    limits: ParseLimits | None = None,
 ) -> bytes:
     pages = iter_page_inputs(
         path,
@@ -316,6 +338,8 @@ def page_image(
         ir=ir,
         page_numbers=[page_number],
         image_max_edge=max_edge,
+        verified_hash=verified_hash,
+        limits=limits,
     )
     try:
         page = next(pages)

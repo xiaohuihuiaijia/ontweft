@@ -123,6 +123,27 @@ def freeze(client, setup):
     return response.json()
 
 
+@pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])
+def test_configuration_ignores_unrelated_source_schema_drift(request, fixture_name):
+    platform = request.getfixturevalue(fixture_name)
+    client, app, owner, _ = platform
+    setup = prepare(platform)
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        other = Source(tenant_id=owner["tenant_id"], project_id=owner["project_id"],
+            name="Unrelated", kind="postgres", resources=copy.deepcopy(setup["resources"]))
+        session.add(other)
+        session.flush()
+        other_id = other.id
+    definition = copy.deepcopy(setup["definition"])
+    definition["mappings"].append({**copy.deepcopy(definition["mappings"][0]),
+        "key": "other", "source_id": other_id})
+    release = publish(client, owner["project_id"], definition)["release_id"]
+    setup["payload"]["expected_release_id"] = release
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        session.get(Source, other_id).resources = []
+    assert freeze(client, setup)["status"] == "waiting"
+
+
 @contextmanager
 def rejected_constraint(sqlstate="23503"):
     with pytest.raises(DBAPIError) as result:

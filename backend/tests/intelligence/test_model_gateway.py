@@ -93,6 +93,25 @@ def test_second_invalid_result_stops_without_loop(model_client):
     assert len(calls) == 2
 
 
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "1e999"])
+def test_nonfinite_json_is_repaired_once_instead_of_becoming_persistent_data(model_client, literal):
+    calls = []
+
+    def respond(request):
+        calls.append(request)
+        return completion('{"value":' + literal + '}')
+
+    with pytest.raises(ModelCallError) as caught:
+        model_client(respond).generate(
+            "extraction", instruction="Extract", text="synthetic", schema={
+                "type": "object", "properties": {"value": {"type": "number"}},
+                "required": ["value"],
+            },
+        )
+    assert caught.value.code == "model_schema_invalid"
+    assert caught.value.usage["total_tokens"] == 240 and len(calls) == 2
+
+
 @pytest.mark.parametrize("status,code,retryable", [
     (401, "model_auth_failed", False), (403, "model_auth_failed", False),
     (429, "model_rate_limited", True), (503, "model_service_error", True),

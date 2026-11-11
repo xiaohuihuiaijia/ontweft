@@ -385,7 +385,7 @@ def project_window(session, ctx, stream, state, binding, unit, events):
         ):
             raise DomainError(409, "baseline_required", "必须先完成带结束证明的原生初始快照")
     definition = active_definition(session, ctx.project)
-    errors = mapping_errors(session, ctx, definition)
+    errors = mapping_errors(session, ctx, definition, source_id=binding.source_id)
     if errors:
         raise DomainError(409, "mapping_invalid", "投影映射已失效，需要审核", errors)
     resources = {r["resource_id"]: r for r in binding.resources}

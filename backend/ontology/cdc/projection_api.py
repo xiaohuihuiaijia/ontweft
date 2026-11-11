@@ -175,7 +175,7 @@ def configure_binding(session, ctx, stream, data):
             "projection_scope_mismatch",
             "投影范围必须恰好覆盖该来源全部已发布映射资源，并与采集端配置一致",
         )
-    errors = mapping_errors(session, ctx, definition)
+    errors = mapping_errors(session, ctx, definition, source_id=source.id)
     if errors:
         raise DomainError(422, "mapping_invalid", "已发布映射与来源目录不一致", errors)
     frozen = sorted(

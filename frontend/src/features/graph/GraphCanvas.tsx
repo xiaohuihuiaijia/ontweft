@@ -19,7 +19,7 @@ export function GraphCanvas({ data, visible, kind, selection, cache, positions: 
   const currentPositions = useRef(positionsStore); currentPositions.current = positionsStore;
   const [error, setError] = useState<unknown>(); const [ready, setReady] = useState(0); const [zoom, setZoom] = useState(100);
   const [showEdgeLabels, setShowEdgeLabels] = useState(false);
-  const latest = useRef({ data, visible, kind, selection, disabled, showEdgeLabels, openOnClick, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear }); latest.current = { data, visible, kind, selection, disabled, showEdgeLabels, openOnClick, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear };
+  const latest = useRef({ data, visible, kind, selection, disabled, dark, showEdgeLabels, openOnClick, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear }); latest.current = { data, visible, kind, selection, disabled, dark, showEdgeLabels, openOnClick, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear };
   const [reduced, setReduced] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => { if (!window.matchMedia) return; const media = window.matchMedia('(prefers-reduced-motion: reduce)'); const changed = () => setReduced(media.matches); media.addEventListener('change', changed); return () => media.removeEventListener('change', changed); }, []);
   const topology = topologyKey(data);

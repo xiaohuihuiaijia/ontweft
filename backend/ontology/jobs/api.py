@@ -41,6 +41,7 @@ def job_view(row):
             "facts_completed",
             "facts_segments_completed",
             "facts_ranges",
+            "page_input_versions",
             "facts_blocked_range",
         }
         result["checkpoint"] = {k: v for k, v in row.checkpoint.items() if k not in hidden}

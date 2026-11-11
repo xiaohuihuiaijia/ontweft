@@ -1,5 +1,6 @@
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
+import { ApiError } from '../../shared/api/api';
 import type { GraphResult } from '../../shared/model/types';
 import { useGraphExploration } from './useGraphExploration';
 
@@ -63,4 +64,38 @@ it('reports truncation when restoring a bounded saved view', async () => {
   fireEvent.click(screen.getByRole('button', { name: '恢复个人视图' }));
   expect(await screen.findByText('true')).toBeTruthy();
   localStorage.removeItem('ontweft.graph.v1:u:p');
+});
+
+
+it('clears authorized search hits and expanded content after access is denied', async () => {
+  const initial = graph('Initial'); let denied = false;
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    if (denied) return new Response(JSON.stringify({ error: { message: '权限已撤销' } }), { status: 403 });
+    return new Response(JSON.stringify(String(url).includes('/search/objects') ? { items: [{ id: 'secret', type_key: 'item', properties: { name: '授权检索内容' } }], index: { status: 'ready' }, has_more: false } : { ...graph('Expanded secret'), next_cursor: null }));
+  });
+  function View() { const state = useGraphExploration('p', 'u', initial, true, 200, vi.fn()); return <>{state.controls}<button onClick={() => state.expand('a')}>展开</button><output>{state.data.nodes.map(n => n.label).join(',')}</output></>; }
+  render(<View />);
+  fireEvent.change(screen.getByLabelText('全库对象搜索'), { target: { value: '授权' } });
+  fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+  await screen.findByRole('button', { name: '授权检索内容 · 加入画布' });
+  fireEvent.click(screen.getByRole('button', { name: '展开' }));
+  await screen.findByText('Expanded secret');
+  denied = true;
+  fireEvent.click(screen.getByRole('button', { name: '展开' }));
+  await act(async () => {});
+  expect(screen.queryByText('Expanded secret')).toBeNull();
+  expect(screen.queryByRole('button', { name: '授权检索内容 · 加入画布' })).toBeNull();
+});
+
+it('invalidates pending neighborhoods when the initial graph loses access', async () => {
+  let finish!: (response: Response) => void;
+  vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const initial = graph('Initial');
+  const { result, rerender } = renderHook(({ readError }: { readError?: unknown }) => useGraphExploration('p', 'u', initial, true, 200, vi.fn(), false, readError), { initialProps: {} });
+  let pending!: Promise<void>;
+  act(() => { pending = result.current.expand('a'); });
+  rerender({ readError: new ApiError(403, '权限已撤销') });
+  await act(async () => { finish(new Response(JSON.stringify(graph('Late secret')))); await pending; });
+  expect(result.current.data.nodes).toEqual([]);
+  expect(result.current.slices).toEqual({});
 });

@@ -17,6 +17,13 @@ from tests.support.intelligence import (
     product_definition,
     run_worker,
 )
+from tests.support.postgres import pg_databases as pg_databases  # noqa: PLC0414
+from tests.support.postgres import pg_platform as pg_platform  # noqa: PLC0414
+
+
+@pytest.fixture(params=["platform", "pg_platform"])
+def audit_platform(request):
+    return request.getfixturevalue(request.param)
 
 
 def test_worker_covers_all_pages_reuses_recognition_for_new_goal_and_imports(platform, monkeypatch):
@@ -59,6 +66,116 @@ def test_worker_covers_all_pages_reuses_recognition_for_new_goal_and_imports(pla
         assert session.scalar(select(func.count()).select_from(Entity)) == 3
         assert session.scalar(select(func.count()).select_from(Relation)) == 1
         assert session.scalar(select(func.count()).select_from(AIPage)) == 3
+
+
+def test_page_iteration_does_not_rehash_entire_document_for_each_page(platform, monkeypatch):
+    from ontology.documents import pages
+    from ontology.intelligence import pipeline
+
+    SyntheticModel(monkeypatch)
+    case = create_case(platform)
+    original, hashes = pages.file_digest, []
+
+    def digest(path):
+        hashes.append(path)
+        return original(path)
+
+    monkeypatch.setattr(pages, "file_digest", digest)
+    monkeypatch.setattr(pipeline, "file_digest", digest)
+    result = run_worker(case, create_proposal(case))
+    assert result["status"] == "ready"
+    assert result["job"]["checkpoint"]["pages_completed"] == 3
+    assert len(hashes) == 1
+
+
+def test_logical_page_cache_tracks_fixed_parse_snapshot_and_new_goal_can_use_new_parse(audit_platform, monkeypatch):
+    from ontology import worker
+    from ontology.documents.history import capture_current_parse
+    from tests.support.content import upload
+
+    model = SyntheticModel(monkeypatch)
+    case = create_case(audit_platform, pages=1)
+    case["document"] = upload(case["client"], case["ids"]["project_id"], b"First interpretation", "evidence.txt")["document"]
+    assert worker.process_one(case["app"].state.db, case["app"].state.settings)
+    old = create_proposal(case)
+    with case["app"].state.db.transaction(case["ids"]["tenant_id"], write=True) as session:
+        doc = session.get(Document, case["document"]["id"])
+        changed = copy.deepcopy(doc.ir)
+        changed["elements"][0]["text"] = "Second interpretation"
+        doc.ir, doc.ir_fingerprint = changed, None
+        doc.parse_revision += 1
+        capture_current_parse(session, doc)
+    old = run_worker(case, old)
+    assert old["status"] == "ready"
+    locator = old["inputs"]["documents"][0]["native_parse_id"]
+    assert old["candidates"][0]["evidence"][0]["native_parse_id"] == locator
+    page_url = f"/api/documents/{case['document']['id']}/pages"
+    assert case["client"].get(page_url, params={"native_parse_id": locator}).json()["items"][0]["text"] == "First interpretation"
+    assert case["client"].get(page_url).json()["items"][0]["text"] == "Second interpretation"
+    new = run_worker(case, create_proposal(case, instructions="只提取型号"))
+    assert new["status"] == "ready"
+    recognized = [call[2]["native_text"] for call in model.calls if call[0] == "page"]
+    assert recognized == ["First interpretation", "Second interpretation"]
+    again = run_worker(case, create_proposal(case))
+    assert again["status"] == "ready"
+    assert len([call for call in model.calls if call[0] == "page"]) == 2
+    forged = copy.deepcopy(old["candidates"])
+    forged[0]["evidence"][0]["native_parse_id"] = "native"
+    response = case["client"].patch(f"/api/ai/proposals/{old['id']}", json={
+        "expected_revision": old["revision"], "candidates": forged,
+    })
+    assert response.status_code == 422
+    response = case["client"].post(f"/api/ai/proposals/{old['id']}/adopt", json={"expected_revision": old["revision"]})
+    assert response.status_code == 200, response.text
+    adopted, change = response.json()["proposal"], response.json()["changeset"]
+    for operation in ("validate", "approve", "publish"):
+        response = case["client"].post(f"/api/changesets/{change['id']}/{operation}", json={"expected_revision": change["revision"]})
+        assert response.status_code == 200, response.text
+        change = response.json()
+    response = case["client"].post(f"/api/ai/proposals/{old['id']}/import", json={"expected_revision": adopted["revision"]})
+    assert response.status_code == 200, response.text
+    from ontology.sources.models import SourceRecordRevision
+    with case["app"].state.db.transaction(case["ids"]["tenant_id"]) as session:
+        record = session.scalar(select(SourceRecordRevision))
+        assert record.values["__ontweft_field_evidence"]["code"][0]["native_parse_id"] == locator
+
+
+def test_pending_native_parse_cannot_change_an_already_selected_logical_input(audit_platform, monkeypatch):
+    from ontology import worker
+    from tests.support.content import upload
+
+    model = SyntheticModel(monkeypatch)
+    case = create_case(audit_platform, pages=1)
+    case["document"] = upload(case["client"], case["ids"]["project_id"], b"Native original", "evidence.txt")["document"]
+    proposal = create_proposal(case)
+    assert proposal["inputs"]["documents"][0]["native_parse_id"] is None
+    assert worker.process_one(case["app"].state.db, case["app"].state.settings)
+    with case["app"].state.db.transaction(case["ids"]["tenant_id"], write=True) as session:
+        doc = session.get(Document, case["document"]["id"])
+        changed = copy.deepcopy(doc.ir)
+        changed["elements"][0]["text"] = "Different later interpretation"
+        doc.ir = changed
+    ready = run_worker(case, proposal)
+    assert ready["status"] == "ready"
+    assert [call[2]["native_text"] for call in model.calls if call[0] == "page"] == ["Native original"]
+    assert ready["candidates"][0]["evidence"][0]["native_parse_id"] == "native"
+    result = case["client"].get(f"/api/documents/{case['document']['id']}/pages", params={"native_parse_id": "native"})
+    assert result.json()["items"][0]["text"] == "Native original"
+
+
+def test_json_candidate_cannot_hide_nonfinite_value_inside_value_json():
+    definition = product_definition()
+    definition["types"][0]["properties"].append({"key": "details", "data_type": "json"})
+    page = SimpleNamespace(id="parsed", document_id="doc", page_number=1, result={"text": "Synthetic A"})
+    facts = {
+        "candidates": [{"id": "a", "type_key": "Product", "business_key_fields": ["code"],
+                        "values": [{"key": "code", "value_json": '"A"'},
+                                   {"key": "details", "value_json": '{"value":NaN}'}],
+                        "quotes": ["Synthetic A"]}],
+        "relations": [], "gaps": [],
+    }
+    candidates, relations, gaps = normalize_facts(facts, page, definition)
+    assert not candidates and not relations and gaps
 
 
 def test_budget_stops_before_dispatch_and_retry_preserves_completed_pages(platform, monkeypatch):

@@ -127,6 +127,47 @@ def test_word_notes_and_workbook_embedded_picture_are_not_omitted(tmp_path):
     assert any(page["image_data_urls"] for page in pages)
 
 
+@pytest.mark.parametrize("with_image", [False, True])
+def test_historical_docling_word_keeps_text_and_native_images_once_without_invented_pairing(tmp_path, with_image):
+    import copy
+
+    from ontology.documents.pages import page_structure
+
+    from tests.support.documents import word
+
+    body = "<w:p><w:r><w:t>Source condition</w:t></w:r></w:p>"
+    extras = {}
+    if with_image:
+        body += '<w:p><w:r><w:drawing><a:blip r:embed="image1"/></w:drawing></w:r></w:p>'
+        extras = {
+            "word/_rels/document.xml.rels": b'<Relationships><Relationship Id="image1" Target="media/image.png"/></Relationships>',
+            "word/media/image.png": png(),
+        }
+    data = word(body, extras)
+    path = tmp_path / "synthetic.docx"
+    path.write_bytes(data)
+    ir = parse_document(data, path.name, source_id="doc", source_revision="1").model_dump(mode="json")
+    assert ir["complete"] is not with_image
+    # This is the retained Docling IR shape: textual interpretation and picture
+    # metadata, without a verifiable native image/member correspondence.
+    ir["parser"] = "docling/docx"
+    for element in ir["elements"]:
+        if element["kind"] == "image":
+            element["metadata"] = {"docling_ref": "#/pictures/0"}
+    previous = copy.deepcopy(ir)
+    prepared = page_structure(path, path.name, source_id="doc", source_revision="1", ir=ir)
+    assert ir == previous
+    assert page_structure(path, path.name, source_id="doc", source_revision="1", ir=prepared) is prepared
+    pages = list(iter_page_inputs(path, path.name, source_id="doc", source_revision="1", ir=prepared))
+    assert page_count(path, path.name, source_id="doc", source_revision="1", ir=prepared) == len(pages)
+    assert sum(page["text"].count("Source condition") for page in pages) == 1
+    assert sum(len(page["image_data_urls"]) for page in pages) == int(with_image)
+    if with_image:
+        assert pages[-1]["label"] == "原生内嵌图像" and pages[-1]["status"] == "needs_vision"
+        assert pages[-1]["evidence"]["element_path"].startswith("word/document.xml/")
+        assert pages[-1]["evidence"]["page_number"] is None
+
+
 def test_upload_is_chunked_and_oversize_partial_file_is_removed(platform, monkeypatch):
     from starlette.datastructures import UploadFile
 
@@ -179,3 +220,78 @@ def test_page_endpoints_enforce_project_scope_and_do_not_expose_images_inline(pl
     )
     assert client.get(url).status_code == 404
     assert client.get(image_url).status_code == 404
+
+
+def test_cached_logical_page_checks_the_actual_original_before_returning_evidence(platform):
+    from ontology import worker
+    from ontology.documents.storage_models import Document
+
+    from tests.support.content import upload
+
+    client, app, owner, _ = platform
+    doc = upload(client, owner["project_id"], b"Original synthetic evidence", "evidence.txt")["document"]
+    assert worker.process_one(app.state.db, app.state.settings)
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        path = app.state.settings.data_dir / "assets" / session.get(Document, doc["id"]).storage_key
+    path.write_bytes(b"Changed synthetic evidence")
+    response = client.get(f"/api/documents/{doc['id']}/pages")
+    assert response.status_code == 409
+    assert "Original synthetic" not in response.text
+
+
+def test_page_image_hashes_original_once_and_respects_configured_upload_limit(platform, monkeypatch):
+    from ontology.documents import pages
+
+    from tests.support.content import upload
+
+    client, app, owner, _ = platform
+    doc = upload(client, owner["project_id"], png(), "image.png")["document"]
+    original, hashes = pages.file_digest, []
+
+    def digest(path):
+        hashes.append(path)
+        return original(path)
+
+    monkeypatch.setattr(pages, "file_digest", digest)
+    url = f"/api/documents/{doc['id']}/pages/1/image"
+    assert client.get(url).status_code == 200
+    assert len(hashes) == 1
+    app.state.settings.max_upload_bytes = 10
+    assert client.get(url).status_code == 422
+    assert client.get(f"/api/documents/{doc['id']}/pages").status_code == 422
+
+
+def test_historical_page_image_uses_selected_parse_and_never_another_document_snapshot(platform):
+    import copy
+
+    from ontology import worker
+    from ontology.documents.history import capture_current_parse
+    from ontology.documents.storage_models import Document
+
+    from tests.support.content import upload
+    from tests.support.documents import word
+
+    client, app, owner, _ = platform
+    source = word('<w:p><w:r><w:drawing><a:blip r:embed="image1"/></w:drawing></w:r></w:p>', {
+        "word/_rels/document.xml.rels": b'<Relationships><Relationship Id="image1" Target="media/image.png"/></Relationships>',
+        "word/media/image.png": png(),
+    })
+    doc = upload(client, owner["project_id"], source, "synthetic.docx")["document"]
+    assert worker.process_one(app.state.db, app.state.settings)
+    detail = client.get(f"/api/documents/{doc['id']}").json()
+    locator = detail["current_parse_id"]
+    with app.state.db.transaction(owner["tenant_id"], write=True) as session:
+        stored = session.get(Document, doc["id"])
+        changed = copy.deepcopy(stored.ir)
+        changed["elements"] = [e for e in changed["elements"] if e["kind"] != "image"]
+        stored.ir, stored.ir_fingerprint = changed, None
+        stored.parse_revision += 1
+        capture_current_parse(session, stored)
+    pages = client.get(f"/api/documents/{doc['id']}/pages", params={"native_parse_id": locator}).json()
+    image_url = next(page["image_url"] for page in pages["items"] if page["image_url"])
+    assert "native_parse_id=" + locator in image_url
+    assert client.get(image_url).status_code == 200
+    assert client.get(f"/api/documents/{doc['id']}/pages/1/image").status_code == 422
+    other = upload(client, owner["project_id"], b"Another original", "other.txt")["document"]
+    for suffix in ("/pages", "/pages/1/image"):
+        assert client.get(f"/api/documents/{other['id']}" + suffix, params={"native_parse_id": locator}).status_code == 404

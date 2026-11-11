@@ -33,7 +33,7 @@ export function GraphPage({ projectId, can, onDirty, role, knowledgeEnabled = fa
   // A later schema release must never silently explain an older graph response.
   const schemaMatches = !!graph.data && graph.data.release_id !== undefined && types.data?.release_id === graph.data.release_id;
   const matchedTypes = useMemo(() => schemaMatches ? types.data?.items ?? [] : [], [schemaMatches, types.data]);
-  const explore = useGraphExploration(projectId, userId, graph.data, kind === 'instances', nodeBudget, setError, opening || !!editor);
+  const explore = useGraphExploration(projectId, userId, graph.data, kind === 'instances', nodeBudget, setError, opening || !!editor, graph.error);
   const base = useMemo(() => boundedGraph(explore.data), [explore.data]);
   const visible = useMemo(() => filterGraph(base, kind, matchedTypes, hiddenTypes, filter), [base, kind, matchedTypes, hiddenTypes, filter]);
   const groups = useMemo(() => { const values = new Map<string, { key: string; label: string; count: number }>(); for (const node of base.nodes) { const key = groupKey(node, kind); const existing = values.get(key); if (existing) existing.count++; else values.set(key, { key, label: groupLabel(node, kind, matchedTypes), count: 1 }); } return [...values.values()]; }, [base, kind, matchedTypes]);
@@ -120,7 +120,7 @@ export function GraphPage({ projectId, can, onDirty, role, knowledgeEnabled = fa
           <h2>让关系变得清晰</h2><p>选择节点查看属性，选择连线查看关系方向与业务含义。</p>
           <dl className="graph-summary"><div><dt>可见节点</dt><dd>{visible.nodes.length}</dd></div><div><dt>可见关系</dt><dd>{visible.edges.length}</dd></div><div><dt>节点类型</dt><dd>{new Set(visible.nodes.map(node => groupKey(node, kind))).size}</dd></div></dl>
           <h3>从当前节点开始</h3><div className="graph-entry-list">{visible.nodes.slice(0, 5).map(node => <button className="secondary" key={node.id} disabled={locked} aria-label={`查看节点 ${node.label}`} onClick={() => selectNode(node)}><span className="graph-color-dot" style={{ background: groupColor(groupKey(node, kind)) }} /><span><strong>{node.label}</strong><small>{groupLabel(node, kind, matchedTypes)}</small></span><span aria-hidden="true">↗</span></button>)}</div>
-          <div className="graph-gesture-guide"><h3>操作提示</h3><p><span>单击</span>查看节点或关系</p><p><span>双击 / Enter</span>打开对应表单</p><p><span>拖动 / 方向键</span>调整节点位置</p><p><span>滚轮 / 双指</span>缩放画布</p></div>
+          <div className="graph-gesture-guide"><h3>操作提示</h3><p><span>单击节点</span>打开对象或类型表单</p><p><span>双击关系 / Enter</span>打开对应表单</p><p><span>拖动 / 方向键</span>调整节点位置</p><p><span>滚轮 / 双指</span>缩放画布</p></div>
         </div>}</aside>
       </div>
       <p id="graph-interaction-help" className="graph-help">拖动调整布局；单击节点或双击关系打开对应表单。画布获得焦点后，方向键移动节点，Shift 加速，Enter 打开，Esc 取消选择。固定节点不会被移动。</p>

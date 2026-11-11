@@ -71,6 +71,29 @@ def test_local_demo_refuses_an_existing_unowned_directory(tmp_path):
     assert existing.read_bytes() == b"must not be opened or replaced"
 
 
+def test_local_demo_accepts_documents_above_the_old_25_mib_limit(tmp_path, monkeypatch):
+    assets = tmp_path / "source/frontend/dist"
+    assets.mkdir(parents=True)
+    (assets / "index.html").write_text("<h1>local test</h1>", encoding="utf-8")
+    monkeypatch.setattr(demo, "ROOT", tmp_path / "source")
+    monkeypatch.setenv("ONTOLOGY_MAX_UPLOAD_BYTES", "1024")
+    path = tmp_path / "large.txt"
+    with path.open("wb") as stream:
+        for _ in range(26):
+            stream.write(b"x" * 1024 * 1024)
+    password = "Local-Test-Only-2026"
+    with TestClient(demo.create_demo_app(tmp_path / "demo", password=password)) as client:
+        client.post("/api/auth/login", json={"username": "owner", "password": password}).raise_for_status()
+        project = client.get("/api/auth/me").json()["projects"][0]["id"]
+        with path.open("rb") as stream:
+            response = client.post(
+                "/api/documents/upload",
+                data={"project_id": project},
+                files={"file": (path.name, stream, "text/plain")},
+            )
+        assert response.status_code == 201, response.text
+
+
 def test_source_network_requires_an_explicit_host_and_separate_private_opt_in(tmp_path, monkeypatch):
     monkeypatch.setenv("ONTOLOGY_ALLOWED_SOURCE_HOSTS", '["ambient.example"]')
     monkeypatch.setenv("ONTOLOGY_ALLOW_PRIVATE_SOURCE_ADDRESSES", "true")
@@ -139,7 +162,8 @@ assert 'lark_oapi' not in sys.modules
 def test_local_demo_generation_upgrade_backs_up_and_preserves_history(tmp_path):
     import json
     import sqlite3
-    from tests.support.cdc_evidence_migrations import isolated_database, seed_old, historical_stream
+
+    from tests.support.cdc_evidence_migrations import historical_stream, isolated_database, seed_old
 
     with isolated_database(tmp_path, "sqlite") as (database, migrate, _):
         seeded = seed_old(database)

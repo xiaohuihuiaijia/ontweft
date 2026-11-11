@@ -1,5 +1,3 @@
-import io
-
 import pytest
 from fastapi.testclient import TestClient
 from ontology.core.errors import DomainError
@@ -186,19 +184,15 @@ def test_queued_parse_rechecks_current_project_permission(platform):
     assert "权限" in doc["error"]
 
 
-def test_default_word_upload_uses_real_offline_docling(platform):
-    docx = pytest.importorskip("docx")
-    pytest.importorskip("docling")
+def test_default_word_upload_uses_native_parser_without_optional_docling(platform):
+    from tests.support.documents import word
+
     client, app, a, _ = platform
-    word = docx.Document()
-    word.add_heading("设备维修", 1)
-    word.add_paragraph("阀门每季度检查一次。")
-    data = io.BytesIO()
-    word.save(data)
-    result = upload(client, a["project_id"], data.getvalue(), "维修手册.docx")
-    assert result["job"]["payload"]["engine"] == "docling"
+    data = word("<w:p><w:r><w:t>阀门每季度检查一次。</w:t></w:r></w:p>")
+    result = upload(client, a["project_id"], data, "维修手册.docx")
+    assert result["job"]["payload"]["engine"] == "basic"
     assert process_one(app.state.db, app.state.settings)
     parsed = client.get(f"/api/documents/{result['document']['id']}").json()
     assert parsed["state"] == "ready", parsed.get("error")
-    assert "docling" in parsed["ir"]["parser"]
+    assert parsed["ir"]["parser"] == "basic/docx"
     assert any("阀门" in e["text"] for e in parsed["ir"]["elements"])

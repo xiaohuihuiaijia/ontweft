@@ -1,6 +1,7 @@
 """Real API -> inbox -> leased job -> contributions, using native capture fixtures."""
 
 import json
+from copy import deepcopy
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,7 +14,7 @@ from ontology.identity.models import Membership, User
 from ontology.jobs.models import Job
 from ontology.objects.models import Entity
 from ontology.sources.ingestion import fingerprint, schema_fingerprint
-from ontology.sources.models import SourceIdentity, SourceRecordRevision, SourceSnapshot
+from ontology.sources.models import Source, SourceIdentity, SourceRecordRevision, SourceSnapshot
 from ontology.worker import process_one
 from sqlalchemy import select
 
@@ -26,8 +27,31 @@ from tests.support.cdc_projection import (
     setup_projection,
     view,
 )
+from tests.support.platform import publish
 from tests.support.postgres import pg_databases as pg_databases  # noqa: PLC0414 - pytest fixture registration
 from tests.support.postgres import pg_platform as pg_platform  # noqa: PLC0414 - pytest fixture registration
+
+
+@pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])
+def test_projection_ignores_unrelated_source_drift(request, fixture_name, monkeypatch):
+    state = setup_projection(request.getfixturevalue(fixture_name), monkeypatch)
+    client, app, owner, _ = state["platform"]
+    definition = client.get("/api/ontology/definition", params={"project_id": owner["project_id"]}).json()["definition"]
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        other = Source(tenant_id=owner["tenant_id"], project_id=owner["project_id"],
+            name="Unrelated", kind="postgres", resources=deepcopy(state["resources"]))
+        session.add(other)
+        session.flush()
+        other_id = other.id
+    definition["mappings"].append({**deepcopy(definition["mappings"][0]),
+        "key": "unrelated", "source_id": other_id})
+    publish(client, owner["project_id"], definition)
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        session.get(Source, other_id).resources = []
+    append_events(state, fixtures()[:6])
+    result = run(state)
+    assert result["status"] == "caught_up", result
+    assert result["projected_sequence"] == 6 and data_counts(state)["entities"] == 2
 
 
 @pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])

@@ -232,6 +232,7 @@ def transition(
                     or "ontology:approve" not in ROLES.get(membership.role, set())
                 ):
                     conflict("审批者的当前权限已失效，请重新校验并审批该变更集")
+                previous_model = active_definition(session, ctx.project)
                 release = Release(
                     id=report["generation"],
                     tenant_id=user.tenant_id,
@@ -255,9 +256,11 @@ def transition(
                 if session.execute(query).rowcount != 1:
                     conflict("发布基线已变化")
                 from ontology.objects.contributions.decisions import recheck_decisions_after_publish
+                from ontology.objects.relation_rules import recheck_rules_after_publish
 
                 session.refresh(ctx.project)
                 recheck_decisions_after_publish(session, ctx)
+                recheck_rules_after_publish(session, ctx, previous_model)
                 session.execute(
                     delete(EntityKey).where(
                         EntityKey.tenant_id == user.tenant_id,

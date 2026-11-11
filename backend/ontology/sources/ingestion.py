@@ -37,10 +37,19 @@ def schema_fingerprint(resource):
     )
 
 
-def mapping_errors(session, ctx, definition):
+def mapping_errors(session, ctx, definition, *, source_id=None, resource_id=None):
+    """Publication checks all mappings; ingestion checks only its captured scope."""
+
+    def in_scope(mapping):
+        return (source_id is None or mapping["source_id"] == source_id) and (
+            resource_id is None or mapping["resource_id"] == resource_id
+        )
+
     errors, keys, writers = [], set(), set()
     types = {item["key"]: item for item in definition["types"]}
     for mapping in definition.get("mappings", []):
+        if not in_scope(mapping):
+            continue
         key = mapping["key"]
         if key in keys:
             errors.append({"mapping": key, "message": "映射标识重复"})
@@ -92,6 +101,8 @@ def mapping_errors(session, ctx, definition):
         # Each source may contribute only some required fields. The combined
         # contribution ledger determines whether an entity is incomplete.
     for previous in active_definition(session, ctx.project).get("mappings", []):
+        if not in_scope(previous):
+            continue
         writer = (previous["source_id"], previous["resource_id"], previous["type_key"])
         if writer not in writers and session.scalar(
             select(SourceIdentity.id)
@@ -277,9 +288,11 @@ def project_snapshot(session, job, snapshot):
     )
     if newer:
         conflict("已有更新的采集请求，旧快照保留原始记录但不能覆盖对象")
-    release = session.get(Release, snapshot.release_id)
-    definition = release.definition
-    errors = mapping_errors(session, ctx, definition)
+    release = session.get(Release, snapshot.release_id) if snapshot.release_id else None
+    definition = release.definition if release else {"types": [], "mappings": []}
+    errors = mapping_errors(
+        session, ctx, definition, source_id=snapshot.source_id, resource_id=snapshot.resource_id
+    )
     if errors:
         raise DomainError(422, "mapping_invalid", "映射校验未通过", errors)
     mappings = [

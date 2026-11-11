@@ -118,7 +118,7 @@ def demo_settings(
         encryption_key="",
         allowed_source_hosts=hosts,
         allow_private_source_addresses=allow_private_sources,
-        max_upload_bytes=25 * 1024 * 1024,
+        max_upload_bytes=256 * 1024 * 1024,
         feishu_frontend_origin=f"http://127.0.0.1:{port}",
         extensions=[],
         model_approval="single",

@@ -27,6 +27,7 @@ from ontology.cli import bootstrap
 from ontology.core.config import Settings
 from ontology.core.db import Database
 from ontology.core.models import now
+from ontology.core.registry import grant_runtime_access
 from ontology.identity.models import LoginSession, Membership, Project, User
 from ontology.identity.security import token_hash
 from ontology.modeling.models import ChangeSet, Release
@@ -41,6 +42,11 @@ from sqlalchemy.engine import make_url
 
 def identifier(number):
     return str(__import__("uuid").UUID(hashlib.md5(f"entity-{number}".encode()).hexdigest()))
+
+
+def parent_number(number, offset, count, writers):
+    # Targets stay outside the edited prefix, even for a small smoke fixture.
+    return writers + 1 + ((number + offset - writers - 1) % (count - writers))
 
 
 def checked(response):
@@ -91,6 +97,12 @@ def main():
         help="Measure simultaneous writes through API and existing worker",
     )
     args = parser.parse_args()
+    if args.objects < 2 or args.relations < 0 or min(args.users, args.requests_per_user, args.workers) < 1:
+        parser.error("Use at least two objects, nonnegative relations and positive users/requests/workers")
+    if args.concurrent_writes and args.users >= args.objects:
+        parser.error("Concurrent writes need one object per user and an unedited target")
+    if args.relations > args.objects**2:
+        parser.error("Synthetic linked relations cannot exceed the distinct object-pair count")
     admin = make_url(os.environ["ONTOLOGY_TEST_ADMIN_URL"])
     runtime = make_url(os.environ["ONTOLOGY_TEST_RUNTIME_URL"])
     name = "ontology_beta_" + uuid4().hex
@@ -125,13 +137,8 @@ def main():
             email="benchmark@example.test",
             password="Synthetic-Benchmark-Password",
         )
-        role = db.engine.dialect.identifier_preparer.quote(runtime.username)
         with db.engine.begin() as conn:
-            conn.execute(text("REVOKE CREATE ON SCHEMA public FROM PUBLIC"))
-            conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
-            conn.execute(
-                text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role}")
-            )
+            grant_runtime_access(conn, runtime.username)
         scope = {"tenant_id": owner["tenant_id"], "project_id": owner["project_id"]}
         definition = {
             "types": [
@@ -397,7 +404,7 @@ def main():
                                 "project_id": owner["project_id"],
                                 "expected_release_id": release_id,
                                 "expected_model_version": 1,
-                                "q": "item" + str(index + 1),
+                                "q": "item" + str(index % args.objects + 1),
                                 "count_total": False,
                                 "limit": 20,
                             },
@@ -456,6 +463,8 @@ def main():
             results = list(pool.map(client_load, range(args.users)))
         for kind in results[0][0]:
             values = [v for timings, _, _startup in results for v in timings[kind]]
+            if not values:
+                continue
             report["measurements"][kind] = {
                 "requests": len(values),
                 "p50_seconds": percentile(values, 0.5),
@@ -526,8 +535,10 @@ def main():
                 "report": change["validation"],
             }
             propagation = []
-            for i in range(1, 21):
+            sequential_writers = min(20, args.objects - 1)
+            for i in range(1, sequential_writers + 1):
                 obj = checked(client.get("/objects/" + identifier(i)))
+                target = parent_number(i, 1000, args.objects, sequential_writers)
                 marker = f"updateditem{i}"
                 started = time.perf_counter()
                 checked(
@@ -535,7 +546,7 @@ def main():
                         "/objects/" + obj["id"],
                         json={
                             "expected_revision": obj["revision"],
-                            "properties": {"code": marker, "parent_code": f"item{1000 + i}"},
+                            "properties": {"code": marker, "parent_code": f"item{target}"},
                         },
                     )
                 )
@@ -560,7 +571,7 @@ def main():
                         )
                     )
                     if found["total"] == 1 and any(
-                        edge["type_key"] == "parent" and edge["target"] == identifier(1000 + i)
+                        edge["type_key"] == "parent" and edge["target"] == identifier(target)
                         for edge in graph["edges"]
                     ):
                         break
@@ -568,7 +579,7 @@ def main():
                         raise RuntimeError("Incremental indexing did not converge")
                 propagation.append(time.perf_counter() - started)
             report["propagation"] = {
-                "scope": "API object edit to searchable result AND rule-maintained relation, real workers, 20 sequential updates; initial indexes are prebuilt fixture data",
+                "scope": f"API object edit to searchable result AND rule-maintained relation, real workers, {len(propagation)} sequential updates; initial indexes are prebuilt fixture data",
                 "p95_seconds": percentile(propagation, 0.95),
                 "max_seconds": round(max(propagation), 3),
             }
@@ -598,6 +609,8 @@ def main():
                     base_url=base, cookies={"ontology_session": cookies[index]}, timeout=90
                 ) as client:
                     obj = checked(client.get("/objects/" + identifier(index + 1)))
+                    target = parent_number(index + 1, 1999, args.objects, args.users)
+                    target_obj = checked(client.get("/objects/" + identifier(target)))
                     write_barrier.wait(timeout=90)
                     start = time.perf_counter()
                     marker = "concurrentitem" + str(index)
@@ -606,7 +619,10 @@ def main():
                             "/objects/" + obj["id"],
                             json={
                                 "expected_revision": obj["revision"],
-                                "properties": {"code": marker, "parent_code": f"item{2000 + index}"},
+                                "properties": {
+                                    "code": marker,
+                                    "parent_code": target_obj["properties"]["code"],
+                                },
                             },
                         )
                     )
@@ -642,7 +658,7 @@ def main():
                             )
                         )
                         if len(found["items"]) == 1 and any(
-                            e["type_key"] == "parent" and e["target"] == identifier(2000 + index)
+                            e["type_key"] == "parent" and e["target"] == identifier(target)
                             for e in graph["edges"]
                         ):
                             return time.perf_counter() - start
@@ -663,7 +679,7 @@ def main():
                     for future in futures:
                         try:
                             elapsed.append(future.result())
-                        except Exception as exc:
+                        except Exception as exc:  # noqa: BLE001 - retain each worker failure in the report
                             failures.append(
                                 f"HTTP {exc.response.status_code} {exc.response.text[:300]}"
                                 if isinstance(exc, httpx.HTTPStatusError)

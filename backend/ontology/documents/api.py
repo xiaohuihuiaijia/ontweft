@@ -1,6 +1,6 @@
 import hashlib
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -14,7 +14,7 @@ from ontology.content_access.service import (
     require_document,
 )
 from ontology.core.domain import row_dict, scoped_record
-from ontology.core.errors import DomainError, conflict
+from ontology.core.errors import DomainError, conflict, missing
 from ontology.core.models import uid
 from ontology.documents.history import (
     active_parse_job,
@@ -22,6 +22,7 @@ from ontology.documents.history import (
     parse_payload,
     retained_parse_state,
 )
+from ontology.documents.history_models import DocumentParseVersion
 from ontology.documents.storage_models import Document
 from ontology.identity.security import access, audit, authenticated
 from ontology.jobs.models import Job
@@ -215,16 +216,38 @@ def download(
         )
 
 
+def page_interpretation(session, document, native_parse_id):
+    if native_parse_id is None:
+        return document.ir
+    if native_parse_id == "native":
+        return None
+    snapshot = session.scalar(
+        select(DocumentParseVersion).where(
+            DocumentParseVersion.id == native_parse_id,
+            DocumentParseVersion.tenant_id == document.tenant_id,
+            DocumentParseVersion.project_id == document.project_id,
+            DocumentParseVersion.document_id == document.id,
+        )
+    )
+    if not snapshot:
+        missing()
+    if (snapshot.source_revision, snapshot.content_hash) != (document.revision, document.content_hash):
+        conflict("历史解析对应原件已改变，未替换为当前版本")
+    return snapshot.ir
+
+
 @router.get("/documents/{document_id}/pages")
 def document_pages(
     document_id: str,
     request: Request,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    native_parse_id: str | None = None,
     user=Depends(authenticated),
 ):
-    from ontology.documents import DocumentError
-    from ontology.documents.pages import iter_page_inputs, page_count
+    from ontology.documents import DocumentError, ParseLimits
+    from ontology.documents.pages import file_digest, iter_page_inputs, page_count, page_structure
+    from ontology.documents.parser import detect_format_path
 
     with request.app.state.db.transaction(user.tenant_id) as session:
         row = scoped_record(session, Document, document_id, user)
@@ -233,25 +256,34 @@ def document_pages(
         path = request.app.state.settings.data_dir / "assets" / row.storage_key
         if not path.is_file():
             raise DomainError(409, "asset_missing", "原件缺失，请联系管理员恢复")
-        kwargs = {"source_id": row.id, "source_revision": str(row.revision), "ir": row.ir}
+        if file_digest(path) != row.content_hash:
+            conflict("原件内容已改变，请核对来源版本")
+        kwargs = {
+            "source_id": row.id, "source_revision": str(row.revision),
+            "ir": page_interpretation(session, row, native_parse_id),
+            "limits": ParseLimits(max_bytes=request.app.state.settings.max_upload_bytes),
+        }
         try:
+            if detect_format_path(path, row.filename, kwargs["limits"]) not in {"pdf", "png", "jpeg"}:
+                kwargs["ir"] = page_structure(path, row.filename, **kwargs)
             total = page_count(path, row.filename, **kwargs)
             numbers = list(range(offset + 1, min(offset + limit, total) + 1))
             items = []
             for page in iter_page_inputs(
-                path, row.filename, page_numbers=numbers, include_images=False, **kwargs
+                path, row.filename, page_numbers=numbers, include_images=False,
+                verified_hash=row.content_hash, **kwargs
             ):
-                if page["evidence"]["content_hash"] != row.content_hash:
-                    conflict("原件内容已改变，请核对来源版本")
                 page.pop("image_data_url", None)
                 page.pop("image_data_urls", None)
+                base = f"/api/documents/{row.id}/pages/{page['page_number']}/image"
+                locator = {"native_parse_id": native_parse_id} if native_parse_id is not None else {}
                 page["image_url"] = (
-                    f"/api/documents/{row.id}/pages/{page['page_number']}/image"
+                    base + ("?" + urlencode(locator) if locator else "")
                     if page["has_image"]
                     else None
                 )
                 page["image_urls"] = [
-                    f"/api/documents/{row.id}/pages/{page['page_number']}/image?image_index={index}"
+                    base + "?" + urlencode({**locator, "image_index": index})
                     for index in range(page.get("image_count", 0))
                 ]
                 items.append(page)
@@ -264,6 +296,7 @@ def document_pages(
             "revision": row.revision,
             "content_hash": row.content_hash,
             "current_parse_id": (snapshot.id if (snapshot := current_parse(session, row)) else None),
+            "native_parse_id": native_parse_id,
         }
 
 
@@ -273,9 +306,10 @@ def document_page_image(
     page_number: int,
     request: Request,
     image_index: int = Query(0, ge=0),
+    native_parse_id: str | None = None,
     user=Depends(authenticated),
 ):
-    from ontology.documents import DocumentError
+    from ontology.documents import DocumentError, ParseLimits
     from ontology.documents.pages import file_digest, page_image
 
     with request.app.state.db.transaction(user.tenant_id) as session:
@@ -294,8 +328,10 @@ def document_page_image(
                 source_id=row.id,
                 source_revision=str(row.revision),
                 page_number=page_number,
-                ir=row.ir,
+                ir=page_interpretation(session, row, native_parse_id),
                 image_index=image_index,
+                verified_hash=row.content_hash,
+                limits=ParseLimits(max_bytes=request.app.state.settings.max_upload_bytes),
             )
         except DocumentError as exc:
             raise DomainError(422, exc.code, str(exc)) from None

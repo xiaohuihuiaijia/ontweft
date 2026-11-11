@@ -183,6 +183,9 @@ class ModelClient:
                     raise ModelCallError(422, "model_output_unavailable", "模型未返回可用的结构化结果", usage=usage, cost=cost)
                 try:
                     data = json.loads(raw)
+                    # Python accepts NaN/Infinity and exponent overflow; neither
+                    # is JSON or a storable, portable structured result.
+                    json.dumps(data, allow_nan=False)
                     schema_validator.validate(data)
                     if not isinstance(data, dict):
                         raise TypeError("object required")
