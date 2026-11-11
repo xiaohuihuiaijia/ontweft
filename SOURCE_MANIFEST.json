@@ -47,14 +47,14 @@
     },
     {
       "path": "README.en.md",
-      "bytes": 8727,
-      "sha256": "2b0306fd5f28de27d42ce3abb37e401edc6c7bf72129e05c7873265b7b47993a",
+      "bytes": 8513,
+      "sha256": "ed4a96b52add8ae107080809b7329e4f9d01df26038a6ba331582fcddddd6cd4",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "README.md",
-      "bytes": 8127,
-      "sha256": "3b9f23153071df261da99b6fd7afc3370a867159ce4423b5abca9b9c06831d4c",
+      "bytes": 7961,
+      "sha256": "57fcfeeffd515959cdaeb3ba326161fd44f6bd1ea829f9fc76d3b9de08eb8b0b",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1607,8 +1607,8 @@
     },
     {
       "path": "docs/images/README.md",
-      "bytes": 1557,
-      "sha256": "380c3cc25e726315575cfa7b8231ad459d1d334cc0344fc8874c2e4dcaa77022",
+      "bytes": 2046,
+      "sha256": "96bef9e7aec80dad52b42ebfb8df8b793913a6f692e4d3e899b5ed433b431566",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1619,8 +1619,8 @@
     },
     {
       "path": "docs/images/graph-workbench.png",
-      "bytes": 201515,
-      "sha256": "cb6f7c9cfba48097b2ec3e7b2c32b807d624b9dff8ce797974a37a284fe15248",
+      "bytes": 205859,
+      "sha256": "f814ddeec7e8ba16811accc1df6652454ed632c34f1563fbc57f02fe50c045ef",
       "source": "maintained-in-public-repository"
     },
     {
