@@ -14,7 +14,7 @@ import posixpath
 import re
 import zipfile
 from importlib.metadata import version
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ontology.documents.models import (
@@ -33,8 +33,12 @@ A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 
 
 def _zip(data: bytes, limits: ParseLimits) -> zipfile.ZipFile:
+    return _archive(io.BytesIO(data), limits)
+
+
+def _archive(source, limits: ParseLimits) -> zipfile.ZipFile:
     try:
-        archive = zipfile.ZipFile(io.BytesIO(data))
+        archive = zipfile.ZipFile(source)
         infos = archive.infolist()
         if len(infos) > limits.max_archive_entries:
             raise DocumentError("resource_limit", "Archive has too many members")
@@ -76,6 +80,10 @@ def detect_format(data: bytes, filename: str, limits: ParseLimits | None = None)
     detected = None
     if data.startswith(b"%PDF-"):
         detected = "pdf"
+    elif data.startswith(b"\x89PNG\r\n\x1a\n"):
+        detected = "png"
+    elif data.startswith(b"\xff\xd8\xff"):
+        detected = "jpeg"
     elif data.startswith(b"PK\x03\x04"):
         with _zip(data, limits) as archive:
             names = set(archive.namelist())
@@ -83,15 +91,18 @@ def detect_format(data: bytes, filename: str, limits: ParseLimits | None = None)
                 detected = "docx"
             elif "xl/workbook.xml" in names:
                 detected = "xlsx"
+            elif "ppt/presentation.xml" in names:
+                detected = "pptx"
             else:
                 raise DocumentError("unsupported_format", "Archive is not supported OOXML")
     elif data.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
         raise DocumentError("conversion_required", "Legacy Office requires the isolated conversion service")
     if detected:
-        if suffix and suffix != "." + detected:
+        expected = {".jpg", ".jpeg"} if detected == "jpeg" else {"." + detected}
+        if suffix and suffix not in expected:
             raise DocumentError("format_mismatch", "Filename extension does not match document content")
         return detected
-    if suffix in {".pdf", ".docx", ".xlsx"}:
+    if suffix in {".pdf", ".docx", ".xlsx", ".pptx", ".png", ".jpg", ".jpeg"}:
         raise DocumentError("format_mismatch", "Document signature does not match filename")
     return {".txt": "txt", ".md": "markdown", ".markdown": "markdown", ".csv": "csv", ".json": "json"}.get(
         suffix
@@ -100,6 +111,31 @@ def detect_format(data: bytes, filename: str, limits: ParseLimits | None = None)
 
 def _unsupported() -> str:
     raise DocumentError("unsupported_format", "This format has no enabled parser")
+
+
+def detect_format_path(path: Path, filename: str, limits: ParseLimits | None = None) -> str:
+    """Inspect uploaded signatures without loading a large file into RAM."""
+    limits = limits or ParseLimits()
+    size = path.stat().st_size
+    if not size or size > limits.max_bytes:
+        raise DocumentError("resource_limit", "Document is empty or exceeds the byte limit")
+    with path.open("rb") as handle:
+        header = handle.read(16)
+    if header.startswith(b"PK\x03\x04"):
+        with _archive(path, limits) as archive:
+            names = set(archive.namelist())
+            formats = {"word/document.xml": "docx", "xl/workbook.xml": "xlsx", "ppt/presentation.xml": "pptx"}
+            detected = next((fmt for member, fmt in formats.items() if member in names), None)
+            if not detected:
+                return _unsupported()
+            if Path(filename).suffix.lower() != "." + detected:
+                raise DocumentError("format_mismatch", "Filename extension does not match document content")
+            return detected
+    from ontology.documents.feishu_native import SUFFIX
+
+    if filename.lower().endswith(SUFFIX):
+        return detect_format(path.read_bytes(), filename, limits)
+    return detect_format(header, filename, limits)
 
 
 def _decode(data: bytes) -> str:
@@ -282,56 +318,30 @@ def _docx(data: bytes, b: _Builder) -> None:
                     },
                 )
                 image_count += 1
+        for member in archive.namelist():
+            if member in {"word/footnotes.xml", "word/endnotes.xml"} or re.fullmatch(
+                r"word/(?:header|footer)\d+\.xml", member
+            ):
+                part = _xml(archive.read(member))
+                for index, paragraph in enumerate(part.iter(W + "p")):
+                    text = _word_text(paragraph)
+                    if text:
+                        b.add(
+                            "paragraph",
+                            text,
+                            f"{member}/paragraph/{index}",
+                            metadata={"context_part": member},
+                        )
         b.ir.warnings.append("DOCX anchors are structural; no physical page numbers are inferred")
         b.ir.warnings.append(
-            "Basic Word path does not recover footnotes, text boxes, tracked-change semantics or complex nested layout"
+            "Basic Word path preserves note/header/footer text; tracked-change semantics and complex nested layout require review"
         )
 
 
 def _pdf(data: bytes, b: _Builder) -> None:
-    from pypdf import PdfReader
+    from ontology.documents.pdf_native import extract_pages
 
-    try:
-        reader = PdfReader(io.BytesIO(data), strict=True)
-        if reader.is_encrypted:
-            raise DocumentError("encrypted", "Encrypted PDF requires an explicit authorized decryption step")
-        if len(reader.pages) > b.limits.max_pages:
-            raise DocumentError("resource_limit", "PDF exceeds the page budget")
-        for index, page in enumerate(reader.pages):
-            number = index + 1
-            status = PageStatus(
-                page_number=number,
-                status="parsed",
-                width=float(page.mediabox.width),
-                height=float(page.mediabox.height),
-                rotation=int(page.get("/Rotate", 0)),
-            )
-            try:
-                text = page.extract_text() or ""
-                if not text.strip():
-                    status.status, status.reason = "needs_ocr", "No extractable native text"
-                    b.ir.complete = False
-                    b.ir.quality = "needs_review"
-                b.add(
-                    "paragraph",
-                    text,
-                    f"pdf/page/{number}",
-                    evidence=b.ref(f"pdf/page/{number}", page_number=number),
-                )
-            except DocumentError:
-                raise
-            except Exception:  # noqa: BLE001 -- decoder failures are classified without exposing source data.
-                status.status, status.reason = "failed", "Native page text extraction failed"
-                b.ir.complete, b.ir.quality = False, "needs_review"
-            b.ir.pages.append(status)
-        b.ir.warnings.append(
-            "Basic PDF extracts page text only: no verified reading order, table cells, bounding boxes or OCR"
-        )
-        b.ir.parser_version = version("pypdf")
-    except DocumentError:
-        raise
-    except Exception:  # noqa: BLE001 -- decoder failures are classified without exposing source data.
-        raise DocumentError("invalid_pdf", "PDF cannot be parsed") from None
+    extract_pages(data, b)
 
 
 def _xlsx(data: bytes, b: _Builder) -> None:
@@ -392,11 +402,57 @@ def _xlsx(data: bytes, b: _Builder) -> None:
             )
         b.ir.warnings.append("Formulas are preserved, never evaluated; cached values may be missing or stale")
         b.ir.parser_version = version("openpyxl")
+        _xlsx_images(data, b)
     finally:
         if formulas:
             formulas.close()
         if values:
             values.close()
+
+
+def _xlsx_images(data: bytes, b: _Builder) -> None:
+    from ontology.documents.slides import _relationships
+
+    ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    with _zip(data, b.limits) as archive:
+        workbook = _xml(archive.read("xl/workbook.xml"))
+        sheets = _relationships(archive, "xl/workbook.xml")
+        count = 0
+        for sheet in workbook.findall(ns + "sheets/" + ns + "sheet"):
+            member = sheets.get(sheet.get(R + "id"))
+            if not member or member not in archive.namelist():
+                continue
+            root = _xml(archive.read(member))
+            rels = _relationships(archive, member)
+            for drawing in root.findall(ns + "drawing"):
+                drawing_member = rels.get(drawing.get(R + "id"))
+                if not drawing_member or drawing_member not in archive.namelist():
+                    continue
+                picture_rels = _relationships(archive, drawing_member)
+                for index, blip in enumerate(_xml(archive.read(drawing_member)).iter(A + "blip")):
+                    target = picture_rels.get(blip.get(R + "embed"))
+                    if not target or not target.startswith("xl/") or target not in archive.namelist():
+                        continue
+                    count += 1
+                    if count > b.limits.max_images:
+                        b.ir.complete, b.ir.quality = False, "needs_review"
+                        b.ir.warnings.append("Workbook image budget reached")
+                        return
+                    blob = archive.read(target)
+                    path = f"{drawing_member}/image/{index}"
+                    b.add(
+                        "image",
+                        "",
+                        path,
+                        evidence=b.ref(path, sheet=sheet.get("name")),
+                        metadata={
+                            "sheet": sheet.get("name"),
+                            "archive_member": target,
+                            "content_hash": hashlib.sha256(blob).hexdigest(),
+                            "bytes": len(blob),
+                        },
+                    )
+                    b.ir.complete, b.ir.quality = False, "needs_review"
 
 
 def _text(data: bytes, fmt: str, b: _Builder) -> None:
@@ -517,7 +573,7 @@ def parse_document(
         content_hash=hashlib.sha256(data).hexdigest(),
         format=fmt,
         parser="basic/" + fmt,
-        parser_version="1.0",
+        parser_version="2.0",
     )
     b = _Builder(ir, limits)
     try:
@@ -527,6 +583,32 @@ def parse_document(
             _pdf(data, b)
         elif fmt == "xlsx":
             _xlsx(data, b)
+        elif fmt == "pptx":
+            from ontology.documents.slides import parse_slides
+
+            parse_slides(data, b)
+        elif fmt in {"png", "jpeg"}:
+            from PIL import Image
+
+            with Image.open(io.BytesIO(data)) as image:
+                image.verify()
+                b.add(
+                    "image",
+                    "",
+                    "image/1",
+                    evidence=b.ref("image/1", page_number=1),
+                    metadata={"width": image.width, "height": image.height},
+                )
+                ir.pages.append(
+                    PageStatus(
+                        page_number=1,
+                        status="needs_ocr",
+                        width=image.width,
+                        height=image.height,
+                        reason="Requires visual model understanding",
+                    )
+                )
+                ir.complete, ir.quality = False, "needs_review"
         else:
             _text(data, fmt, b)
     except DocumentError:

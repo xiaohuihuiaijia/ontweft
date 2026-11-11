@@ -10,7 +10,8 @@ export type View = typeof navigation[number][0];
 
 export function sectionViews(view: View, knowledge: boolean, actions: boolean): (typeof navigation[number])[] {
   const ids: View[] = ['settings', 'jobs', 'audit'].includes(view) ? ['settings', 'jobs', 'audit']
-    : knowledge && ['documents', 'knowledge', 'content-search'].includes(view) ? ['documents', 'knowledge', 'content-search']
+    : ['sources', 'documents'].includes(view) ? ['sources', 'documents']
+      : knowledge && ['knowledge', 'content-search'].includes(view) ? ['knowledge', 'content-search']
       : ['functions', 'actions'].includes(view) ? ['functions', ...(actions ? ['actions' as const] : [])] : [];
   return ids.map(id => navigation.find(item => item[0] === id)!);
 }
@@ -20,9 +21,9 @@ export function WorkspaceNavigation({ view, onNavigate, tenantName, features = [
 }) {
   const primary: [View, string][] = [['sources', '数据'], ['ontology', '本体'], ['objects', '对象'], ['graph', '图谱'], ['settings', '设置']];
   const extensions: [View, string][] = [];
-  if (features.includes('knowledge')) extensions.push(['documents', '知识资料']);
+  if (features.includes('knowledge')) extensions.push(['knowledge', '知识资料']);
   if (features.includes('automation')) extensions.push(['functions', '自动化']);
-  const current = ['jobs', 'audit'].includes(view) ? 'settings' : ['knowledge', 'content-search'].includes(view) ? 'documents' : view === 'actions' ? 'functions' : view;
+  const current = ['jobs', 'audit'].includes(view) ? 'settings' : view === 'documents' ? 'sources' : view === 'content-search' ? 'knowledge' : view === 'actions' ? 'functions' : view;
   const links = (items: [View, string][]) => items.map(([id, label]) => <button key={id} aria-label={navigation.find(item => item[0] === id)![1]} title={label} className={current === id ? 'active' : ''} aria-current={current === id ? 'page' : undefined} onClick={() => onNavigate(id)}><NavigationIcon name={id} /><span className="navigation-label">{label}</span></button>);
   return <>
     <a className="brand-link" href="#" aria-label={`${BRAND.name} ${BRAND.englishName}，返回本体模型`} onClick={e => { e.preventDefault(); onNavigate('ontology'); }}><Brand inverse /></a>

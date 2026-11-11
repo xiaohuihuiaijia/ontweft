@@ -41,8 +41,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 4063,
-      "sha256": "558aa9774f9ad7d87c53e7ef8b938feb9a93ac531b820ca0d5343920844f9a71",
+      "bytes": 4616,
+      "sha256": "a36c96182393cfbb2863dc1ee87199b02c4ccb958300f0f3eb468f9467b3c2a7",
       "source": "maintained-in-public-repository"
     },
     {
@@ -65,14 +65,14 @@
     },
     {
       "path": "README.en.md",
-      "bytes": 8727,
-      "sha256": "2b0306fd5f28de27d42ce3abb37e401edc6c7bf72129e05c7873265b7b47993a",
+      "bytes": 11191,
+      "sha256": "4868f99c2c21b1bc8fb3e629bafa1fd65c0acd893d5083bb1beac28b8889bad0",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "README.md",
-      "bytes": 8127,
-      "sha256": "3b9f23153071df261da99b6fd7afc3370a867159ce4423b5abca9b9c06831d4c",
+      "bytes": 10125,
+      "sha256": "20e2ad4f9373b3944cdd1153b8b4ae9f079267904f7cad10b213de2ec5e446e7",
       "source": "maintained-in-public-repository"
     },
     {
@@ -250,6 +250,12 @@
       "source": "maintained-in-public-repository"
     },
     {
+      "path": "backend/migrations/versions/ef311111a100_ai_documents.py",
+      "bytes": 8279,
+      "sha256": "7c066e99071db446d43224f2b00b79edfae02f3aa550ee36cd60a718a4f7f7ef",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "backend/migrations/versions/f2c7d9a41b60_document_parse_history.py",
       "bytes": 4010,
       "sha256": "300227808cc7b2723bfade6b59377af6c81eadee0db8445e3dcf4425b57cf615",
@@ -293,8 +299,8 @@
     },
     {
       "path": "backend/ontology/api.py",
-      "bytes": 8028,
-      "sha256": "60d7838028cebe0bf726a039d6d1f29812d05d7e79290b932bff75a326f1cccd",
+      "bytes": 8496,
+      "sha256": "c9c5c0ed2eac5888fe1c8ffebfe8eb4c5c4a29317d960ae9c59ad83c9d806c13",
       "source": "maintained-in-public-repository"
     },
     {
@@ -437,9 +443,9 @@
     },
     {
       "path": "backend/ontology/connectors/sql.py",
-      "bytes": 27711,
-      "sha256": "b5b2937abdba7a5f4808d2eb41e2cef734f5c7b2f788fce40d252219009fbb7f",
-      "source": "backend/ontology/connectors/sql.py"
+      "bytes": 27971,
+      "sha256": "c093b4c5f97a243cfcc53538390efc4d98f8dce1634793f33e890bb13290c942",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/content_access/__init__.py",
@@ -455,8 +461,8 @@
     },
     {
       "path": "backend/ontology/content_access/service.py",
-      "bytes": 19783,
-      "sha256": "7623c14f33820ac14d8c28bc9ca946a92e9bd3d7449fa47f51ae69d7e6581ecd",
+      "bytes": 19929,
+      "sha256": "7fbb30a9b709c81e3387f9dde929c7a4995bb7fb7fdd7715ffe4c3346740d0be",
       "source": "maintained-in-public-repository"
     },
     {
@@ -467,8 +473,8 @@
     },
     {
       "path": "backend/ontology/core/config.py",
-      "bytes": 1834,
-      "sha256": "a1718b790f4381fc57a270bafca63bfd047bb9287747b0af265437eba57fa083",
+      "bytes": 1835,
+      "sha256": "a7f3a99efedbcb4d25c33f1e2a3421d71a3b219af3bc0fb9d7997f4f8532d861",
       "source": "maintained-in-public-repository"
     },
     {
@@ -497,8 +503,8 @@
     },
     {
       "path": "backend/ontology/core/registry.py",
-      "bytes": 1117,
-      "sha256": "d5cd53575d7e608a947d56d180c77ab7b55e3a7cd0802658f39ea233aab2406b",
+      "bytes": 1198,
+      "sha256": "57e696d8c75ca4861e69d7a44ca49fea9e427b5ac70622afcbd3a5b671949e34",
       "source": "maintained-in-public-repository"
     },
     {
@@ -521,8 +527,8 @@
     },
     {
       "path": "backend/ontology/documents/api.py",
-      "bytes": 8050,
-      "sha256": "8e3ea122b561a7ce393575ea2c16630eac61c3d8f65e30fdda4a849089d6851d",
+      "bytes": 12440,
+      "sha256": "6d518148f506b3be708be6c341b76052bdd9fb6fc5717d738b259c9f4e2d8f7b",
       "source": "maintained-in-public-repository"
     },
     {
@@ -533,14 +539,14 @@
     },
     {
       "path": "backend/ontology/documents/history.py",
-      "bytes": 11790,
-      "sha256": "00b138e8a8c4c07b39e3a61ecab874c54434adb799d462722a9415283d12628e",
-      "source": "backend/ontology/documents/history.py"
+      "bytes": 12000,
+      "sha256": "b07850bd3fe188cfe9b0702518bdb6e043046b61856803bc3f626417b1ed8b94",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/documents/history_api.py",
-      "bytes": 7779,
-      "sha256": "0689044606c979070edfe891df0a61dcc5d5e42729214f8d0d1c051e7c6a9498",
+      "bytes": 7650,
+      "sha256": "3a5003c5abf24179e943c4683890ad69518aebd82cfec629cf69a23e4f8d6def",
       "source": "maintained-in-public-repository"
     },
     {
@@ -551,15 +557,39 @@
     },
     {
       "path": "backend/ontology/documents/models.py",
-      "bytes": 3093,
-      "sha256": "bc27a627b7d631a4e7af8d8f258b3deccb61155fdd71e88263199d640a53ddee",
-      "source": "backend/ontology/documents/models.py"
+      "bytes": 3094,
+      "sha256": "01a43686553dbd27baf814ddfcd7b5b2a0b151531413e64a946d2dade2159d97",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/documents/pages.py",
+      "bytes": 13287,
+      "sha256": "a7f91b3816d2953d96cd941f2d722dae8760e6d6d538ab9b3540c61329cd8d13",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/documents/parse_batches.py",
+      "bytes": 5594,
+      "sha256": "6a97daebf85af6594aae30a00d5be451fe2b735bd3135c147512f72b97b49d40",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/documents/parser.py",
-      "bytes": 22984,
-      "sha256": "d68f79d7c45520e0908c395f57c85961c4a968eb27df2800792aaf76858ab515",
-      "source": "backend/ontology/documents/parser.py"
+      "bytes": 26653,
+      "sha256": "2f37bb2e61093d27f68d71a6a0b31bbc5c650c90a43ee9c004e3f5f1e2f207a7",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/documents/pdf_native.py",
+      "bytes": 3830,
+      "sha256": "500ae4c96f0f10f648cd22380b96eccc5a86bafd4b022680e0d43d18bdd929d5",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/documents/slides.py",
+      "bytes": 6965,
+      "sha256": "7d6d74d6a7f96cb00b187d4ea58b394c8c3cfd96b478e804a2d5697e216cecfb",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/documents/storage_models.py",
@@ -712,6 +742,78 @@
       "source": "backend/ontology/integrations/feishu/snapshot.py"
     },
     {
+      "path": "backend/ontology/intelligence/__init__.py",
+      "bytes": 80,
+      "sha256": "9eff1eb25883f898c608636436b3c4416e21e8c9622e19014574b44b8846bcd2",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/client.py",
+      "bytes": 11258,
+      "sha256": "79c0932f1fe249d2a407ce80529dd108bc9c9be9e2967f10682d030627deaeef",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/connection_api.py",
+      "bytes": 6820,
+      "sha256": "e5e897e404406195be5c1a739835026dd359c42bd32621cd271965268d71d089",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/connections.py",
+      "bytes": 5041,
+      "sha256": "13f8cf04de4ef6815748ae61648cbbd4f0e340f877112ba93d0673852a3f8ba5",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/models.py",
+      "bytes": 1200,
+      "sha256": "d7332b8fa138a1eaacf07381f40628e7716f78bfc92dbf1e9b41fe0f30af9282",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/pipeline.py",
+      "bytes": 29463,
+      "sha256": "e3b9533f9a3bc53bed3278e19a89af7bccfedad830b42774a84cdcad1e673801",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/projection.py",
+      "bytes": 17187,
+      "sha256": "de4800584eda3bf19e20a75ddfb96ac6cdf2a4e284e9ab0166c81791c549779c",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/prompts.py",
+      "bytes": 6695,
+      "sha256": "2f02f39b8cc09976c6ea9fd748efbc41cc8ae8aa58b0c2b8c711334048bd3591",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/proposal_api.py",
+      "bytes": 18831,
+      "sha256": "700dcbada3a347fa3f409ee76a48a432bb20580f4b86f3a0ce3bb8f89edb5351",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/proposal_models.py",
+      "bytes": 2736,
+      "sha256": "e06ed7f4cbeee571099867c18f3c0804a1071a02de97547cd0c3cff48c167167",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/proposal_schemas.py",
+      "bytes": 1753,
+      "sha256": "1a56f09e03783f3730b7acd6a6742a726b142a3e8e65672449d82c2657a1135b",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/ontology/intelligence/schemas.py",
+      "bytes": 2057,
+      "sha256": "5b92c5ebb1d399bc5c61a13828e0efeb3c81dcf2746d57200e9c9917f0a7ed5c",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "backend/ontology/jobs/__init__.py",
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -719,8 +821,8 @@
     },
     {
       "path": "backend/ontology/jobs/api.py",
-      "bytes": 6431,
-      "sha256": "05d2a72e811aa2990776b572b3705da277dec311f4090292dfb7ecea0d5c1bfb",
+      "bytes": 6917,
+      "sha256": "cd9c099a598defc6c5c7460341794bdaa41e6c16793985791f1410fe344522d9",
       "source": "maintained-in-public-repository"
     },
     {
@@ -731,8 +833,8 @@
     },
     {
       "path": "backend/ontology/jobs/service.py",
-      "bytes": 6102,
-      "sha256": "117c44fa75ea0c5406731624646aee0a84f1bf93f89ed889185595e0ba2d6c3c",
+      "bytes": 6634,
+      "sha256": "a54d47c83fd49ed29a94c9b3481a085c210b7c6a1dc6f8f5a2d2e84d658d1502",
       "source": "maintained-in-public-repository"
     },
     {
@@ -809,8 +911,8 @@
     },
     {
       "path": "backend/ontology/objects/api.py",
-      "bytes": 23311,
-      "sha256": "c6e5f08ed141fe09dfdc6b38da16010c30737d3b31d493b60563ed305337ad1c",
+      "bytes": 23675,
+      "sha256": "c4fd7906690d4ec210c80da9291921309adacbd953c9f5a95de4a2b89b66fb64",
       "source": "maintained-in-public-repository"
     },
     {
@@ -857,8 +959,8 @@
     },
     {
       "path": "backend/ontology/objects/contributions/service.py",
-      "bytes": 15161,
-      "sha256": "331ff5ceebd785d8ec342367affec24ebe79f10a2dd9b1c762a316700d960885",
+      "bytes": 15693,
+      "sha256": "a49ba0dddaeb0f861cd7c9f38efc5ced6498d39ceec870fd2ac320748357feb0",
       "source": "maintained-in-public-repository"
     },
     {
@@ -881,8 +983,8 @@
     },
     {
       "path": "backend/ontology/objects/relation_rules.py",
-      "bytes": 17837,
-      "sha256": "b14240aba48e639c33fac86127460eaf5227faf39b5c64d550ddbae30f720c4c",
+      "bytes": 18429,
+      "sha256": "6adcdf895df4493b97d2cd972ccc7e099a7cf122acea37d9c3ddaa61c8d42f95",
       "source": "maintained-in-public-repository"
     },
     {
@@ -905,9 +1007,9 @@
     },
     {
       "path": "backend/ontology/parse_task.py",
-      "bytes": 1061,
-      "sha256": "e6728333e0dcbf605ac3e2840f4b1fe91fb7555bff8b99937d2a0eb1f794b2a3",
-      "source": "backend/ontology/parse_task.py"
+      "bytes": 1736,
+      "sha256": "b44a4a8110ac63dd5c2c25de2252e22282c98b0def3edaa5d7857b8b855ae427",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/ontology/search/__init__.py",
@@ -995,8 +1097,8 @@
     },
     {
       "path": "backend/ontology/sources/ingestion.py",
-      "bytes": 26435,
-      "sha256": "5b91c6a700897f1c0e230126cc0ae0175356c9523a0fcef085b206e3d1c27a89",
+      "bytes": 26577,
+      "sha256": "4cc1b29a580d384937a72268e5859f7104fabb85dfd06f50a6786170712b05ba",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1055,8 +1157,8 @@
     },
     {
       "path": "backend/ontology/worker.py",
-      "bytes": 11321,
-      "sha256": "12e88596756ba145b142b77fb07511d81c50cf4de9e26af21026a98885b3c0a9",
+      "bytes": 12730,
+      "sha256": "c5e089d1faf706b42a1676e5bdc5bd26f14d6218124742975ae46535777a9f0e",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1156,9 +1258,15 @@
       "source": "backend/tests/documents/__init__.py"
     },
     {
+      "path": "backend/tests/documents/test_document_pages.py",
+      "bytes": 8128,
+      "sha256": "c148c8ab3e7277aaf6b964745ec77337bd2716606f4e667eb17eec5c825a641b",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "backend/tests/documents/test_document_reparse.py",
-      "bytes": 26638,
-      "sha256": "77f58dd1ad945b1f6eab5f6d30f1b6c53fdec074a7ae98c8a90217b94fc74017",
+      "bytes": 26642,
+      "sha256": "0ae76c464701e5535c5a5b1ee3eb4d6d246a66adaeb19d99c2e168ea02276114",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1172,6 +1280,18 @@
       "bytes": 14219,
       "sha256": "18d7799c98c0fe7aa8f2ff4289316d0c2f4ee497a2852daa6e9cb6910e0ebbfe",
       "source": "backend/tests/documents/test_documents.py"
+    },
+    {
+      "path": "backend/tests/documents/test_pdf_batching.py",
+      "bytes": 7435,
+      "sha256": "b036f05b45ecfa0120276c4336815aec8712537f6761f6bc1cb85af286909d3e",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/documents/test_pdf_details.py",
+      "bytes": 3024,
+      "sha256": "717dae606fe4c590a72e8050dc5ae8771c60957b55ae94a6c2626c0d2643ca25",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/tests/functions/__init__.py",
@@ -1258,6 +1378,72 @@
       "source": "backend/tests/integrations/feishu/test_feishu_source_boundary.py"
     },
     {
+      "path": "backend/tests/intelligence/test_adopted_review.py",
+      "bytes": 6795,
+      "sha256": "898c4cc2095247e1c74d563c6933998d9b473a00190b10589a2d00882e74fe21",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_budget_accounting.py",
+      "bytes": 1873,
+      "sha256": "d0ab25ab058589e240ad13533b9584c278e683605044cae7327d7db3d90be275",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_candidate_review.py",
+      "bytes": 5376,
+      "sha256": "78bc682dd266ac11585a2bf65c56a70766977f427d4151380b08d03a83aaf575",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_database_proposal.py",
+      "bytes": 7154,
+      "sha256": "9e7983d5fa4ae041ab77f4332fe7ee8fc020bfb79cf23b2632fc38d537b69864",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_dense_pages.py",
+      "bytes": 1989,
+      "sha256": "fd2ed1dfaeee18ea10330a659bdeb7be39f1f81c52dd8f715715e1afc94854a9",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_document_projection.py",
+      "bytes": 8775,
+      "sha256": "856333a154f211d74dc440e5a9d57447f57a6e453a92681d84357ff0f5c3a3a6",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_fact_truncation.py",
+      "bytes": 8156,
+      "sha256": "860c508aff2161d8fed114014617728b021034f8efc986d47b9e948c4efbba79",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_model_gateway.py",
+      "bytes": 10992,
+      "sha256": "0fb32ac3e3773e3848f30004e05a5f8aef4548f3b518b0a1fc22aecd6a17cfd6",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_page_detail_upgrade.py",
+      "bytes": 1742,
+      "sha256": "68c80a552d79502d42f63146976b67178ddf61bb21e01c9f3ce1732b46dd78f4",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_private_evaluation_budget.py",
+      "bytes": 1098,
+      "sha256": "de3228cd90c4771972d8567fd0b8925c412551debab5223382029cd6ba425616",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "backend/tests/intelligence/test_proposal_workflow.py",
+      "bytes": 11771,
+      "sha256": "90bebdd718acbbd201b4b481a6b57215e690416347cfa9db22a0c304f3b2e6bf",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "backend/tests/live/__init__.py",
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -1286,6 +1472,12 @@
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "source": "backend/tests/migrations/__init__.py"
+    },
+    {
+      "path": "backend/tests/migrations/test_ai_migration.py",
+      "bytes": 8727,
+      "sha256": "2cb4f2d656823b03a65b6b6c69b82b70bc630f1f2ee04b54b1e0e2d7c04eb2e9",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/tests/migrations/test_beta_migration.py",
@@ -1475,8 +1667,8 @@
     },
     {
       "path": "backend/tests/platform/test_extensions.py",
-      "bytes": 3847,
-      "sha256": "ba53efd76fe692a56076afa24f55470d92eb0dd33b891ba36979759023d4f8d6",
+      "bytes": 4870,
+      "sha256": "1059ae89ef08c48898a4537739f7a4d21de937f8289608f6af3c354162a993c7",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1744,6 +1936,12 @@
       "source": "maintained-in-public-repository"
     },
     {
+      "path": "backend/tests/support/intelligence.py",
+      "bytes": 6171,
+      "sha256": "daabf1e0982b21a5bcaef5c2b4ed799c88424ed1664bf2b94631bdf52d055174",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "backend/tests/support/live_cdc.py",
       "bytes": 24214,
       "sha256": "6ff3442bd106495aa271f0b5058457cd6c89bcc766f7e3a238b6fd18dbcf2e31",
@@ -1769,8 +1967,8 @@
     },
     {
       "path": "backend/tests/support/postgres.py",
-      "bytes": 4687,
-      "sha256": "397393056724693bd52f8e90459b043ca32d50bdbb42b7da44c9270b132035fc",
+      "bytes": 4869,
+      "sha256": "8c5a0dfd66e385f42d2b4fb7c69f6978ce5d604660d6dbcdf49b781e0c807371",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1799,38 +1997,38 @@
     },
     {
       "path": "docs/alpha-status.md",
-      "bytes": 8984,
-      "sha256": "7f25c08ed765f16fd1ac335e8846e477473e3c4d16a4da56080115708b69ef9e",
+      "bytes": 9180,
+      "sha256": "01a1dddeadf0c8d21e7488682f579d1b1e71bc6a802fd6466274f382d81801bc",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/beta-verification.md",
-      "bytes": 8880,
-      "sha256": "d44f68f5d1a9ee115b5874fd5afe3dd8d6711f145c5853cf74a6ac7bb800b1b9",
+      "bytes": 17174,
+      "sha256": "4546f7cf89dda0961f8939989dbdf43156c16e10937a93ac645c93dfdd918a9e",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/data-to-ontology.md",
-      "bytes": 11423,
-      "sha256": "a2a5e080fd12825b38344e395b8577dfdff88a948cfdf53d51c2bf7c79cb1f5b",
+      "bytes": 13092,
+      "sha256": "fe7ac7d8a07286d5e9552c71a6914c6fd6f3e15f9d570fcae7c81eb926aa2f6c",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/deployment.md",
-      "bytes": 7294,
-      "sha256": "2da1a83465da6eeeef0338c731e1e2215f7d764babea44ea1f1dda283f6fcbb5",
+      "bytes": 8376,
+      "sha256": "f0c0f0fc092dddfcea2d4c7ee5caab050279d88e7b4f37a2334b18f9fad7afc3",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/enterprise-beta.md",
-      "bytes": 9274,
-      "sha256": "26fbe2a0f729e21eff50b9d8c67f4a1970e78eb62d2f40931f18db7dbfcdb0de",
+      "bytes": 13739,
+      "sha256": "bd20ed4a10c22eaa8f53adef4ec369775fd9e4ba82f81532adcd4c907035802f",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "docs/getting-started.md",
-      "bytes": 5739,
-      "sha256": "163f32c8b7d97396b75199e25771201f0dca8d163b4a5a48cc18f14563b2f6eb",
+      "bytes": 6306,
+      "sha256": "d36564b959c66b065716a83d49b6edac8df33b030ca9822ebe411f2628c63bf3",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1841,8 +2039,8 @@
     },
     {
       "path": "docs/images/README.md",
-      "bytes": 1557,
-      "sha256": "380c3cc25e726315575cfa7b8231ad459d1d334cc0344fc8874c2e4dcaa77022",
+      "bytes": 1709,
+      "sha256": "27980587954ef93275a44032183f38b3e3b3dba40216e6988153604a646ac062",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1853,8 +2051,8 @@
     },
     {
       "path": "docs/images/graph-workbench.png",
-      "bytes": 201515,
-      "sha256": "cb6f7c9cfba48097b2ec3e7b2c32b807d624b9dff8ce797974a37a284fe15248",
+      "bytes": 158445,
+      "sha256": "220323f7b3a240921ad8e6dafe68ecea759ad5e9ea3719b8d1aa0889260ae2f3",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1877,8 +2075,8 @@
     },
     {
       "path": "docs/project-audit.md",
-      "bytes": 10373,
-      "sha256": "1611fceec6f4c9664495a231b0d534f1fe170307bb54c6e2354cee416d1d8cca",
+      "bytes": 10658,
+      "sha256": "cd1df14618eae09d3077837a75d20390541b9f097ab3e9e9d0c97f8b8e21ab65",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1961,8 +2159,8 @@
     },
     {
       "path": "frontend/src/app/App.tsx",
-      "bytes": 9436,
-      "sha256": "ab79d67bd2f1d394b50d986df48a729b831a32d75d39a4082286bc62719a2849",
+      "bytes": 9427,
+      "sha256": "2f1bbe14f0dd80197610512f212f9e6fb7f49cc86fedb28781cae6cf9de57261",
       "source": "maintained-in-public-repository"
     },
     {
@@ -1973,8 +2171,8 @@
     },
     {
       "path": "frontend/src/app/Navigation.tsx",
-      "bytes": 2891,
-      "sha256": "2f8de6a22bbc0ebed202f6ce6cf949b7a9c3a1142a20a63e584bc75d0188cf4a",
+      "bytes": 2954,
+      "sha256": "d69631a479022329a2bc1637434246bb2957196780ab067c63679929d39dfa0a",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2015,15 +2213,27 @@
     },
     {
       "path": "frontend/src/features/documents/DocumentDetails.test.tsx",
-      "bytes": 14268,
-      "sha256": "4f7e6b53b8d0ef14c60bc6dafab225f54a4d17d4f5df13ea013d038234c56aa1",
-      "source": "frontend/src/features/documents/DocumentDetails.test.tsx"
+      "bytes": 14138,
+      "sha256": "d4d931907d823e3d2069b7ebcb25f1c04bacbd98fb7b1d766139575f670353a8",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/documents/DocumentDetails.tsx",
-      "bytes": 15139,
-      "sha256": "9a77051841b46cb78be03e66f03907bd0ec6b7daabbdf5c63dcc7a4001b557e4",
-      "source": "frontend/src/features/documents/DocumentDetails.tsx"
+      "bytes": 15362,
+      "sha256": "f574c2ab3503f0cf0a88e816b62ce04c40d8c5004f39d32885066c9e1029a1fc",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/documents/DocumentEvidenceLinks.tsx",
+      "bytes": 1269,
+      "sha256": "13f930bd0713ebc9d68ae22066c8700108a71ea501057ae6b340926da136b016",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/documents/DocumentPagePreview.tsx",
+      "bytes": 2451,
+      "sha256": "a8b270904a0ca7bb544d1ec86d1bf728f41965c8ede4a53cc125839893cb25d1",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/documents/DocumentPreview.test.tsx",
@@ -2033,15 +2243,21 @@
     },
     {
       "path": "frontend/src/features/documents/DocumentPreview.tsx",
-      "bytes": 4346,
-      "sha256": "baea6604da2f4e83babb65d5cbf0ba43914d938ffc820152cfc05536fcf29fe3",
-      "source": "frontend/src/features/documents/DocumentPreview.tsx"
+      "bytes": 4408,
+      "sha256": "bb6cde0f20f5b38f227fde94776f45e22f36e9d5830e82d128b2ee5fe9da157d",
+      "source": "maintained-in-public-repository"
     },
     {
-      "path": "frontend/src/features/documents/DocumentsPage.tsx",
-      "bytes": 3600,
-      "sha256": "28bfdcf1552794cf9216c7597b36976dc08217f9a01e7008375d7a87d3939f5d",
-      "source": "frontend/src/features/documents/DocumentsPage.tsx"
+      "path": "frontend/src/features/documents/DocumentWorkbench.test.tsx",
+      "bytes": 2578,
+      "sha256": "0fb21ceda3cf6733cc6ecbb01a2cf272973edbeaa7d3c87515ca495eaa401dfe",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/documents/DocumentWorkbench.tsx",
+      "bytes": 8962,
+      "sha256": "493bf9c9ba4aebab50fd67cbaa29e1f945800baaa58309ea947a2c63058bc09b",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/functions/FunctionsPage.test.tsx",
@@ -2057,14 +2273,14 @@
     },
     {
       "path": "frontend/src/features/graph/GraphCanvas.test.tsx",
-      "bytes": 14997,
-      "sha256": "a1a1b7943e289448bb763a8dbcb4dcc5fd228a56c4c3d076feec0f2b5bb9a625",
+      "bytes": 16017,
+      "sha256": "cf1fca631c5d4266a1a148b16e3d700b7b9828356bf29e9c1bdd20525a7a6a90",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/graph/GraphCanvas.tsx",
-      "bytes": 15645,
-      "sha256": "5b3614206b854f455e29c215983754ae0a3491beeb4f2cb954c694a97b701429",
+      "bytes": 16888,
+      "sha256": "a28f35a71b03ea9dc0dfc1d3e4d2167d6b6a1f611c55dd0316d1c60d67e783c3",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2081,8 +2297,8 @@
     },
     {
       "path": "frontend/src/features/graph/GraphPage.tsx",
-      "bytes": 21162,
-      "sha256": "88d97deef6fc5bed8c75531e9d7857c278281e361a53782820175aa6589c01c4",
+      "bytes": 21202,
+      "sha256": "d4b920f66be0caa7df70060d5044db057064d20f2bfa91355452efdc178dac2b",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2093,9 +2309,9 @@
     },
     {
       "path": "frontend/src/features/graph/graph-labels.ts",
-      "bytes": 1662,
-      "sha256": "ad38a85637aad3ff403df66f41513f457299a0d09516448c642196cdf86845fd",
-      "source": "frontend/src/features/graph/graph-labels.ts"
+      "bytes": 1829,
+      "sha256": "e71b65a27e70f4da47b73ee56c0a399ea4027bc0541706b099851d3175b248fe",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/graph/graph-layout.worker.ts",
@@ -2117,8 +2333,8 @@
     },
     {
       "path": "frontend/src/features/graph/graph.css",
-      "bytes": 12934,
-      "sha256": "2b52e488f84c4f5e69043365f8824a951e81a7941084fd9bd9ff0ae34e3d7296",
+      "bytes": 13089,
+      "sha256": "bc3650427fb2198034cc99c6069c8fc48868d217b42e7ad45d20c68e264578f0",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2177,9 +2393,57 @@
     },
     {
       "path": "frontend/src/features/identity/SettingsPage.tsx",
-      "bytes": 7665,
-      "sha256": "bcf0786a7e48a82e0f57935e56f19eaffc50c8ac94f945a35179d6dbe0da1316",
-      "source": "frontend/src/features/identity/SettingsPage.tsx"
+      "bytes": 7875,
+      "sha256": "56dabc13171ac78eb4c62b3ef32f8d4da7ed220c995863984cc538db0d26011b",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/intelligence/AIProposalPanel.test.tsx",
+      "bytes": 12225,
+      "sha256": "2c966f4b5f13407942760fe43603807360247ed8c9e3f678a3d593ab3d8fe40e",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/intelligence/AIProposalPanel.tsx",
+      "bytes": 28971,
+      "sha256": "8d56a27d03b4fe303de893abbb0dfcaafe4952c3c0e212da492c79f35fcfe045",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/intelligence/ModelConnections.test.tsx",
+      "bytes": 1744,
+      "sha256": "f9af9533af769d53b07a562fbbdb0672857728a5229775492a364b085a3e7a1f",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/intelligence/ModelConnections.tsx",
+      "bytes": 10033,
+      "sha256": "6119b5df5edd1601627d8e737998df88dea10772646e0c0cd4ec9aae95462a14",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/intelligence/intelligence.css",
+      "bytes": 9538,
+      "sha256": "a61a892a091391da1c1da5269a585393b4579d01f4499586889c4a12abb92869",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/intelligence/page-range.test.ts",
+      "bytes": 467,
+      "sha256": "9c49cbefb73b138bbf58855f65ed375276200a18bd85beebbd8cc35cd6a95b69",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/intelligence/page-range.ts",
+      "bytes": 701,
+      "sha256": "2a30cbdf5ccb3f165b1c98ec01b65c4eea80335c46562516a12d0a1ef20ad1a0",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/intelligence/types.ts",
+      "bytes": 1665,
+      "sha256": "9126d6b46d5eaa43edad93ba7fff59d87e14612cc361b80db785d27b38fd7b30",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/knowledge/KnowledgePages.tsx",
@@ -2231,8 +2495,8 @@
     },
     {
       "path": "frontend/src/features/modeling/OntologyPage.tsx",
-      "bytes": 19033,
-      "sha256": "c8c59d3316e0c1528722c24cb49e1d323a96e3f63a2812d1a82970b2d3565ef8",
+      "bytes": 19907,
+      "sha256": "f6c3d0420a2d80bd75157fa2941f4a57c873f4ec7e0a48db1b30b50167737416",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2240,6 +2504,18 @@
       "bytes": 2720,
       "sha256": "69690593ea38c8e5da629e7239ecaaba3b65eb8c74735184ac99021f4699bc8a",
       "source": "frontend/src/features/modeling/model-starter.css"
+    },
+    {
+      "path": "frontend/src/features/objects/ObjectDocumentEvidence.test.tsx",
+      "bytes": 3916,
+      "sha256": "26df1c9465917e4fe81714a197f2fbf1c1fec65921529839636f737174b0bfc3",
+      "source": "maintained-in-public-repository"
+    },
+    {
+      "path": "frontend/src/features/objects/ObjectDocumentEvidence.tsx",
+      "bytes": 1992,
+      "sha256": "9c6388c2ba9abbf223b776ff8fedbba7c470272b49eee9d635d0359478ce2560",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "frontend/src/features/objects/ObjectFulltext.test.tsx",
@@ -2267,8 +2543,8 @@
     },
     {
       "path": "frontend/src/features/objects/ObjectRelations.tsx",
-      "bytes": 4405,
-      "sha256": "a2630ae5dc9fb79f82d5af2c2973f10208ca842383887c80378bed90b79bc8cd",
+      "bytes": 4527,
+      "sha256": "74b5842a0f9a2039520b217abcdfc584b52c2820bae8411806043b152d94715e",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2291,8 +2567,8 @@
     },
     {
       "path": "frontend/src/features/objects/ObjectsPage.tsx",
-      "bytes": 20030,
-      "sha256": "b65ed19ecc29f809c8459ed00917b5e52600f4fd7c26e77b17aaa0f0f9366ad8",
+      "bytes": 20242,
+      "sha256": "a1d601c4171fb19e6366d1415e884a5a92271b23a23b29d58dc21a73e060d9be",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2322,7 +2598,7 @@
     {
       "path": "frontend/src/features/search/ContentSearchPage.test.tsx",
       "bytes": 20884,
-      "sha256": "e7c26033af1d8be8b48b07785d53bd116e87037260670c5ba999338dbffc8813",
+      "sha256": "43c88bbb960733a06da0b1a029db617fc3d17d11c0bb673730ebf6898ff3352e",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2411,8 +2687,8 @@
     },
     {
       "path": "frontend/src/features/sources/SourcesPage.tsx",
-      "bytes": 13318,
-      "sha256": "ccc892f73d1a9712c5a3da400541d067b7704b4a045a1a40a3325751dc39903f",
+      "bytes": 13613,
+      "sha256": "c918771506346d5f18ede75c12f302f92e8c7722cd7156b92e3da60c2902d7ce",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2507,8 +2783,8 @@
     },
     {
       "path": "frontend/src/shared/ui/components.tsx",
-      "bytes": 4315,
-      "sha256": "1d0d079b86f23abb3162839fb79b0130f735b1458ae8e47888555f128083d288",
+      "bytes": 4381,
+      "sha256": "4b255265a05116c7c138dd80f63892abfefec0d1773085db97ef2a85aeb86fd7",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2633,8 +2909,8 @@
     },
     {
       "path": "pyproject.toml",
-      "bytes": 1458,
-      "sha256": "0821d7333f1c110e4ab7cbf763383f2cab0c4060f27a8419fc28c63e85ab9b14",
+      "bytes": 1571,
+      "sha256": "dfc5c320a003a5cab785f8edb0129e6a27c34dcbfced54ff40158c0e8f3be249",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2651,8 +2927,8 @@
     },
     {
       "path": "scripts/core_smoke.py",
-      "bytes": 4882,
-      "sha256": "e40eab761d329b5ae13a808e35d255b5bf8ee4666c166c52545f5e284c1f0a00",
+      "bytes": 8021,
+      "sha256": "aff969ed1e8873eade215237811c3f4660dffe180d90bae6f59a57a9b6588e5e",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2674,6 +2950,12 @@
       "source": "scripts/development_service.py"
     },
     {
+      "path": "scripts/evaluate_private_document.py",
+      "bytes": 12595,
+      "sha256": "1495028189296b092fe26d2ffc35746eff6219d9fce2954457907fbd6b5b486f",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "scripts/graph_scale_preview.py",
       "bytes": 4939,
       "sha256": "ba2d1c6876f627d18d789fb3b040136ac5bcfef28c8024a177cf1b07a2ed7ea8",
@@ -2690,6 +2972,12 @@
       "bytes": 19044,
       "sha256": "da2bafb7074086e1960f51257138b530a9e5c02ba9cb5690b401324ddf39c4d8",
       "source": "scripts/prepare_graph_demo.py"
+    },
+    {
+      "path": "scripts/probe_model_connection.py",
+      "bytes": 1931,
+      "sha256": "2e987944caaac26479c21a2e73d759f53d8632a506e8d7cac08d1d45f723dacd",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "scripts/setup_development.py",
@@ -2716,6 +3004,12 @@
       "source": "scripts/test_backend.py"
     },
     {
+      "path": "scripts/verify_ai_workbench.cjs",
+      "bytes": 17809,
+      "sha256": "59b166b4cde52475adc24c877771be1d8de14910bf553bd062a109755575d5ef",
+      "source": "maintained-in-public-repository"
+    },
+    {
       "path": "scripts/verify_deployment.py",
       "bytes": 13536,
       "sha256": "ace287495264c06df9134cd629d590d33d2859d556d60bcc8e5773941c794f6b",
@@ -2729,8 +3023,8 @@
     },
     {
       "path": "scripts/verify_graph_workbench.cjs",
-      "bytes": 17547,
-      "sha256": "13b38eb2b562bf1b5ce6e70bbe7ac4ed8adf3e1f83c1fc1a860837198af39d08",
+      "bytes": 17528,
+      "sha256": "cb86eb9a55cbde258780a4de025f783b58602ebe1cbe5882f4a2aedd6bad8e9a",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2759,9 +3053,9 @@
     },
     {
       "path": "third_party/README.md",
-      "bytes": 1866,
-      "sha256": "e0b278f9f1323ee8afa419d56864906f4459026f5f54ea6cf8422e731a2040a7",
-      "source": "publishing/github/third-party.md"
+      "bytes": 3174,
+      "sha256": "032c49bace2233d06168c796441d101573bc004cf938984de5a8ae7e622436e5",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "third_party/upstream-references.json",
@@ -2771,8 +3065,8 @@
     },
     {
       "path": "uv.lock",
-      "bytes": 249793,
-      "sha256": "8623634669a91e6e6152f171129834d557332da6f64a9fa9e4c718a9fe76ab24",
+      "bytes": 250243,
+      "sha256": "5aa7b1fceaf6ed252ac312bb300d530108391c10a08b7baf13191c681a88e8ec",
       "source": "maintained-in-public-repository"
     }
   ]

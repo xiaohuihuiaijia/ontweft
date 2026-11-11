@@ -89,13 +89,7 @@ def reparse(document_id: str, data: ReparseInput, request: Request, user=Depends
             file_format = detect_format(content, doc.filename)
         except DocumentError as exc:
             raise DomainError(422, exc.code, str(exc)) from None
-        engine = (
-            data.engine
-            if data.engine != "auto"
-            else "docling"
-            if file_format in {"docx", "xlsx", "pdf"}
-            else "basic"
-        )
+        engine = data.engine if data.engine != "auto" else "basic"
         if file_format == "feishu_docx" and engine != "basic":
             raise DomainError(422, "invalid_parser", "飞书原生快照仅支持块结构解析")
         capture_current_parse(session, doc)

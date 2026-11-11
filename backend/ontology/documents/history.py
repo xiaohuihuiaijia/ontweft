@@ -134,7 +134,10 @@ def parse_configuration(engine, file_format):
         packages += {
             "docx": ("defusedxml",),
             "xlsx": ("defusedxml", "openpyxl"),
-            "pdf": ("pypdf",),
+            "pdf": ("pypdfium2",),
+            "pptx": ("defusedxml",),
+            "png": ("Pillow",),
+            "jpeg": ("Pillow",),
         }.get(file_format, ())
     versions = {}
     for package in packages:
@@ -142,7 +145,9 @@ def parse_configuration(engine, file_format):
             versions[package] = version(package)
         except PackageNotFoundError:
             versions[package] = "unavailable"
-    public = {"engine": engine, "format": file_format, "adapter": "document-parser-v1", "packages": versions}
+    public = {"engine": engine, "format": file_format, "adapter": "document-parser-v2", "packages": versions}
+    if engine == "basic" and file_format == "pdf":
+        public["adapter"] = "pdfium-native-pages-v1"
     if file_format == "feishu_docx":
         from ontology.documents.feishu_native import PARSER_VERSION, SNAPSHOT_VERSION
 

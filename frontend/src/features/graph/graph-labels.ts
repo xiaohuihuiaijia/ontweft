@@ -1,7 +1,7 @@
 import type { NodeLabelDrawingFunction } from 'sigma/rendering';
 
 /** Keep labels in the actual canvas; full names remain available in the inspector/list. */
-const drawLabel = (highlighted: boolean): NodeLabelDrawingFunction => (context, data, settings) => {
+const drawLabel = (highlighted: boolean, dark = false): NodeLabelDrawingFunction => (context, data, settings) => {
   if (!data.label) return;
   context.save();
   const fontSize = settings.labelSize;
@@ -23,12 +23,14 @@ const drawLabel = (highlighted: boolean): NodeLabelDrawingFunction => (context, 
   if (highlighted) {
     context.beginPath(); context.arc(data.x, data.y, data.size + 4, 0, Math.PI * 2);
     context.strokeStyle = data.color; context.lineWidth = 2; context.stroke();
-    context.fillStyle = '#ffffff'; context.beginPath();
+    context.fillStyle = dark ? '#203f34' : '#ffffff'; context.beginPath();
     context.roundRect(x - 4, y - fontSize, labelWidth + 8, fontSize + 8, 4); context.fill();
   }
-  context.fillStyle = '#273f48'; context.textAlign = 'left'; context.fillText(label, x, y);
+  context.fillStyle = dark ? '#e2efe7' : '#273f48'; context.textAlign = 'left'; context.fillText(label, x, y);
   context.restore();
 };
 
 export const drawGraphLabel = drawLabel(false);
 export const drawGraphHover = drawLabel(true);
+export const drawDarkGraphLabel = drawLabel(false, true);
+export const drawDarkGraphHover = drawLabel(true, true);

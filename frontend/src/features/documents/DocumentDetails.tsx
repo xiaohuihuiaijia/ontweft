@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError, request, protectedReadUnavailable } from '../../shared/api/api';
 import { Drawer, ErrorNotice, formatTime, Loading, Status } from '../../shared/ui/components';
 import { DocumentPreview } from './DocumentPreview';
+import { DocumentPagePreview } from './DocumentPagePreview';
 import { useResource } from '../../shared/hooks/hooks';
 import type { ListResult } from '../../shared/model/types';
 
@@ -14,8 +15,8 @@ interface InspectorProps { documentId: string; fixedParseId?: string; canReparse
 const denied = protectedReadUnavailable;
 const hasIR = (ir: unknown) => !!ir && typeof ir === 'object' && Array.isArray((ir as { elements?: unknown }).elements);
 
-export function DocumentDetails({ onClose, ...props }: InspectorProps & { onClose: () => void }) {
-  return <Drawer title={props.fixedParseId ? '固定历史解析版本' : '文档解析与原件'} onClose={onClose}><div className="drawer-body"><DocumentInspector {...props} /></div></Drawer>;
+export function DocumentDetails({ onClose, page, quote, ...props }: InspectorProps & { onClose: () => void; page?: number; quote?: string }) {
+  return <Drawer title={page ? '文档来源页' : props.fixedParseId ? '固定历史解析版本' : '文档解析与原件'} onClose={onClose}><div className="drawer-body">{page ? <DocumentPagePreview documentId={props.documentId} page={page} quote={quote} /> : <DocumentInspector {...props} />}</div></Drawer>;
 }
 
 export function DocumentInspector(props: InspectorProps) { return <InspectorSession key={`${props.documentId}:${props.fixedParseId ?? 'current'}`} {...props} />; }

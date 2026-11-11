@@ -1,6 +1,6 @@
 # 自部署、升级与恢复
 
-部署保持 PostgreSQL、一个 API（同时提供前端静态文件）和现有 worker；迁移容器一次性执行，不是常驻服务。核心镜像不安装 MySQL、MongoDB、Neo4j、飞书或 PDF/OCR SDK。
+部署保持 PostgreSQL、一个 API（同时提供前端静态文件）和现有 worker；迁移容器一次性执行，不是常驻服务。核心镜像包含 PDFium、Pillow 和原生 Office 文档处理依赖，用于本地分页、图像和结构读取；不默认安装 MySQL、MongoDB、Neo4j、飞书 SDK、独立 OCR 引擎或本地模型服务。
 
 ## 首次启动
 
@@ -21,6 +21,10 @@ docker compose --env-file /secure/ontweft.env run --rm --entrypoint ontology mig
 核心来源主机通过 `ONTOLOGY_ALLOWED_SOURCE_HOSTS` 指定；需要访问内网来源时还需配置 `ONTOLOGY_ALLOW_PRIVATE_SOURCE_ADDRESSES=true`，API 与 worker 保持一致。Compose 的 runtime 环境块可以加入这些既有设置。扩展安装与固定开关见 [核心说明](enterprise-beta.md)。
 
 `API_WORKERS` 默认 1，直接使用 Uvicorn 已有多进程功能；增加时仍是一项 API 服务。按实际 CPU、内存和并发测量选择数量，参考 [性能记录](beta-verification.md)，不要把单进程的资源配置当作 50 并发性能承诺。
+
+文档上传默认 256 MiB，API 与 worker 的 `ONTOLOGY_MAX_UPLOAD_BYTES` 必须一致。原生 PDF 解析直接打开源文件，每批最多 32 页；完整页范围仍受默认 1000 页、1000 万字符等预算限制。批次结果保存在数据目录的 `temporary/pdf-<任务标识>/`，任务仅记录进度和摘要引用；超时、取消或失败后的重试从已完成批次继续。成功写入完整解析版本后清理中间文件，未完成任务的目录应保留以便续跑。任务完成不表示图像、复杂表格已理解：缺少原生文字的页面仍明确标记为待视觉处理。
+
+管理员在“设置 → 模型连接”配置兼容服务和场景模型后，现有 worker 执行文档理解与本体提案；密钥只在后端加密保存。无模型连接时手工建模、确定性采集与原生文档读取仍可使用。不要把私有原件或页面结果写入 CI、公开截图或仓库。
 
 ## 升级
 

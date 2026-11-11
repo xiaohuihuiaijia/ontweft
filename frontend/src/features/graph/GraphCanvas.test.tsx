@@ -62,6 +62,20 @@ it('catches Worker constructor failure and exposes an honest list fallback', asy
   expect((screen.getByRole('button', { name: '放大图谱' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
+it('opens the editor on a deliberate single click while a drag only changes position', async () => {
+  const onOpen = vi.fn(); const onSelect = vi.fn();
+  render(<GraphCanvas data={data} visible={data} kind="instances" selection={{}} cache={new Map()} onSelect={onSelect} onSelectEdge={() => {}} onClear={() => {}} onOpen={onOpen} openOnClick />);
+  await waitFor(() => expect(state.sigma?.graph.order).toBe(3));
+  const sigma = state.sigma;
+  act(() => sigma.callbacks.clickNode({ node: 'a' }));
+  expect(onOpen).toHaveBeenCalledExactlyOnceWith(data.nodes[0]);
+  onOpen.mockClear();
+  const event = (x: number, y: number) => ({ x, y, preventSigmaDefault() {}, original: { preventDefault() {}, stopPropagation() {} } });
+  act(() => { sigma.callbacks.downNode({ node: 'b', event: event(0, 0) }); sigma.callbacks.mousemovebody(event(35, 45)); sigma.callbacks.mouseup(); sigma.callbacks.clickNode({ node: 'b' }); });
+  expect(onOpen).not.toHaveBeenCalled();
+  expect(sigma.graph.getNodeAttribute('b', 'x')).toBe(35);
+});
+
 it('preserves the renderer and dragged anchors on expansion and restores coordinates for the same nodes', async () => {
   const positions = new Map<string, Position>();
   const props = { data, visible: data, kind: 'instances' as const, selection: {}, positions, cache: new Map<string, Position[]>(), onSelect: vi.fn(), onSelectEdge: vi.fn(), onClear: vi.fn() };

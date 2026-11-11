@@ -25,18 +25,19 @@
 
 Define what customers, orders, assets and projects mean in your business. Bring in existing records, maintain their identity as sources change, and explore authorized relationships in a graph you can edit. Start with one useful scenario instead of modeling the whole company at once.
 
-**Connect → Model → Validate and publish → Keep relationships updated → Explore and edit.**
+**Select files or PostgreSQL data → Model manually or draft with AI → Review, validate and publish → Keep relationships updated → Explore and edit.**
 
 | What you need | Available in Beta |
 | --- | --- |
 | Use your existing data | CSV/XLSX uploads, PostgreSQL sources and editable mappings, with original files and record locations preserved |
+| Draft from business documents | Interpret PDF, DOCX, XLSX, PPTX, images and text; infer a model automatically or use your business requirements, then review model and instance candidates against their sources |
 | Model business meaning | Editable types, properties, enums, named relationships, composite unique keys and cardinality constraints |
 | Keep the graph current | Immutable file versions, business-key updates, explicit cross-source identity binding and persistent relationship rules |
 | Work directly in the graph | Authorized full-dataset search, paginated neighborhoods, mouse/touch dragging, pinned nodes and personal views; open node or relationship editors directly |
 | Collaborate with traceability | Project and field permissions, versioned models, source evidence and audit; separate model authors and approvers by default in enterprise mode |
 | Keep deployment lean | One API service, PostgreSQL and the existing worker; knowledge, additional connectors and automation are optional |
 
-Five default navigation entries: **Data, Ontology, Objects, Graph, Settings**. Local modeling and graph exploration need no AI API key, vector database or external model service.
+Five default navigation entries: **Data, Ontology, Objects, Graph, Settings**. AI uses a configurable compatible model API. Manual modeling and graph exploration still need no AI API key, vector database or external model service. No separate OCR engine or local GPU is required.
 
 ## Try it locally
 
@@ -57,7 +58,7 @@ Set a password of at least 12 characters when prompted. Open **http://127.0.0.1:
 2. Edit the model, then save, validate, approve and publish it.
 3. Create records and relationships under **对象** (Objects), then open **图谱** (Graph) to explore and edit them.
 
-For file ingestion, persistent relationships, full-text indexing and large-model validation, run the worker in another terminal:
+For file ingestion, persistent relationships, full-text indexing, large-model validation and AI drafting, run the worker in another terminal:
 
 ```sh
 uv run --locked --no-dev python scripts/start_local_demo.py worker
@@ -65,9 +66,19 @@ uv run --locked --no-dev python scripts/start_local_demo.py worker
 
 Upload your CSV/XLSX under **数据** (Data). Local data stays in `var/local-demo/`. This entry listens on loopback only; use the deployment guide for PostgreSQL, HTTPS and enterprise operation. Source database connections require an explicit host allowlist.
 
+## Let models read the material; keep people in control
+
+1. An administrator configures the Chat Completions-compatible URL, credential, models and capabilities under **设置 → 模型连接** (Settings → Model connections). Test extraction and synthesis separately. Alibaba Cloud Bailian is the first service tested with real requests; changing compatible endpoints and capability settings does not require business-code changes.
+2. Upload materials under **数据 → 文档理解** (Data → Document understanding), or select files/PostgreSQL resources in **本体 → AI 起草** (Ontology → AI drafting). Use automatic discovery or describe a business goal, select pages and set a budget. The default upload limit is **256 MiB** per file.
+3. Inspect, edit and exclude candidates alongside their sources. Types, properties, relationships and mappings enter the existing model draft. Publish the reviewed model before confirming document-instance import; the model cannot directly change the active ontology.
+
+PDF pages render locally before vision-model interpretation. Completed page results can be reused across business goals and resumed after task failure. PNG/JPEG, Office, CSV and text/Markdown inputs are supported; Office page numbers identify logical units. Accuracy, cross-page tables and domain judgments still require evaluation on representative material. [Configuration, processing and current limits →](docs/enterprise-beta.md#文档理解与-ai-本体起草)
+
 ## Measured progress, with clear limits
 
 As of **2026-11-10**, isolated core installation, real-browser workflows, Linux/PostgreSQL deployment and backup/restore have been exercised. Current-commit results are available in the [PR checks](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks); historical test batches are not a substitute for a green current build.
+
+**AI workflow added on 2026-11-11:** the final targeted integration run passed 136 tests with 10 skipped, including isolated PostgreSQL; all 191 frontend tests passed. Real-browser workflows and Bailian Flash/Max synthetic text, vision and structured-output probes passed. Human-reviewed accuracy and full-document acceptance remain incomplete; the existing scale measurements below do not establish AI throughput or accuracy. [Test scope and evidence →](docs/beta-verification.md)
 
 The scale fixture contains **100,000 objects, 1,000,000 relationships and 50 users**. It used four API processes on Windows and Docker PostgreSQL 17.11 with 6 CPU / 11.68 GiB available. Initial data and indexes were prebuilt; this is not ingestion throughput or a production SLA.
 
@@ -77,7 +88,7 @@ The scale fixture contains **100,000 objects, 1,000,000 relationships and 50 use
 | Unique-code full-text search | P95 **2.135 s**, above the 1-second target |
 | 50 concurrent writes reaching both search and rule-generated relationships | 50/50 completed; P95 **22.420 s**, including waits and retries; observers received 25 temporary 503 responses |
 
-The canvas shows a bounded, authorized working view: up to 500 nodes and 1,000 edges. It does not render the entire database at once. Real WAL-expiry CDC recovery, large initial imports, large attachment restores and sustained production loads still require separate acceptance testing. Full OWL/SHACL, general reasoning, natural-language queries and vector search are not core features; Feishu and complex OCR need their own configuration and validation.
+The canvas shows a bounded, authorized working view: up to 500 nodes and 1,000 edges. It does not render the entire database at once. Real WAL-expiry CDC recovery, large initial imports, large attachment restores and sustained production loads still require separate acceptance testing. Full OWL/SHACL, general reasoning, natural-language queries and vector search are not core features. Goal-directed AI drafting does not enable arbitrary queries or autonomous execution; Feishu and optional specialized recognition need separate configuration and validation.
 
 [Full methodology, measurements and remaining work →](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/beta-verification.md)
 

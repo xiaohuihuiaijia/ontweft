@@ -18,8 +18,8 @@ from ontology.core.errors import DomainError, conflict
 from ontology.core.models import now
 from ontology.identity.models import User
 from ontology.identity.security import access, audit
-from ontology.modeling.models import Release
 from ontology.jobs.service import check_job_authority, fenced_job, finish
+from ontology.modeling.models import Release
 from ontology.objects.contributions.service import ensure_legacy_contributions, replace_contribution
 from ontology.objects.models import Entity
 from ontology.sources.models import Source, SourceIdentity, SourceRecordRevision, SourceSnapshot
@@ -142,11 +142,13 @@ def transform_value(value, operation):
     raise ValueError("不支持的转换或输入类型")
 
 
-def mapped_properties(record, mapping, type_def, *, allow_incomplete=False):
+def mapped_properties(record, mapping, type_def, *, allow_incomplete=False, allow_missing=False):
     result = {}
     for target, binding in mapping["fields"].items():
         field = binding["source_field"]
         if field not in record.values:
+            if allow_missing:
+                continue
             raise DomainError(
                 422,
                 "missing_source_field",
@@ -326,7 +328,8 @@ def project_snapshot(session, job, snapshot):
                     if obj and obj.deleted:
                         conflict("映射对象已被人工删除，须先处理身份冲突")
                     properties = mapped_properties(
-                        record, mapping, types[mapping["type_key"]], allow_incomplete=True
+                        record, mapping, types[mapping["type_key"]], allow_incomplete=True,
+                        allow_missing=source.kind == "document",
                     )
                     new_identity = identity is None
                     if new_identity:

@@ -4,6 +4,7 @@ import { Drawer, Empty, ErrorNotice, Field, JsonView, Loading, PageTitle, Status
 import { useResource } from '../../shared/hooks/hooks';
 import { MappingEditor } from './MappingEditor';
 import { ModelStarter, ModelWorkflow } from './ModelStarter';
+import { AIProposalPanel } from '../intelligence/AIProposalPanel';
 import type { ChangeSet, DataType, Definition, DefinitionResult, ListResult, MappingDef, TypeDef, TypeList } from '../../shared/model/types';
 
 const typeOptions: DataType[] = ['string', 'integer', 'number', 'boolean', 'date', 'datetime', 'enum', 'json'];
@@ -14,7 +15,9 @@ export function OntologyPage({ projectId, can, onDirty }: Props) {
   const management = useResource<DefinitionResult>(can('ontology:write') || can('ontology:approve') || can('ontology:publish') ? scoped('/ontology/definition', projectId) : null);
   const changes = useResource<ListResult<ChangeSet>>(scoped('/changesets', projectId));
   const [editor, setEditor] = useState<{ draft?: ChangeSet; definition: Definition; baseline: string | null }>();
+  const [aiOpen, setAiOpen] = useState(false);
   return <><PageTitle title="本体模型" description="定义业务类型、字段与关系，通过变更集验证、审核和发布。">{can('ontology:write') && <button onClick={() => { if (management.data) setEditor({ definition: management.data.definition, baseline: management.data.release_id ?? null }); }} disabled={!management.data || editor !== undefined}>新建变更集</button>}</PageTitle>
+    <div className="section-heading"><div><h2>AI 辅助起草</h2><p className="muted">从已接入的数据或文档生成有来源的模型与实例候选。</p></div><button className="secondary" aria-expanded={aiOpen} onClick={() => setAiOpen(value => !value)}>{aiOpen ? '收起 AI 工作台' : 'AI 起草本体'}</button></div>{aiOpen && <AIProposalPanel projectId={projectId} can={can} onDirty={onDirty} onUpdated={() => { changes.reload(); types.reload(); management.reload(); }} />}
     <ErrorNotice error={management.error} onRetry={management.reload} /><div className="section-heading"><h2>已发布类型</h2><span className="muted">{types.data?.version ? `版本 ${types.data.version}` : '尚无发布版本'}</span></div>
     {types.loading ? <Loading /> : types.error ? <ErrorNotice error={types.error} onRetry={types.reload} /> : !types.data?.items.length ? <Empty title="尚未定义业务类型">新建变更集，手工添加类型与字段。完成验证和发布后即可创建对象。</Empty> : <div className="card-grid">{types.data.items.map(type => <article className="model-card" key={type.key}><div className="model-symbol">{type.label.slice(0, 1)}</div><h3>{type.label}</h3><code>{type.key}</code><p>{type.description || '暂无业务定义'}</p><div className="card-footer"><span>{type.properties.length} 个字段</span><span>{type.relations.length} 种关系</span></div></article>)}</div>}
     <div className="section-heading"><h2>变更集</h2><button className="text-button" onClick={changes.reload}>刷新</button></div>
@@ -24,14 +27,14 @@ export function OntologyPage({ projectId, can, onDirty }: Props) {
 }
 
 export interface OntologyFocus { typeKey: string; relationKey?: string }
-interface EditorProps extends Props { initialDraft?: ChangeSet; initialDefinition: Definition; initialBaselineReleaseId: string | null; focus?: OntologyFocus; onClose: () => void; onUpdated: (published: boolean) => void }
+interface EditorProps extends Props { initialDraft?: ChangeSet; initialDefinition: Definition; initialBaselineReleaseId: string | null; initialTitle?: string; onSaveDefinition?: (definition: Definition, title: string) => Promise<void>; focus?: OntologyFocus; onClose: () => void; onUpdated: (published: boolean) => void }
 
-export function OntologyEditor({ projectId, can, onDirty, initialDraft, initialDefinition, initialBaselineReleaseId, focus, onClose, onUpdated }: EditorProps) {
+export function OntologyEditor({ projectId, can, onDirty, initialDraft, initialDefinition, initialBaselineReleaseId, initialTitle, onSaveDefinition, focus, onClose, onUpdated }: EditorProps) {
   const [baselineReleaseId] = useState(initialBaselineReleaseId);
   const [draft, setDraft] = useState<ChangeSet | null>(initialDraft ?? null);
   const [definition, setDefinition] = useState<TypeDef[]>(() => structuredClone(initialDefinition.types));
   const [mappings, setMappings] = useState<MappingDef[]>(() => structuredClone(initialDefinition.mappings ?? []));
-  const [title, setTitle] = useState(initialDraft?.title ?? (focus ? `图谱修改：${focus.typeKey}${focus.relationKey ? ` / ${focus.relationKey}` : ''}` : ''));
+  const [title, setTitle] = useState(initialDraft?.title ?? initialTitle ?? (focus ? `图谱修改：${focus.typeKey}${focus.relationKey ? ` / ${focus.relationKey}` : ''}` : ''));
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -59,6 +62,7 @@ export function OntologyEditor({ projectId, can, onDirty, initialDraft, initialD
   const save = async () => {
     setBusy(true); setError(undefined); setNotice('');
     try {
+      if (onSaveDefinition) { await onSaveDefinition({ types: definition, mappings }, title); setDirty(false); return; }
       const body = { title, definition: { types: definition, mappings }, ...(draft ? { expected_revision: draft.revision } : { project_id: projectId, expected_baseline_release_id: baselineReleaseId }) };
       const result = await write<ChangeSet>(draft ? `/changesets/${encodeURIComponent(draft.id)}` : '/changesets', body, draft ? 'PATCH' : 'POST');
       setDraft(result); setDefinition(structuredClone(result.definition.types)); setTitle(result.title); setMappings(structuredClone(result.definition.mappings ?? [])); setDirty(false); onUpdated(false); setNotice('草稿已保存。尚未改变已发布模型。');

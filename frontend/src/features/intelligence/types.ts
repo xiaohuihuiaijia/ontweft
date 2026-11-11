@@ -1,0 +1,8 @@
+import type { Definition, RecordData } from '../../shared/model/types';
+
+export interface ModelSpec { id: string; label: string; text?: boolean; vision: boolean; json_schema: boolean; context_window: number; max_output_tokens: number; parameters: RecordData; input_price_per_million: number; output_price_per_million: number }
+export interface ModelConnection { id: string; name: string; revision: number; enabled: boolean; base_url?: string; has_credentials?: boolean; allow_private_network?: boolean; models: ModelSpec[]; roles: { extraction: string; synthesis: string }; last_test?: RecordData }
+export interface Evidence { document_id?: string; page?: number; page_number?: number; quote?: string; source_id?: string; resource_id?: string; [key: string]: unknown }
+export interface Candidate { id: string; type_key: string; properties: RecordData; selected?: boolean; evidence?: Evidence[]; [key: string]: unknown }
+export interface Proposal { id: string; revision: number; title?: string; status: string; instructions?: string; inputs?: { instructions?: string }; baseline_release_id?: string | null; definition: Definition; review_definition?: Definition; review_changeset_revision?: number | null; candidates: Candidate[]; relations?: RecordData[]; gaps?: string[]; changeset_id?: string | null; job_id?: string; job?: { id: string; status: string; checkpoint?: RecordData; error?: string }; usage?: RecordData; error?: string; [key: string]: unknown }
+export interface DocumentPage { page_number: number; label: string; text: string; elements: unknown[]; status: string; has_image: boolean; image_url?: string; image_count?: number; image_urls?: string[] }

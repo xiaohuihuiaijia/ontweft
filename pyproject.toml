@@ -22,13 +22,16 @@ dependencies = [
   "openpyxl>=3.1,<4",
   "defusedxml>=0.7,<1",
   "jieba==0.42.1",
+  "pypdfium2>=4.30,<6",
+  "Pillow>=13.0.0,<14",
+  "jsonschema>=4.23,<5",
 ]
 
 [project.optional-dependencies]
 knowledge = ["pypdf>=6.21.4,<7"]
-dev = ["pytest>=8.3,<10", "ruff>=0.9,<1"]
+dev = ["pytest>=8.3,<10", "ruff>=0.9,<1", "pypdf>=6.21.4,<7"]
 integrations = ["PyMySQL>=1.1,<2", "pymongo>=4.10,<5", "rdflib>=7.1,<8", "neo4j>=5.27,<7", "lark-oapi==1.7.5"]
-docling = ["docling-slim[convert-core,format-docx,format-xlsx,format-pdf-pypdfium2]==2.143.1"]
+docling = ["docling-slim[convert-core,format-docx,format-xlsx,format-pdf-pypdfium2]==2.143.1", "pypdf>=6.21.4,<7"]
 
 [project.scripts]
 ontology = "ontology.cli:main"

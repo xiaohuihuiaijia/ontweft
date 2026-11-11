@@ -38,6 +38,7 @@ $env:PLAYWRIGHT_MODULE = (Resolve-Path var/browser-tools/node_modules/playwright
 node scripts/verify_model_starters.cjs
 node scripts/verify_graph_scale.cjs
 node scripts/verify_graph_workbench.cjs
+node scripts/verify_ai_workbench.cjs
 node scripts/verify_table_intake.cjs
 ```
 
@@ -47,10 +48,13 @@ POSIX shell：
 PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_model_starters.cjs
 PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_graph_scale.cjs
 PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_graph_workbench.cjs
+PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_ai_workbench.cjs
 PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_table_intake.cjs
 ```
 
 ## 维护边界
+
+AI 浏览器回归使用本机合成兼容服务，不发送外部请求或使用真实凭据。`scripts/probe_model_connection.py` 与 `scripts/evaluate_private_document.py` 是需明确授权的真实模型测试，使用不回显的密钥输入与本地忽略目录；不在 CI 自动运行。私有材料不得加入截图、测试夹具或源码清单；模型一致性也不能替代独立原文标注。
 
 更新 GitHub 展示截图时，复用上面的 Playwright 环境运行 `node scripts/capture_showcase.cjs`。它通过真实 API 创建独立合成图，使用实际拖动和编辑入口，结果写入忽略目录 `var/reports/showcase/`。确认画面后只复制所选 PNG 到 `docs/images/graph-workbench.png`，并更新 [截图来源](docs/images/README.md)；不提交临时数据库或日志。中英文 README 共用这一张图。
 

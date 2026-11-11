@@ -160,6 +160,12 @@ def remove_contribution(session, contribution):
     supported = session.scalar(
         select(RelationContribution.id).where(RelationContribution.relation_id == relation.id).limit(1)
     )
+    from ontology.intelligence.proposal_models import DocumentRelationContribution
+
+    supported = supported or session.scalar(
+        select(DocumentRelationContribution.id)
+        .where(DocumentRelationContribution.relation_id == relation.id).limit(1)
+    )
     if not relation.manual and not supported:
         touch_entity(session, session.get(Entity, relation.source_id))
         session.delete(relation)
@@ -234,8 +240,14 @@ def recompute(session, ctx, rule, work, definition):
                 )
                 .limit(1)
             )
+            from ontology.intelligence.proposal_models import DocumentRelationContribution
+
+            other_support = other_support or session.scalar(
+                select(DocumentRelationContribution.id)
+                .where(DocumentRelationContribution.relation_id == old_relation.id).limit(1)
+            )
             if old_relation.manual or other_support:
-                return "原关系仍有人工作用或其他规则贡献，不能覆盖唯一目标"
+                return "原关系仍有人工作用或其他来源贡献，不能覆盖唯一目标"
         remove_contribution(session, existing)
         session.flush()
     if targets:

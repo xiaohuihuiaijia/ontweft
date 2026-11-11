@@ -3,6 +3,7 @@ import { scoped, write } from '../../shared/api/api';
 import { Empty, ErrorNotice, Field, Loading, PageTitle, Status } from '../../shared/ui/components';
 import { useResource } from '../../shared/hooks/hooks';
 import type { ListResult, Session } from '../../shared/model/types';
+import { ModelConnections } from '../intelligence/ModelConnections';
 
 interface User { id: string; username?: string | null; email: string; display_name: string; active: boolean; admin: boolean }
 interface Member { id: string; user_id: string; display_name: string; email: string; role: string }
@@ -16,13 +17,15 @@ export function SettingsPage({ session, projectId, onDirty, onSessionRefresh }: 
   const members = useResource<ListResult<Member>>(canManage ? scoped('/members', projectId) : null);
   const [userForm, setUserForm] = useState({ username: '', email: '', display_name: '', password: '' });
   const [projectName, setProjectName] = useState('');
+  const [modelDirty, setModelDirty] = useState(false);
   const [memberId, setMemberId] = useState(''); const [role, setRole] = useState('member');
   const [busy, setBusy] = useState(false); const [error, setError] = useState<unknown>(); const [message, setMessage] = useState('');
-  const dirty = Boolean(Object.values(userForm).some(Boolean) || projectName || memberId);
+  const dirty = Boolean(Object.values(userForm).some(Boolean) || projectName || memberId || modelDirty);
   useEffect(() => { onDirty(dirty); return () => onDirty(false); }, [dirty, onDirty]);
   const perform = async (operation: () => Promise<void>) => { setBusy(true); setError(undefined); setMessage(''); try { await operation(); } catch (e) { setError(e); } finally { setBusy(false); } };
   return <><PageTitle title="设置" description="管理企业账号和项目成员。权限由服务端在每次请求时重新验证。" /><ErrorNotice error={error} />{message && <div className="notice success" role="status">{message}</div>}
-    <section className="settings-card"><h2>当前账号与项目</h2><dl><dt>企业</dt><dd>{session.tenant.name}</dd><dt>姓名</dt><dd>{session.user.display_name}</dd><dt>用户名</dt><dd>{session.user.username || session.user.email}</dd><dt>邮箱</dt><dd>{session.user.email}</dd><dt>当前角色</dt><dd>{roles.find(([key]) => key === project?.role)?.[1] ?? project?.role}</dd></dl><h3>当前项目权限</h3><div className="node-chips">{permissions.map(p => <code className="badge" key={p}>{p}</code>)}</div><p className="muted">企业管理员身份与项目业务权限分别管理。当前界面不提供尚未实现的 SSO、部门策略和模型凭据配置。</p></section>
+    <section className="settings-card"><h2>当前账号与项目</h2><dl><dt>企业</dt><dd>{session.tenant.name}</dd><dt>姓名</dt><dd>{session.user.display_name}</dd><dt>用户名</dt><dd>{session.user.username || session.user.email}</dd><dt>邮箱</dt><dd>{session.user.email}</dd><dt>当前角色</dt><dd>{roles.find(([key]) => key === project?.role)?.[1] ?? project?.role}</dd></dl><h3>当前项目权限</h3><div className="node-chips">{permissions.map(p => <code className="badge" key={p}>{p}</code>)}</div><p className="muted">企业管理员身份与项目业务权限分别管理。模型密钥仅管理员可更新，项目成员使用已启用的连接。</p></section>
+    {session.user.admin && <ModelConnections onDirty={setModelDirty} />}
     {canManage && <section className="settings-card settings-section"><h2>项目成员</h2>{members.loading ? <Loading /> : members.error ? <ErrorNotice error={members.error} onRetry={members.reload} /> : !members.data?.items.length ? <Empty title="没有项目成员" /> : <div className="table-wrap"><table><thead><tr><th>成员</th><th>角色</th><th /></tr></thead><tbody>{members.data.items.map(m => <tr key={m.id}><td>{m.display_name}<small className="row-id">{m.email}</small></td><td>{roles.find(([key]) => key === m.role)?.[1] ?? m.role}</td><td><button className="text-button" disabled={busy} onClick={() => { setMemberId(m.user_id); setRole(m.role); }}>调整角色</button></td></tr>)}</tbody></table></div>}
       <form className="settings-form" onSubmit={e => { e.preventDefault(); void perform(async () => { await write('/members', { project_id: projectId, user_id: memberId, role }); setMemberId(''); setRole('member'); members.reload(); await onSessionRefresh(); setMessage('项目成员角色已更新。'); }); }}><div className="form-grid"><Field label="成员账号" hint={session.user.admin ? undefined : '项目管理员可填写已存在的同企业用户 ID。'}>{session.user.admin ? <select required value={memberId} disabled={busy} onChange={e => { setMemberId(e.target.value);  }}><option value="">选择企业用户</option>{users.data?.items.filter(u => u.active).map(u => <option key={u.id} value={u.id}>{u.display_name} · {u.email}</option>)}</select> : <input required value={memberId} disabled={busy} onChange={e => { setMemberId(e.target.value);  }} />}</Field><Field label="授予项目角色"><select value={role} disabled={busy} onChange={e => { setRole(e.target.value);  }}>{roles.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field></div><p className="muted">保存会立即更新该用户在当前项目的访问与操作权限。</p><button disabled={busy || !memberId}>保存成员角色</button></form>
     </section>}

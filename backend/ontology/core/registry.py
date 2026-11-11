@@ -4,6 +4,8 @@ from importlib import import_module
 
 MODEL_MODULES = (
     "ontology.identity.models",
+    "ontology.intelligence.models",
+    "ontology.intelligence.proposal_models",
     "ontology.modeling.models",
     "ontology.objects.models",
     "ontology.objects.rule_models",

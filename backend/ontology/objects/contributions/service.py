@@ -17,7 +17,7 @@ from ontology.core.errors import DomainError, conflict, forbidden, missing
 from ontology.modeling.models import Release
 from ontology.objects.contributions.models import ContributionRevision, SourceContribution
 from ontology.objects.models import Entity, EntityRevision
-from ontology.sources.models import SourceIdentity, SourceRecordRevision, SourceSnapshot
+from ontology.sources.models import Source, SourceIdentity, SourceRecordRevision, SourceSnapshot
 
 VALUE_FIELDS = (
     "identity_id",
@@ -307,7 +307,16 @@ def replace_contribution(
         conflict("旧 CDC 事件不能覆盖较新的来源贡献")
     active = withdraw_reason is None
     if active:
-        if not isinstance(mapped_values, dict) or set(mapped_values) != set(mapping["fields"]):
+        expected_fields = set(mapping["fields"])
+        source = session.get(Source, identity.source_id)
+        if source.kind == "document" and record.record_codec == "snapshot-json-v1":
+            # A document statement may omit a property. Omission is not a claim
+            # of null; only the fields present in its immutable record contribute.
+            expected_fields = {
+                target for target, binding in mapping["fields"].items()
+                if binding["source_field"] in record.values
+            }
+        if not isinstance(mapped_values, dict) or set(mapped_values) != expected_fields:
             raise DomainError(422, "incomplete_contribution", "贡献值必须覆盖所选映射的全部字段")
         values = validate_source_properties(type_def, mapped_values)
     else:

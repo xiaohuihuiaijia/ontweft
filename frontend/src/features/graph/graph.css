@@ -33,6 +33,8 @@
 .graph-color-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .graph-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 304px; border: 1px solid var(--color-line); border-top: none; border-radius: 0 0 var(--radius-panel) var(--radius-panel); background: var(--color-surface); overflow: clip; }
 .graph-stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(280px, 1fr) auto; height: var(--graph-height); background-color: #fbfdfc; background-image: radial-gradient(var(--graph-grid) 1px, transparent 1px); background-size: 20px 20px; }
+.graph-stage-dark { --graph-grid: #345246; background-color: #142e25; }
+.graph-stage-dark .graph-self-loop .loop-label { fill: #dfede4; stroke: #142e25; }
 .graph-canvas { grid-row: 2; grid-column: 1; position: relative; min-width: 0; min-height: 280px; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 .graph-canvas:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -3px; }
 .graph-controls { grid-row: 1; grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); padding: var(--space-2); border-bottom: 1px solid var(--color-line); background: var(--color-surface); }

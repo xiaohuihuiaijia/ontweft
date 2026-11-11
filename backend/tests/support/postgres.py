@@ -34,13 +34,16 @@ def pg_databases(tmp_path_factory):
     admin_url, runtime_url = admin_url.set(database=name), runtime_url.set(database=name)
     admin = Database(
         Settings(
+            _env_file=None,
             database_url=admin_url.render_as_string(hide_password=False),
             data_dir=tmp_path_factory.mktemp("pg-admin"),
         )
     )
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            [sys.executable, "-c", ("from ontology.core.config import Settings; "
+             "Settings.model_config['env_file'] = None; "
+             "from alembic.config import main; main(['upgrade', 'head'])")],
             env={**os.environ, "ONTOLOGY_DATABASE_URL": admin_url.render_as_string(hide_password=False)},
             capture_output=True,
             check=False,

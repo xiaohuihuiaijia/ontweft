@@ -493,7 +493,7 @@ def test_permission_revoked_during_real_parser_execution_blocks_finish(reparse_p
         ("docling", "pdf", "torch", "layout"),
         ("basic", "docx", "defusedxml", "native"),
         ("basic", "xlsx", "openpyxl", "native"),
-        ("basic", "pdf", "pypdf", "native"),
+        ("basic", "pdf", "pypdfium2", "native"),
     ],
 )
 def test_direct_dependency_change_rejects_frozen_parse_job(

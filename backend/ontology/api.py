@@ -37,7 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-Requested-With"],
     )
 
@@ -86,6 +86,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 {"error": {"code": "invalid_feishu_request", "message": "飞书请求字段不合法，请检查输入"}},
                 422,
             )
+        if request.url.path.startswith("/api/model-connections"):
+            return JSONResponse({"error": {"code": "invalid_model_request", "message": "模型连接字段格式不正确"}}, 422)
         return await request_validation_exception_handler(request, exc)
 
     from ontology.connectors import ConnectorError
@@ -145,13 +147,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(mapping_preview_router, prefix="/api")
     app.include_router(cdc_projection_router, prefix="/api")
     app.include_router(cdc_router, prefix="/api")
+    from ontology.documents.api import router as documents_router
+    from ontology.documents.history_api import router as document_router
+    from ontology.intelligence.connection_api import router as model_connections_router
+    from ontology.intelligence.proposal_api import router as ai_router
+    for router in (documents_router, document_router, model_connections_router, ai_router):
+        app.include_router(router, prefix="/api")
     if "knowledge" in settings.extensions:
-        from ontology.documents.api import router as documents_router
-        from ontology.documents.history_api import router as document_router
         from ontology.knowledge.api import router as knowledge_router
         from ontology.search.content.api import router as content_search_router
 
-        for router in (documents_router, document_router, knowledge_router, content_search_router):
+        for router in (knowledge_router, content_search_router):
             app.include_router(router, prefix="/api")
     if "integrations" in settings.extensions:
         from ontology.integrations.feishu.api import router as feishu_router

@@ -3,7 +3,7 @@ from ontology.api import create_app
 from ontology.cli import bootstrap
 from ontology.core.config import Settings
 from ontology.jobs.models import Job
-from ontology.sources.models import Source
+from ontology.sources.models import Source, SourceSnapshot
 from ontology.worker import process_one
 from sqlalchemy import select
 
@@ -30,7 +30,16 @@ def test_core_routes_and_parked_extension_jobs(tmp_path):
         )
         me = client.get("/api/auth/me").json()
         assert me["features"] == [] and me["model_approval"] == "single"
-        for path in ("/documents", "/knowledge", "/functions", "/actions"):
+        for path in ("/documents", "/ai/proposals", "/model-connections"):
+            assert client.get("/api" + path, params={"project_id": owner["project_id"]}).status_code == 200
+        upload = client.post(
+            "/api/documents/upload",
+            data={"project_id": owner["project_id"]},
+            files={"file": ("core.txt", b"Synthetic core document", "text/plain")},
+        )
+        assert upload.status_code == 201
+        assert process_one(app.state.db, settings)
+        for path in ("/knowledge", "/functions", "/actions"):
             assert client.get("/api" + path, params={"project_id": owner["project_id"]}).status_code == 404
         assert (
             client.post(
@@ -50,12 +59,22 @@ def test_core_routes_and_parked_extension_jobs(tmp_path):
             session.add(legacy)
             session.flush()
             legacy_id = legacy.id
+            snapshot = SourceSnapshot(
+                tenant_id=owner["tenant_id"],
+                project_id=owner["project_id"],
+                source_id=legacy.id,
+                source_revision=1,
+                resource_id="items",
+                schema_fingerprint="synthetic",
+            )
+            session.add(snapshot)
+            session.flush()
             job = Job(
                 tenant_id=owner["tenant_id"],
                 project_id=owner["project_id"],
                 owner_id=owner["user_id"],
-                kind="document.parse",
-                payload={},
+                kind="source.snapshot",
+                payload={"snapshot_id": snapshot.id},
             )
             session.add(job)
         assert any(
@@ -73,7 +92,11 @@ def test_core_routes_and_parked_extension_jobs(tmp_path):
         assert process_one(app.state.db, settings) is False
         with app.state.db.transaction(owner["tenant_id"]) as session:
             jobs = session.scalars(select(Job)).all()
-            assert len(jobs) == 1 and jobs[0].status == "pending"
+            assert len(jobs) == 2
+            assert {job.kind: job.status for job in jobs} == {
+                "document.parse": "succeeded",
+                "source.snapshot": "pending",
+            }
         assert client.get("/api/health").status_code == 200
     app.state.db.engine.dispose()
 

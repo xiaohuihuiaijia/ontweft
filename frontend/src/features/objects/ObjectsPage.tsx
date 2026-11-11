@@ -4,6 +4,7 @@ import { Drawer, Empty, ErrorNotice, Field, JsonView, Loading, Pager, PageTitle 
 import { useResource } from '../../shared/hooks/hooks';
 import { parseProperties, propertyInputs, samePropertyValue } from '../../shared/model/model';
 import { ObjectRelations } from './ObjectRelations';
+import { ObjectDocumentEvidence } from './ObjectDocumentEvidence';
 import { ObjectContributions } from './contributions/ObjectContributions';
 import { ObjectFulltext } from './ObjectFulltext';
 import { ObjectTable } from './ObjectTable';
@@ -62,7 +63,7 @@ export function ObjectEditor({ object, types: initialTypes, modelReleaseId, mode
       {dataStatus !== 'active' && <div className="notice warning" role="status"><strong>数据状态：{{ conflict: '来源冲突', incomplete: '数据不完整', withdrawn: '来源已撤回' }[dataStatus]}</strong><p>{dataReason[dataStatus]}</p><p>普通属性表单当前只读；已保留的人工字段仍可查看。普通对象修改不能恢复数据状态，默认查询、图谱、关系候选、函数与动作不会把该对象作为有效输入。</p></div>}
       {decisionDirty && <p className="notice warning">有尚未提交的字段裁决草稿，普通属性和关系修改暂时禁用，避免互相覆盖。</p>}
       {!type ? <Empty title="没有可用的已发布类型" /> : <><PropertyFields fields={writable} values={values} disabled={busy || !canEdit} onChange={(key, value) => { setValues(v => ({ ...v, [key]: value })); setDirty(true); setSaved(false); }} /><PropertyFields fields={readOnly} values={values} disabled onChange={() => {}} /></>}
-      {current?.evidence && <details><summary>来源证据</summary><JsonView value={current.evidence} /></details>}
+      {current?.evidence && <details><summary>来源证据</summary><ObjectDocumentEvidence evidence={current.evidence} visibleFields={fields.map(field => field.key)} canReadContributions={canReadContributions} /><JsonView value={current.evidence} /></details>}
       {current && <ObjectContributions objectId={current.id} objectRevision={current.revision} modelReleaseId={baseline.releaseId} canRead={canReadContributions} canDecide={canReadContributions && canWrite && !dirty && !busy} onDirty={setDecisionDirty} onSubmitting={setDecisionSubmitting} onDecided={result => {
         if (result.model_release_id !== baseline.releaseId) { setError(new ApiError(409, '裁决已提交，但当前编辑器模型与返回对象不同；请关闭并重新打开核对。')); onSaved(); return; }
         setCurrent(result); setValues(propertyInputs(result.properties)); setRemote(undefined); setError(undefined); setSaved(false); onSaved();

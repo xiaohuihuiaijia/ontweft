@@ -2,7 +2,6 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vitest';
 import { DocumentDetails, DocumentInspector } from './DocumentDetails';
 import { KnowledgeEditor } from '../knowledge/KnowledgePages';
-import { DocumentsPage } from './DocumentsPage';
 
 const hash = 'a'.repeat(64); const fp1 = 'b'.repeat(64); const fp2 = 'c'.repeat(64);
 const ir = (text = '保留的旧解析原文', complete = true) => ({ complete, quality: 'structured', parser: 'test-parser', parser_version: '1', warnings: [], pages: [], elements: [{ element_id: 'e1', kind: 'paragraph', text, evidence: { element_path: 'docx/paragraph/1' } }] });
@@ -37,8 +36,8 @@ it('opens document history for a read-only user, pages summaries and preserves e
     if (path === '/api/documents/d1') return json(doc);
     return json({ items: [doc], total: 1 });
   });
-  render(<DocumentsPage projectId="p" canWrite={false} />);
-  fireEvent.click(await screen.findByRole('button', { name: '查看结构与原件' })); await screen.findByText('保留的旧解析原文');
+  render(<DocumentDetails documentId="d1" onClose={() => {}} />);
+  await screen.findByText('保留的旧解析原文');
   expect(screen.queryByRole('button', { name: '提交重新解析' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: '查看解析历史' }));
   fireEvent.click(await screen.findByRole('button', { name: '下一页解析历史' }));

@@ -113,6 +113,7 @@ def check_job_authority(session, job: Job):
     )
     required = {
         "document.parse": "documents:write",
+        "ai.propose": "ontology:write",
         "source.discover": "sources:write",
         "source.snapshot": "sources:write",
         "cdc.project": "sources:write",
@@ -127,6 +128,13 @@ def check_job_authority(session, job: Job):
         or required not in ROLES.get(member.role, set())
     ):
         raise DomainError(403, "job_authorization_revoked", "任务执行权限已失效")
+    if job.kind == "ai.propose":
+        from ontology.intelligence.proposal_api import check_inputs
+        from ontology.intelligence.proposal_models import AIProposal
+        proposal = session.get(AIProposal, job.payload.get("proposal_id"))
+        if not proposal or proposal.tenant_id != job.tenant_id or proposal.project_id != job.project_id:
+            raise DomainError(403, "job_authorization_revoked", "提案范围已失效")
+        return check_inputs(session, proposal, user)
     if job.kind == "document.parse":
         from ontology.content_access.service import require_job_source
 

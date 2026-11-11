@@ -95,7 +95,10 @@ def knowledge_condition(ctx, page_id=KnowledgePage.id, revision=None):
 
 
 def job_condition(ctx):
-    return (Job.kind != "document.parse") | document_condition(ctx, Job.payload["document_id"].as_string())
+    condition = (Job.kind != "document.parse") | document_condition(ctx, Job.payload["document_id"].as_string())
+    if not {"ontology:write", "sources:write"}.issubset(ctx.permissions):
+        condition &= Job.kind != "ai.propose"
+    return condition
 
 
 def audit_condition(ctx):

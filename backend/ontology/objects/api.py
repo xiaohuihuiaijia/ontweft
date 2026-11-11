@@ -420,13 +420,19 @@ def delete_relation(
         supported = session.scalar(
             select(RelationContribution.id).where(RelationContribution.relation_id == row.id).limit(1)
         )
-        if supported:
+        from ontology.intelligence.proposal_models import DocumentRelationContribution
+
+        document_supported = session.scalar(
+            select(DocumentRelationContribution.id)
+            .where(DocumentRelationContribution.relation_id == row.id).limit(1)
+        )
+        if supported or document_supported:
             if not row.manual:
-                conflict("关系由持续规则维护，请调整规则或匹配字段")
+                conflict("关系仍有来源或持续规则贡献，请先处理对应来源")
             row.manual = False
             row.revision += 1
             audit(session, user, row.project_id, "relation.manual.removed", row.id)
-            return {"ok": True, "retained_by_rules": True}
+            return {"ok": True, "retained_by_rules": bool(supported), "retained_by_document": bool(document_supported)}
         from ontology.objects.constraints import touch_entity
 
         touch_entity(session, session.get(Entity, row.source_id))

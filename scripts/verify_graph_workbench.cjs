@@ -140,7 +140,7 @@ async function main() {
     await page.getByRole('button', { name: '定位所选', exact: true }).click();
     await page.locator('.graph-canvas').scrollIntoViewIfNeeded();
     p = await point('客户档案');
-    await page.mouse.dblclick(p.x, p.y, { delay: 100 });
+    await page.mouse.click(p.x, p.y);
     const editor = page.getByRole('complementary', { name: '对象详情', exact: true });
     await editor.getByLabel('名称', { exact: true }).fill('客户档案 · 已核对');
     await editor.getByRole('button', { name: '保存对象', exact: true }).click();
@@ -149,7 +149,7 @@ async function main() {
     await page.getByRole('button', { name: '关闭侧栏', exact: true }).click();
     await page.locator('.graph-inspector').getByRole('heading', { name: '客户档案 · 已核对', exact: true }).waitFor();
     assert.equal((await request('get', `/objects/${asset.id}?project_id=${project}`)).properties.name, '客户档案 · 已核对');
-    result.doubleClickEditsRealObject = true; result.restoredViewRefreshesAfterSave = true;
+    result.singleClickEditsRealObject = true; result.restoredViewRefreshesAfterSave = true;
     await page.getByRole('button', { name: '展开邻域', exact: true }).click();
     await page.getByRole('button', { name: '收起邻域', exact: true }).waitFor();
     await page.getByRole('button', { name: '收起邻域', exact: true }).click(); result.expandCollapse = true;

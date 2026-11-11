@@ -29,6 +29,24 @@ from ontology.sources.models import SourceSnapshot
 router = APIRouter(dependencies=[Depends(prepare_content_access)])
 
 
+def job_view(row):
+    result = row_dict(row)
+    if row.kind == "ai.propose":
+        hidden = {
+            "source_profiles",
+            "definition",
+            "pages",
+            "suggested_mappings",
+            "gaps",
+            "facts_completed",
+            "facts_segments_completed",
+            "facts_ranges",
+            "facts_blocked_range",
+        }
+        result["checkpoint"] = {k: v for k, v in row.checkpoint.items() if k not in hidden}
+    return result
+
+
 @router.get("/jobs")
 def jobs(
     request: Request,
@@ -47,7 +65,7 @@ def jobs(
             select(Job).where(*conditions).order_by(Job.created_at.desc()).offset(offset).limit(limit)
         ).all()
         return {
-            "items": [row_dict(x) for x in rows],
+            "items": [job_view(x) for x in rows],
             "total": session.scalar(select(func.count()).select_from(Job).where(*conditions)),
         }
 
@@ -114,7 +132,7 @@ def job_operation(job_id: str, operation: str, request: Request, user=Depends(au
                     ("cancelled", "采集任务已取消") if status == "cancelled" else ("pending", None)
                 )
         audit(session, user, row.project_id, f"job.{operation}", row.id)
-        return row_dict(row)
+        return job_view(row)
 
 
 @router.get("/jobs/metrics")

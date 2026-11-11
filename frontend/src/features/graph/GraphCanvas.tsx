@@ -3,14 +3,14 @@ import { GraphIcon } from './GraphIcon';
 import Graph from 'graphology';
 import Sigma from 'sigma';
 import { EdgeCurvedArrowProgram } from '@sigma/edge-curve';
-import { drawGraphHover, drawGraphLabel } from './graph-labels';
+import { drawGraphHover, drawGraphLabel, drawDarkGraphHover, drawDarkGraphLabel } from './graph-labels';
 import { attachSelfLoopLayer } from './self-loop-layer';
 import './self-loop-layer.css';
 import { ErrorNotice } from '../../shared/ui/components';
 import { edgeLanes, groupColor, groupKey, selectionContext, topologyKey, type GraphSelection, type Position } from './graph-model';
 import type { GraphEdge, GraphKind, GraphNode, GraphResult } from '../../shared/model/types';
 
-export function GraphCanvas({ data, visible, kind, selection, cache, positions: retained, pins = [], disabled = false, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear }: { data: GraphResult; visible: GraphResult; kind: GraphKind; selection: GraphSelection; cache: Map<string, Position[]>; positions?: Map<string, Position>; pins?: string[]; disabled?: boolean; onOpen?: (node: GraphNode) => void; onOpenEdge?: (edge: GraphEdge) => void; onSelect: (node: GraphNode) => void; onSelectEdge: (edge: GraphEdge) => void; onClear: () => void }) {
+export function GraphCanvas({ data, visible, kind, selection, cache, positions: retained, pins = [], disabled = false, dark = false, openOnClick = false, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear }: { data: GraphResult; visible: GraphResult; kind: GraphKind; selection: GraphSelection; cache: Map<string, Position[]>; positions?: Map<string, Position>; pins?: string[]; disabled?: boolean; dark?: boolean; openOnClick?: boolean; onOpen?: (node: GraphNode) => void; onOpenEdge?: (edge: GraphEdge) => void; onSelect: (node: GraphNode) => void; onSelectEdge: (edge: GraphEdge) => void; onClear: () => void }) {
   const remembered = useRef(new Map<string, Position>());
   const positionsStore = retained ?? remembered.current;
   const pinned = useRef(pins); pinned.current = pins;
@@ -19,7 +19,7 @@ export function GraphCanvas({ data, visible, kind, selection, cache, positions: 
   const currentPositions = useRef(positionsStore); currentPositions.current = positionsStore;
   const [error, setError] = useState<unknown>(); const [ready, setReady] = useState(0); const [zoom, setZoom] = useState(100);
   const [showEdgeLabels, setShowEdgeLabels] = useState(false);
-  const latest = useRef({ data, visible, kind, selection, disabled, showEdgeLabels, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear }); latest.current = { data, visible, kind, selection, disabled, showEdgeLabels, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear };
+  const latest = useRef({ data, visible, kind, selection, disabled, showEdgeLabels, openOnClick, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear }); latest.current = { data, visible, kind, selection, disabled, showEdgeLabels, openOnClick, onSelect, onSelectEdge, onOpen, onOpenEdge, onClear };
   const [reduced, setReduced] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => { if (!window.matchMedia) return; const media = window.matchMedia('(prefers-reduced-motion: reduce)'); const changed = () => setReduced(media.matches); media.addEventListener('change', changed); return () => media.removeEventListener('change', changed); }, []);
   const topology = topologyKey(data);
@@ -42,7 +42,8 @@ export function GraphCanvas({ data, visible, kind, selection, cache, positions: 
         for (const id of graph.edges()) if (!lanes.has(id)) graph.dropEdge(id);
         for (const edge of current.data.edges) if (graph.hasNode(edge.source) && graph.hasNode(edge.target) && lanes.has(edge.id)) graph.mergeEdgeWithKey(edge.id, edge.source, edge.target, { label: edge.label, size: 1.6, color: '#869a9d', ...lanes.get(edge.id) });
         if (!renderer.current) {
-        const sigma = new Sigma(graph, container.current, { defaultDrawNodeLabel: drawGraphLabel, defaultDrawNodeHover: drawGraphHover, edgeProgramClasses: { curved: EdgeCurvedArrowProgram }, renderEdgeLabels: true, enableEdgeEvents: true, labelFont: 'Segoe UI, Microsoft YaHei, sans-serif', labelSize: 13, labelColor: { color: '#273f48' }, edgeLabelSize: 12, edgeLabelColor: { color: '#526974' }, labelDensity: 1, labelRenderedSizeThreshold: 0, stagePadding: 54, zIndex: true, minCameraRatio: 0.08, maxCameraRatio: 3, allowInvalidContainer: false });
+        // A mobile panel can hide this canvas; keep its coordinates until it is visible again.
+        const sigma = new Sigma(graph, container.current, { defaultDrawNodeLabel: drawGraphLabel, defaultDrawNodeHover: drawGraphHover, edgeProgramClasses: { curved: EdgeCurvedArrowProgram }, renderEdgeLabels: true, enableEdgeEvents: true, labelFont: 'Segoe UI, Microsoft YaHei, sans-serif', labelSize: 13, labelColor: { color: '#273f48' }, edgeLabelSize: 12, edgeLabelColor: { color: '#526974' }, labelDensity: 1, labelRenderedSizeThreshold: 0, stagePadding: 54, zIndex: true, minCameraRatio: 0.08, maxCameraRatio: 3, allowInvalidContainer: true });
         renderer.current = sigma;
         loopLayer.current = attachSelfLoopLayer(sigma, container.current, () => latest.current);
         let dragged: string | undefined; let moved = false; let origin = { x: 0, y: 0 };
@@ -74,7 +75,7 @@ export function GraphCanvas({ data, visible, kind, selection, cache, positions: 
         sigma.on('clickNode', ({ node }) => {
           if (moved) { moved = false; lastClick = {}; return; }
           const current = latest.current; const item = current.visible.nodes.find(n => n.id === node);
-          if (item && !current.disabled) { lastClick = { node }; current.onSelect(item); }
+          if (item && !current.disabled) { lastClick = { node }; if (current.openOnClick && current.onOpen) current.onOpen(item); else current.onSelect(item); }
         });
         sigma.on('doubleClickNode', ({ node, preventSigmaDefault }) => {
           preventSigmaDefault();
@@ -111,6 +112,16 @@ export function GraphCanvas({ data, visible, kind, selection, cache, positions: 
   // Dispose before React removes the canvas; queued Sigma frames must not measure detached DOM.
   useLayoutEffect(() => () => { loopLayer.current?.destroy(); renderer.current?.kill(); renderer.current = undefined; }, []);
 
+  useEffect(() => {
+    const sigma = renderer.current; const node = container.current;
+    if (!sigma || !node || !ready || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0 && entry.contentRect.height > 0) sigma.refresh();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ready]);
+
   // Updating selection/filters refreshes display reducers; topology and coordinates stay fixed.
   useEffect(() => {
     const sigma = renderer.current; if (!sigma || !ready) return;
@@ -118,13 +129,16 @@ export function GraphCanvas({ data, visible, kind, selection, cache, positions: 
     const visibleNodes = new Set(visible.nodes.map(n => n.id)); const visibleEdges = new Set(visible.edges.map(e => e.id));
     const context = selectionContext(visible, selection);
     sigma.setSettings({
-      nodeReducer: (id, attrs) => { const node = nodes.get(id); const selected = selection.node === id && context.active; const related = context.nodes.has(id); return { ...attrs, hidden: !visibleNodes.has(id), label: !context.active || related ? node?.label ?? '' : '', color: context.active && !related ? '#d6dfdf' : groupColor(node ? groupKey(node, kind) : id), size: selected ? 13 : related ? 10 : 9, highlighted: selected, forceLabel: selected || (!context.active && visible.nodes.length <= 6), zIndex: selected ? 3 : related ? 2 : 1 }; },
-      edgeReducer: (id, attrs) => { const edge = edges.get(id); const related = context.edges.has(id); return { ...attrs, hidden: !visibleEdges.has(id), color: context.active ? related ? '#236c56' : '#e2e8e8' : '#617a73', size: related ? 2.7 : 1.6, label: (context.active ? related : showEdgeLabels) ? edge?.label ?? '' : '', forceLabel: related || showEdgeLabels, zIndex: related ? 2 : 1 }; },
+      defaultDrawNodeLabel: dark ? drawDarkGraphLabel : drawGraphLabel,
+      defaultDrawNodeHover: dark ? drawDarkGraphHover : drawGraphHover,
+      edgeLabelColor: { color: dark ? '#c0d8c9' : '#526974' },
+      nodeReducer: (id, attrs) => { const node = nodes.get(id); const selected = selection.node === id && context.active; const related = context.nodes.has(id); const color = groupColor(node ? groupKey(node, kind) : id); const bright = dark ? '#' + [1, 3, 5].map(start => Math.round(parseInt(color.slice(start, start + 2), 16) * .6 + 255 * .4).toString(16).padStart(2, '0')).join('') : color; return { ...attrs, hidden: !visibleNodes.has(id), label: !context.active || related ? node?.label ?? '' : '', color: context.active && !related ? dark ? '#3f5b50' : '#d6dfdf' : bright, size: selected ? 13 : related ? 10 : 9, highlighted: selected, forceLabel: selected || (!context.active && visible.nodes.length <= 6), zIndex: selected ? 3 : related ? 2 : 1 }; },
+      edgeReducer: (id, attrs) => { const edge = edges.get(id); const related = context.edges.has(id); return { ...attrs, hidden: !visibleEdges.has(id), color: dark ? context.active ? related ? '#9dd7b5' : '#354e42' : '#668878' : context.active ? related ? '#236c56' : '#e2e8e8' : '#617a73', size: related ? 2.7 : 1.6, label: (context.active ? related : showEdgeLabels) ? edge?.label ?? '' : '', forceLabel: related || showEdgeLabels, zIndex: related ? 2 : 1 }; },
       inertiaDuration: reduced ? 0 : 200, zoomDuration: reduced ? 0 : 200, doubleClickZoomingDuration: reduced ? 0 : 200,
     });
     // Sigma's reducer uses full node attributes, including its original x/y coordinates.
     if (graph.order) sigma.refresh();
-  }, [data, visible, kind, selection, reduced, ready, showEdgeLabels]);
+  }, [data, visible, kind, selection, reduced, ready, showEdgeLabels, dark]);
 
   const move = (state: { x?: number; y?: number; ratio?: number; angle?: number }) => { const camera = renderer.current?.getCamera(); if (!camera) return; if (reduced) camera.setState(state); else void camera.animate(state, { duration: 220 }); };
   const fit = (ids: string[]) => {
@@ -154,7 +168,7 @@ export function GraphCanvas({ data, visible, kind, selection, cache, positions: 
   };
   const selectedIds = [...selectionContext(visible, selection).nodes];
   return <><div ref={container} className="graph-canvas" role="group" tabIndex={0} aria-label="授权子图画布" aria-describedby="graph-interaction-help" onKeyDown={handleKey} />
-    <div className="graph-controls" role="toolbar" aria-label="图谱视图控制"><button type="button" className="secondary" aria-label="放大图谱" disabled={!ready || !!error} onClick={() => move({ ratio: Math.max(0.08, (renderer.current?.getCamera().ratio ?? 1) / 1.4) })}>＋</button><span aria-label="图谱缩放比例">{zoom}%</span><button type="button" className="secondary" aria-label="缩小图谱" disabled={!ready || !!error} onClick={() => move({ ratio: Math.min(3, (renderer.current?.getCamera().ratio ?? 1) * 1.4) })}>−</button><button type="button" className="secondary" disabled={!ready || !!error || !visible.nodes.length} onClick={() => fit(visible.nodes.map(n => n.id))}><GraphIcon name="fit" />适配可见图</button><button type="button" className="secondary" disabled={!ready || !!error || !selectedIds.length} onClick={() => fit(selectedIds)}><GraphIcon name="focus" />定位所选</button><button type="button" className="secondary" disabled={!ready || !!error} aria-pressed={showEdgeLabels} onClick={() => setShowEdgeLabels(value => !value)}>关系名称</button><span className="graph-canvas-hint">拖动节点 · 双击查看</span></div>
+    <div className="graph-controls" role="toolbar" aria-label="图谱视图控制"><button type="button" className="secondary" aria-label="放大图谱" disabled={!ready || !!error} onClick={() => move({ ratio: Math.max(0.08, (renderer.current?.getCamera().ratio ?? 1) / 1.4) })}>＋</button><span aria-label="图谱缩放比例">{zoom}%</span><button type="button" className="secondary" aria-label="缩小图谱" disabled={!ready || !!error} onClick={() => move({ ratio: Math.min(3, (renderer.current?.getCamera().ratio ?? 1) * 1.4) })}>−</button><button type="button" className="secondary" disabled={!ready || !!error || !visible.nodes.length} onClick={() => fit(visible.nodes.map(n => n.id))}><GraphIcon name="fit" />适配可见图</button><button type="button" className="secondary" disabled={!ready || !!error || !selectedIds.length} onClick={() => fit(selectedIds)}><GraphIcon name="focus" />定位所选</button><button type="button" className="secondary" disabled={!ready || !!error} aria-pressed={showEdgeLabels} onClick={() => setShowEdgeLabels(value => !value)}>关系名称</button><span className="graph-canvas-hint">拖动节点 · {openOnClick ? '单击编辑' : '双击查看'}</span></div>
     {!visible.nodes.length && <div className="graph-no-match">当前筛选没有可见节点，可清除筛选。</div>}
     {error ? <div className="graph-fallback"><ErrorNotice error={error} /><p>下方节点与关系列表仍可使用。</p></div> : null}
   </>;

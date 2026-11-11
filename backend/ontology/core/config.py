@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     encryption_key: str = ""
     allowed_source_hosts: list[str] = []
     allow_private_source_addresses: bool = False
-    max_upload_bytes: int = 25 * 1024 * 1024
+    max_upload_bytes: int = 256 * 1024 * 1024
     feishu_frontend_origin: str = "http://127.0.0.1:5173"
     extensions: list[Literal["knowledge", "integrations", "automation"]] = []
     model_approval: Literal["auto", "single", "separate"] = "auto"

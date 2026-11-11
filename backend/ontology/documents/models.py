@@ -14,7 +14,7 @@ class DocumentError(Exception):
 
 
 class ParseLimits(BaseModel):
-    max_bytes: int = Field(default=50 * 1024 * 1024, ge=1)
+    max_bytes: int = Field(default=256 * 1024 * 1024, ge=1)
     max_expanded_bytes: int = Field(default=200 * 1024 * 1024, ge=1)
     max_archive_entries: int = Field(default=10_000, ge=1)
     max_compression_ratio: int = Field(default=1000, ge=1)

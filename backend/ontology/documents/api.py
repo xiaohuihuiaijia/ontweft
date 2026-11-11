@@ -58,25 +58,40 @@ async def upload(
     with db.transaction(user.tenant_id) as session:
         access(session, user, project_id, "documents:write")
     filename = Path((file.filename or "document").replace("\\", "/")).name[:250]
-    content = await file.read(settings.max_upload_bytes + 1)
-    if not content or len(content) > settings.max_upload_bytes:
-        raise DomainError(413, "upload_size", "文件为空或超过大小限制")
-    from ontology.documents import DocumentError, detect_format
+    from ontology.documents import DocumentError, ParseLimits
+    from ontology.documents.parser import detect_format_path
 
-    try:
-        file_format = detect_format(content, filename)
-    except DocumentError as exc:
-        raise DomainError(422, exc.code, str(exc))
-    if engine == "auto":
-        engine = "docling" if file_format in {"docx", "pdf", "xlsx"} else "basic"
-    if file_format == "feishu_docx" and engine != "basic":
-        raise DomainError(422, "invalid_parser", "飞书原生快照仅支持块结构解析")
-    content_hash = hashlib.sha256(content).hexdigest()
     doc_id = uid()
-    storage_key = f"{user.tenant_id}/{doc_id}/{content_hash}"
-    path = settings.data_dir / "assets" / storage_key
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(content)
+    folder = settings.data_dir / "assets" / user.tenant_id / doc_id
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "upload.part"
+    digest, size = hashlib.sha256(), 0
+    try:
+        with path.open("xb") as output:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > settings.max_upload_bytes:
+                    raise DomainError(413, "upload_size", "文件超过大小限制")
+                digest.update(chunk)
+                output.write(chunk)
+        if not size:
+            raise DomainError(413, "upload_size", "文件为空")
+        file_format = detect_format_path(path, filename, ParseLimits(max_bytes=settings.max_upload_bytes))
+        if engine == "auto":
+            engine = "basic"
+        if file_format == "feishu_docx" and engine != "basic":
+            raise DomainError(422, "invalid_parser", "飞书原生快照仅支持块结构解析")
+        content_hash = digest.hexdigest()
+        storage_key = f"{user.tenant_id}/{doc_id}/{content_hash}"
+        target = folder / content_hash
+        path.rename(target)
+        path = target
+    except DocumentError as exc:
+        path.unlink(missing_ok=True)
+        raise DomainError(422, exc.code, str(exc)) from None
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
     try:
         with db.transaction(user.tenant_id) as session:
             access(session, user, project_id, "documents:write")
@@ -87,7 +102,7 @@ async def upload(
                 filename=filename,
                 content_hash=content_hash,
                 storage_key=storage_key,
-                size=len(content),
+                size=size,
                 uploader_id=user.id,
             )
             session.add(doc)
@@ -181,7 +196,7 @@ def download(
             # Read once and send exactly the verified bytes; FileResponse would
             # reopen the path after leaving the authorization transaction.
             with path.open("rb") as handle:
-                content = handle.read(50 * 1024 * 1024 + 1)
+                content = handle.read(row.size + 1)
             if len(content) != row.size or hashlib.sha256(content).hexdigest() != row.content_hash:
                 conflict("原件内容校验失败，请联系管理员恢复")
             return Response(
@@ -197,4 +212,95 @@ def download(
             filename=row.filename,
             media_type="application/octet-stream",
             headers={"X-Content-Type-Options": "nosniff"},
+        )
+
+
+@router.get("/documents/{document_id}/pages")
+def document_pages(
+    document_id: str,
+    request: Request,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user=Depends(authenticated),
+):
+    from ontology.documents import DocumentError
+    from ontology.documents.pages import iter_page_inputs, page_count
+
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        row = scoped_record(session, Document, document_id, user)
+        ctx = content_context(session, request, user, row.project_id)
+        require_document(session, ctx, row.id)
+        path = request.app.state.settings.data_dir / "assets" / row.storage_key
+        if not path.is_file():
+            raise DomainError(409, "asset_missing", "原件缺失，请联系管理员恢复")
+        kwargs = {"source_id": row.id, "source_revision": str(row.revision), "ir": row.ir}
+        try:
+            total = page_count(path, row.filename, **kwargs)
+            numbers = list(range(offset + 1, min(offset + limit, total) + 1))
+            items = []
+            for page in iter_page_inputs(
+                path, row.filename, page_numbers=numbers, include_images=False, **kwargs
+            ):
+                if page["evidence"]["content_hash"] != row.content_hash:
+                    conflict("原件内容已改变，请核对来源版本")
+                page.pop("image_data_url", None)
+                page.pop("image_data_urls", None)
+                page["image_url"] = (
+                    f"/api/documents/{row.id}/pages/{page['page_number']}/image"
+                    if page["has_image"]
+                    else None
+                )
+                page["image_urls"] = [
+                    f"/api/documents/{row.id}/pages/{page['page_number']}/image?image_index={index}"
+                    for index in range(page.get("image_count", 0))
+                ]
+                items.append(page)
+        except DocumentError as exc:
+            raise DomainError(422, exc.code, str(exc)) from None
+        return {
+            "items": items,
+            "total": total,
+            "document_id": row.id,
+            "revision": row.revision,
+            "content_hash": row.content_hash,
+            "current_parse_id": (snapshot.id if (snapshot := current_parse(session, row)) else None),
+        }
+
+
+@router.get("/documents/{document_id}/pages/{page_number}/image")
+def document_page_image(
+    document_id: str,
+    page_number: int,
+    request: Request,
+    image_index: int = Query(0, ge=0),
+    user=Depends(authenticated),
+):
+    from ontology.documents import DocumentError
+    from ontology.documents.pages import file_digest, page_image
+
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        row = scoped_record(session, Document, document_id, user)
+        ctx = content_context(session, request, user, row.project_id)
+        require_document(session, ctx, row.id)
+        path = request.app.state.settings.data_dir / "assets" / row.storage_key
+        if not path.is_file():
+            raise DomainError(409, "asset_missing", "原件缺失，请联系管理员恢复")
+        if file_digest(path) != row.content_hash:
+            conflict("原件内容已改变，请核对来源版本")
+        try:
+            png = page_image(
+                path,
+                row.filename,
+                source_id=row.id,
+                source_revision=str(row.revision),
+                page_number=page_number,
+                ir=row.ir,
+                image_index=image_index,
+            )
+        except DocumentError as exc:
+            raise DomainError(422, exc.code, str(exc)) from None
+        return Response(
+            png,
+            media_type="image/png",
+            headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
         )
