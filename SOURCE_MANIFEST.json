@@ -2045,8 +2045,8 @@
     },
     {
       "path": "docs/beta-verification.md",
-      "bytes": 20358,
-      "sha256": "3199553837e468c2dbd0231fae41cbddd449d73abea3380b389cfd9c29954155",
+      "bytes": 20211,
+      "sha256": "0c83fb37f2758178665fcb50ae47e13ffa4a60d2b6eebd17189cad254ee62d54",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2069,8 +2069,8 @@
     },
     {
       "path": "docs/getting-started.md",
-      "bytes": 6367,
-      "sha256": "b38a6816222eb17fb023331ada5e630a4532888d50b1b84424aaa7acab38c69b",
+      "bytes": 6297,
+      "sha256": "d034f6493775386b67ff43b7c1760a7ee37b838725cfb22ab05bb575243baaf2",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2117,8 +2117,8 @@
     },
     {
       "path": "docs/project-audit.md",
-      "bytes": 11251,
-      "sha256": "4523a77af1b0613e34de4410f3721b452d6b4a3ab8af62357412b1b94c5ccceb",
+      "bytes": 11172,
+      "sha256": "3074e3db747a0d5964ee6075669accf3dae596d1091ff32a56a6245c7b4384ad",
       "source": "maintained-in-public-repository"
     },
     {
