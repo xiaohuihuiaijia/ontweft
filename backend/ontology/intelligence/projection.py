@@ -11,7 +11,7 @@ from ontology.core.domain import active_definition, compare_and_swap
 from ontology.core.errors import DomainError, conflict
 from ontology.core.models import now
 from ontology.identity.security import access, audit
-from ontology.intelligence.proposal_models import DocumentRelationContribution
+from ontology.intelligence.proposal_models import AIProposal, DocumentRelationContribution
 from ontology.modeling.models import ChangeSet, Release
 from ontology.modeling.schemas import Definition
 from ontology.modeling.validation import discard_validation
@@ -68,9 +68,8 @@ def prepare_document_source(session, proposal, user):
     definition = copy.deepcopy(proposal.definition)
     definition.setdefault("mappings", [])
     types = {value["key"]: value for value in definition["types"]}
-    resources = copy.deepcopy(source.resources)
+    resources = copy.deepcopy(proposal.inputs.get("document_resources", source.resources))
     resource_by_id = {value["resource_id"]: value for value in resources}
-    changed = False
     for type_key, candidates in groups.items():
         type_def = types.get(type_key)
         if not type_def:
@@ -100,7 +99,6 @@ def prepare_document_source(session, proposal, user):
             ],
         }
         if previous != resource:
-            changed = True
             if previous:
                 resources[resources.index(previous)] = resource
             else:
@@ -134,12 +132,62 @@ def prepare_document_source(session, proposal, user):
             definition["mappings"][definition["mappings"].index(old_mapping)] = mapping
         else:
             definition["mappings"].append(mapping)
-    if changed:
-        source.resources = resources
-        source.revision += 1
+    # These resources belong to the reviewed draft until its ordinary publication.
+    # In particular, another proposal must not change an active mapping's catalog.
+    proposal.inputs = {**proposal.inputs, "document_resources": resources}
     proposal.definition = definition
     session.flush()
     return source
+
+
+def draft_document_resources(session, change):
+    """Only the proposal bound to this change can describe its pending document catalog."""
+    proposal = session.scalar(select(AIProposal).where(
+        AIProposal.tenant_id == change.tenant_id,
+        AIProposal.project_id == change.project_id,
+        AIProposal.changeset_id == change.id,
+    ))
+    if proposal is None or "document_resources" not in proposal.inputs:
+        return {}  # Historical proposals already prepared their live source catalog.
+    source = session.scalar(select(Source).where(
+        Source.id == proposal.source_id, Source.tenant_id == change.tenant_id,
+        Source.project_id == change.project_id, Source.kind == "document",
+    ))
+    if source is None:
+        conflict("绑定的文档事实来源不可用")
+    return {(source.id, resource["resource_id"]): resource for resource in proposal.inputs["document_resources"]}
+
+
+def document_resources_fingerprint(resources):
+    return fingerprint([
+        {"source_id": source_id, "resource": resource}
+        for (source_id, _resource_id), resource in sorted(resources.items())
+    ])
+
+
+def checked_document_resources(session, change, report):
+    resources = draft_document_resources(session, change)
+    if (resources or "document_resources_fingerprint" in report) and (
+        document_resources_fingerprint(resources) != report.get("document_resources_fingerprint")
+    ):
+        conflict("文档来源描述已变化，请重新校验当前变更集")
+    return resources
+
+
+def publish_document_resources(session, change, report):
+    """Apply only the approved document catalog in the model publication transaction."""
+    resources = checked_document_resources(session, change, report)
+    by_source = defaultdict(dict)
+    for (source_id, resource_id), resource in resources.items():
+        by_source[source_id][resource_id] = resource
+    for source_id, updates in by_source.items():
+        source = session.get(Source, source_id)
+        catalog = {resource["resource_id"]: resource for resource in source.resources}
+        catalog.update(updates)
+        values = list(catalog.values())
+        if values != source.resources:
+            source.resources = copy.deepcopy(values)
+            source.revision += 1
 
 
 def document_mappings(proposal, definition):
@@ -171,14 +219,16 @@ def refresh_adopted_mapping(session, proposal, change, user):
         release = session.get(Release, change.release_id)
         document_mappings(proposal, release.definition)
         return False
+    previous_resources = proposal.inputs.get("document_resources")
     review = SimpleNamespace(
         tenant_id=proposal.tenant_id, project_id=proposal.project_id, inputs=proposal.inputs,
         definition=change.definition, candidates=proposal.candidates, source_id=proposal.source_id,
     )
     prepare_document_source(session, review, user)
     proposal.source_id = review.source_id
+    proposal.inputs = review.inputs
     definition = Definition.model_validate(review.definition).model_dump()
-    if definition == change.definition:
+    if definition == change.definition and proposal.inputs.get("document_resources") == previous_resources:
         return False
     discard_validation(session, change)
     compare_and_swap(session, change, change.revision, {

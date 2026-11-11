@@ -202,6 +202,9 @@ def transition(
             if not report["valid"]:
                 raise DomainError(422, "validation_failed", "本体或现有数据不满足发布约束", report)
             if operation == "approve":
+                from ontology.intelligence.projection import checked_document_resources
+
+                checked_document_resources(session, change, report)
                 if request.app.state.settings.separate_model_approval and change.author_id == user.id:
                     raise DomainError(
                         403, "separate_reviewer_required", "当前修订须由另一位有审批权限的成员审核"
@@ -232,6 +235,9 @@ def transition(
                     or "ontology:approve" not in ROLES.get(membership.role, set())
                 ):
                     conflict("审批者的当前权限已失效，请重新校验并审批该变更集")
+                from ontology.intelligence.projection import publish_document_resources
+
+                publish_document_resources(session, change, report)
                 previous_model = active_definition(session, ctx.project)
                 release = Release(
                     id=report["generation"],

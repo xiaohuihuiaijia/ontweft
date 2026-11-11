@@ -145,10 +145,14 @@ def discard_validation(session, change):
 
 
 def start_validation(session, ctx, change):
+    from ontology.intelligence.projection import document_resources_fingerprint, draft_document_resources
     from ontology.sources.ingestion import mapping_errors
 
     discard_validation(session, change)
-    errors = definition_errors(change.definition) + mapping_errors(session, ctx, change.definition)
+    document_resources = draft_document_resources(session, change)
+    errors = definition_errors(change.definition) + mapping_errors(
+        session, ctx, change.definition, resource_overrides=document_resources
+    )
     report = {
         "valid": not errors,
         "errors": errors[:100],
@@ -158,6 +162,8 @@ def start_validation(session, ctx, change):
         "watermark": ctx.project.data_revision,
         "scope": "all_current_objects",
     }
+    if document_resources:
+        report["document_resources_fingerprint"] = document_resources_fingerprint(document_resources)
     total = session.scalar(
         select(func.count())
         .select_from(Entity)

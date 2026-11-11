@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest';
 import { SourcesPage } from './SourcesPage';
 
 let finishVersion: () => void;
-vi.mock('./FileVersions', () => ({ FileVersions: ({ source, onUpdated }: { source: { id: string; name: string; kind: string }; onUpdated: (value: unknown) => void }) => <button onClick={() => { void new Promise<void>(resolve => { finishVersion = resolve; }).then(() => onUpdated({ ...source, revision: 2, resources: [] })); }}>测试：提交文件版本</button> }));
+vi.mock('./FileVersions', () => ({ FileVersions: ({ source, onUpdated }: { source: { id: string; name: string; kind: string; revision: number; resources?: { resource_id: string }[] }; onUpdated: (value: unknown) => void }) => <>{['保存业务键', '提交文件版本'].map(action => <button key={action} onClick={() => { void new Promise<void>(resolve => { finishVersion = resolve; }).then(() => onUpdated({ ...source, revision: source.revision + 1, resources: source.resources?.map(resource => ({ ...resource, primary_key: ['c1'] })) ?? [] })); }}>测试：{action}</button>)}</> }));
 
 it('retains historical resources and snapshots without offering disabled connector operations', async () => {
   const calls: string[] = [];
@@ -99,4 +99,49 @@ it('does not reopen the old source when its file version finishes after a source
   await act(async () => { finishVersion(); });
   expect(screen.getByRole('heading', { name: '来源 second', level: 2 })).toBeTruthy();
   expect(screen.queryByRole('heading', { name: '来源 first', level: 2 })).toBeNull();
+});
+
+it.each(['保存业务键', '提交文件版本'])('keeps the selected worksheet with fresh metadata and clears old samples after %s', async action => {
+  const sampleRequests: string[] = [];
+  const source = { id: 'sheet-source', name: '表格来源', kind: 'tabular', revision: 1, config: {}, resources: [{ resource_id: 'sheet_1', name: '工作表', fields: [{ name: 'c1', data_type: 'string', nullable: false }], primary_key: [], foreign_keys: [] }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    if (String(url).includes('/sample')) {
+      sampleRequests.push(String(url));
+      return new Response(JSON.stringify({ records: [{ values: { c1: sampleRequests.length === 1 ? '旧样本' : '新样本' } }], sample_json: '{}' }));
+    }
+    return new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [], total: 0 } : { items: [source], total: 1 }));
+  });
+  render(<SourcesPage projectId="p" canWrite onDirty={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看资源 →' }));
+  fireEvent.click(screen.getByRole('button', { name: '工作表' }));
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  await screen.findByText('旧样本');
+  fireEvent.click(screen.getByRole('button', { name: `测试：${action}` }));
+  await act(async () => { finishVersion(); });
+  expect(screen.getByText('主键：c1')).toBeTruthy();
+  expect(screen.queryByText('旧样本')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  await screen.findByText('新样本');
+  expect(sampleRequests).toHaveLength(2);
+  expect(sampleRequests.every(url => new URL(url, 'http://localhost').searchParams.get('resource') === 'sheet_1')).toBe(true);
+});
+
+it('discards a sample response from the previous source revision after a file update', async () => {
+  let resolveSample: (response: Response) => void = () => {};
+  const source = { id: 'sheet-source', name: '表格来源', kind: 'tabular', revision: 1, config: {}, resources: [{ resource_id: 'sheet_1', name: '工作表', fields: [{ name: 'c1', data_type: 'string', nullable: false }], primary_key: [], foreign_keys: [] }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    if (String(url).includes('/sample')) return new Promise<Response>(resolve => { resolveSample = resolve; });
+    return new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [], total: 0 } : { items: [source], total: 1 }));
+  });
+  render(<SourcesPage projectId="p" canWrite onDirty={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看资源 →' }));
+  fireEvent.click(screen.getByRole('button', { name: '工作表' }));
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  fireEvent.click(screen.getByRole('button', { name: '测试：提交文件版本' }));
+  await act(async () => { finishVersion(); });
+  await act(async () => { resolveSample(new Response(JSON.stringify({ records: [{ values: { c1: '过期样本' } }], sample_json: '{}' }))); });
+  expect(screen.queryByText('过期样本')).toBeNull();
+  expect(screen.queryByRole('table', { name: '上传表格样本' })).toBeNull();
+  expect(screen.getByText('主键：c1')).toBeTruthy();
+  expect((screen.getByRole('button', { name: '读取最多 20 条样本' }) as HTMLButtonElement).disabled).toBe(false);
 });

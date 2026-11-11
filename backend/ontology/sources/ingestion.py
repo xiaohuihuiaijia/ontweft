@@ -37,7 +37,7 @@ def schema_fingerprint(resource):
     )
 
 
-def mapping_errors(session, ctx, definition, *, source_id=None, resource_id=None):
+def mapping_errors(session, ctx, definition, *, source_id=None, resource_id=None, resource_overrides=None):
     """Publication checks all mappings; ingestion checks only its captured scope."""
 
     def in_scope(mapping):
@@ -66,6 +66,8 @@ def mapping_errors(session, ctx, definition, *, source_id=None, resource_id=None
             if source
             else None
         )
+        if source and source.kind == "document" and resource_overrides:
+            resource = resource_overrides.get((source.id, mapping["resource_id"]), resource)
         if not source or not resource:
             errors.append({"mapping": key, "message": "来源或已发现资源不存在"})
             continue

@@ -31,6 +31,18 @@ npm install --prefix var/browser-tools --no-save playwright@1.60.0
 node var/browser-tools/node_modules/playwright/cli.js install chromium
 ```
 
+按改动选择浏览器回归，不把以下脚本当作每次修改都要依次执行的清单。它们的独有覆盖不同，不因都能打开图谱就互相替代；公共鉴权、发布或来源契约变化时，再运行涉及的多个流程。
+
+| 改动范围 | 选择脚本 | 独有覆盖 |
+| --- | --- | --- |
+| 模型编辑、关系定义与图谱命中 | `verify_model_starters.cjs` | 建模起步、自环关系、缩放及模型/实例切换 |
+| 文件接入和持续更新 | `verify_table_intake.cjs` | 真实上传、业务键、映射发布、worker导入、未匹配分页、文件版本与持续规则 |
+| 图谱交互 | `verify_graph_workbench.cjs` | 拖动、固定/恢复、键盘/触摸、对象及人工关系管理 |
+| 图谱预算或渲染性能 | `verify_graph_scale.cjs` | 200/500节点预算、查询计数、布局与交互时延；不作为普通文案修改的必跑项 |
+| 文档与AI审阅 | `verify_ai_workbench.cjs` | 合成模型起草、候选编辑、发布导入和版本化证据回跳 |
+
+一次性设置环境后，只执行与本次改动相关的命令。测试失败先定位实际行为，不通过重复点击、延长等待或放松断言掩盖产品问题。
+
 PowerShell：
 
 ```powershell

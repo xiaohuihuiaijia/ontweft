@@ -69,6 +69,7 @@ def review_definition(session, proposal, change=None):
 
 def view(session, proposal, *, summary=False):
     result = row_dict(proposal)
+    result["inputs"] = {key: value for key, value in proposal.inputs.items() if key != "document_resources"}
     job = session.get(Job, proposal.job_id) if proposal.job_id else None
     if job:
         result["job"] = {k: getattr(job, k) for k in ("id", "status", "error")}
@@ -349,11 +350,15 @@ def check_candidates(definition, candidates, relations):
 def edit_proposal(proposal_id: str, data: ProposalUpdate, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         proposal = scoped_record(session, AIProposal, proposal_id, user)
-        check_inputs(session, proposal, user)
+        ctx = check_inputs(session, proposal, user)
         if proposal.imported or proposal.status not in {"ready", "adopted"}:
             conflict("仅可编辑尚未导入的候选")
         if proposal.status == "adopted" and data.definition is not None:
             conflict("已采纳模型请在现有变更集中编辑")
+        if proposal.status == "adopted" and not proposal.changeset_id and (
+            ctx.project.active_release_id != proposal.baseline_release_id
+        ):
+            conflict("本体发布基线已改变，请基于当前发布版重新核对候选")
         change = None
         if proposal.changeset_id:
             change = scoped_record(session, ChangeSet, proposal.changeset_id, user)
@@ -375,6 +380,20 @@ def edit_proposal(proposal_id: str, data: ProposalUpdate, request: Request, user
             from ontology.intelligence.projection import refresh_adopted_mapping
 
             refresh_adopted_mapping(session, proposal, change, user)
+        elif proposal.status == "adopted":
+            from ontology.intelligence.projection import prepare_document_source
+
+            prepare_document_source(session, proposal, user)
+            definition = Definition.model_validate(proposal.definition).model_dump()
+            if definition != Definition.model_validate(active_definition(session, ctx.project)).model_dump():
+                change = ChangeSet(
+                    tenant_id=user.tenant_id, project_id=proposal.project_id, author_id=user.id,
+                    title="AI 本体草稿", definition=definition,
+                    baseline_release_id=proposal.baseline_release_id,
+                )
+                session.add(change)
+                session.flush()
+                proposal.changeset_id = change.id
         audit(session, user, proposal.project_id, "ai.proposal.edited", proposal.id, {
             "revision": proposal.revision,
             "candidate_count": len(proposal.candidates),

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { AIProposalPanel } from './AIProposalPanel';
 import type { Proposal } from './types';
@@ -9,6 +9,31 @@ const definition = { types: [{ key: 'product', label: '产品', properties: [{ k
 const evidence = [{ document_id: 'd1', page: 2, quote: '合成产品 A', parse_id: 'page-2' }];
 const ready = { id: 'p1', revision: 4, status: 'ready', definition, baseline_release_id: 'r1', candidates: [{ id: 'c1', type_key: 'product', properties: { name: '合成产品 A' }, business_key: { code: 'A' }, evidence, selected: true }], relations: [], inputs: { instructions: '产品规格' } } as Proposal;
 const connection = { id: 'm1', enabled: true, name: '本地合成服务', roles: { extraction: 'synthetic', synthesis: 'synthetic' }, models: [] };
+
+it('resets the candidate batch when starting another proposal after viewing a later batch', async () => {
+  const old = { ...ready, candidates: Array.from({ length: 21 }, (_, i) => ({ ...ready.candidates[0], id: `old-${i}`, properties: { name: `合成旧记录${i}` } })) };
+  const fresh = { ...ready, id: 'fresh', candidates: [{ ...ready.candidates[0], id: 'fresh-record' }], job: { id: 'job', status: 'succeeded' } };
+  mocks((path, options) => {
+    if (path === '/api/ai/proposals/p1') return json(old);
+    if (path === '/api/ai/proposals' && options?.method === 'POST') return json({ ...fresh, status: 'pending', job: { id: 'job', status: 'pending' } });
+    if (path === '/api/ai/proposals/fresh') return json(fresh);
+  });
+  render(<AIProposalPanel projectId="project" can={() => true} onDirty={() => {}} preferredDocumentId="d1" />);
+  await screen.findByRole('option', { name: '产品规格 · ready' });
+  fireEvent.change(screen.getByLabelText('生成记录'), { target: { value: 'p1' } });
+  fireEvent.click(await screen.findByRole('button', { name: '实例 21' }));
+  fireEvent.click(screen.getByRole('button', { name: '下一批' }));
+  expect(screen.getByLabelText('采纳候选 old-20')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '起草新模型' }));
+  vi.useFakeTimers();
+  try {
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '自动理解并起草' })));
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+    expect(screen.getByRole('button', { name: '实例 1' })).toBeTruthy();
+    expect(screen.getByLabelText('采纳候选 fresh-record')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '上一批' })).toBeNull();
+  } finally { vi.useRealTimers(); }
+});
 
 it.each([undefined, 'snapshot-old', 'native'])('opens ontology candidate evidence at its original page and native parse binding (%s)', async nativeParseId => {
   const pathSuffix = nativeParseId ? `&native_parse_id=${nativeParseId}` : '';

@@ -43,12 +43,22 @@ export function OntologyEditor({ projectId, can, onDirty, modelApproval, initial
   useEffect(() => { onDirty(dirty); return () => onDirty(false); }, [dirty, onDirty]);
   useEffect(() => {
     if (draft?.status !== 'validating') return;
-    const timer = window.setInterval(() => request<ChangeSet>(`/changesets/${encodeURIComponent(draft.id)}`).then(value => { setDraft(value); if (value.status !== 'validating') onUpdated(false); }).catch(setError), 2000);
-    return () => window.clearInterval(timer);
+    const controller = new AbortController();
+    let reading = false;
+    const timer = window.setInterval(async () => {
+      if (reading) return;
+      reading = true;
+      try {
+        const value = await request<ChangeSet>(`/changesets/${encodeURIComponent(draft.id)}`, { signal: controller.signal });
+        if (!controller.signal.aborted) { setDraft(value); if (value.status !== 'validating') onUpdated(false); }
+      } catch (failure) { if (!controller.signal.aborted) setError(failure); }
+      finally { reading = false; }
+    }, 2000);
+    return () => { controller.abort(); window.clearInterval(timer); };
   }, [draft?.id, draft?.status]);
   const selfApprovalBlocked = modelApproval?.mode === 'separate' && draft?.author_id === modelApproval.userId;
   const validationStopped = !!draft?.validation_job && ['failed', 'cancelled'].includes(draft.validation_job.status);
-  const editable = !draft || ['draft', 'validated'].includes(draft.status) || validationStopped;
+  const editable = !draft || ['draft', 'validated', 'approved'].includes(draft.status) || (draft.status === 'validating' && validationStopped);
 
   const focusedElement = useRef<HTMLElement | null>(null);
   const [focusIndex] = useState(() => {

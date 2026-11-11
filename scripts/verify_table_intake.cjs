@@ -33,6 +33,7 @@ async function main() {
   const server = child(['scripts/model_starter_preview.py'], { ONTOLOGY_PREVIEW_DATA_DIR: temp, ONTOLOGY_PREVIEW_PORT: String(port), ONTOLOGY_PREVIEW_PASSWORD: password }, 'server');
   const base = `http://127.0.0.1:${port}`;
   let browser;
+  let phase = 'startup';
   const result = { passed: false, storage: 'isolated SQLite', externalServices: false, pageErrors: [], screenshots: [] };
   try {
     let ready = false;
@@ -48,7 +49,7 @@ async function main() {
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
     const page = await context.newPage();
-    let phase = 'intake';
+    phase = 'intake';
     page.on('pageerror', error => {
       result.pageErrors.push(error.message);
       (result.pageErrorDetails ??= []).push({ phase, stack: error.stack, url: page.url(), time: new Date().toISOString() });
@@ -59,9 +60,10 @@ async function main() {
     await page.getByRole('button', { name: '登录', exact: true }).click();
     await page.getByLabel('CSV / XLSX 文件', { exact: true }).setInputFiles({ name: '合成清单.csv', mimeType: 'text/csv', buffer: Buffer.from('编号,名称,数量\n001,合成测试 · 输入,2\n' + Array.from({ length: 26 }, (_, index) => `${String(index + 2).padStart(3, '0')},合成测试 · 待匹配 ${index + 2},3`).join('\n') + '\n') });
     await page.getByLabel('数据源名称（选填）').fill('合成数据 · 通用建模验证');
-    const uploadResponse = page.waitForResponse(response => response.url().endsWith('/api/sources/upload') && response.request().method() === 'POST');
-    await page.getByRole('button', { name: '上传并查看数据', exact: true }).click();
-    const uploaded = await uploadResponse;
+    const [uploaded] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/sources/upload') && response.request().method() === 'POST'),
+      page.getByRole('button', { name: '上传并查看数据', exact: true }).click(),
+    ]);
     assert.equal(uploaded.status(), 201, await uploaded.text());
     const source = await uploaded.json();
     assert.equal(await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('button').count(), 5);
@@ -101,9 +103,10 @@ async function main() {
     await page.getByRole('button', { name: '发布已批准修订', exact: true }).click();
     await page.getByText('发布成功，已发布模型已刷新。', { exact: true }).waitFor();
     await page.getByRole('button', { name: '关闭侧栏', exact: true }).click();
-    const responsePromise = page.waitForResponse(response => response.url().endsWith(`/sources/${source.id}/snapshots`) && response.request().method() === 'POST');
-    await page.getByRole('button', { name: '采集所选资源快照', exact: true }).click();
-    const snapshotResponse = await responsePromise;
+    const [snapshotResponse] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith(`/sources/${source.id}/snapshots`) && response.request().method() === 'POST'),
+      page.getByRole('button', { name: '采集所选资源快照', exact: true }).click(),
+    ]);
     assert.equal(snapshotResponse.status(), 201, await snapshotResponse.text());
     const { snapshot } = await snapshotResponse.json();
     let record;
@@ -142,9 +145,11 @@ async function main() {
     await page.getByText('持续规则已保存，后台开始匹配。人工关系保留，冲突记录单独暂停。').waitFor();
     await page.getByLabel('更新文件', { exact: true }).setInputFiles({ name: '更新清单.csv', mimeType: 'text/csv', buffer: Buffer.from('编号,名称,数量\n001,合成测试 · 更新,4\n') });
     await page.getByRole('button', { name: '预览更新', exact: true }).click();
-    const versionApplied = page.waitForResponse(response => /\/versions\/[^/]+\/apply$/.test(response.url()));
-    await page.getByRole('button', { name: '应用此版本并同步', exact: true }).click();
-    assert.equal((await versionApplied).status(), 200);
+    const [versionApplied] = await Promise.all([
+      page.waitForResponse(response => /\/versions\/[^/]+\/apply$/.test(response.url())),
+      page.getByRole('button', { name: '应用此版本并同步', exact: true }).click(),
+    ]);
+    assert.equal(versionApplied.status(), 200);
     let updated = false;
     for (let i = 0; i < 120; i++) {
       const items = await (await context.request.get(`${base}/api/objects?project_id=${ownerProject}`)).json();
@@ -184,9 +189,12 @@ async function main() {
     }
     assert.ok(indexReady, 'The real worker must index the updated object');
     await page.getByLabel('全库对象搜索', { exact: true }).fill('更新');
-    const searchResponse = page.waitForResponse(response => response.url().endsWith('/api/search/objects'));
-    await page.getByRole('button', { name: '搜索', exact: true }).click();
-    const searched = await (await searchResponse).json();
+    phase = 'global-search';
+    const [searchResponse] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/search/objects')),
+      page.getByRole('button', { name: '搜索', exact: true }).click(),
+    ]);
+    const searched = await searchResponse.json();
     assert.equal(searched.items.length, 1);
     assert.equal(searched.has_more, false);
     assert.equal(searched.total, null);
@@ -216,7 +224,7 @@ async function main() {
     assert.ok(objects.items.some(item => item.properties.c1 === '001'));
     assert.deepEqual(result.pageErrors, []);
     result.passed = true; result.objectsImported = 27; result.fixtureTargetObjects = 1; result.matchedRelations = 1; result.unmatchedRecords = 26; result.issuePagingVerified = true; result.customModelSaved = true; result.survivesReload = true;
-  } catch (error) { result.error = String(error); process.exitCode = 1; }
+  } catch (error) { result.error = String(error); result.failedPhase = phase; process.exitCode = 1; }
   finally {
     if (browser) await browser.close();
     for (const process of [...children].reverse()) {
