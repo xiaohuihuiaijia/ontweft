@@ -58,10 +58,10 @@ it('sends the frozen model baseline for relation creation and deletion and keeps
   fireEvent.click(screen.getByText('关系与目标对象'));
   await screen.findByRole('option', { name: '目标' });
   fireEvent.change(screen.getByLabelText('目标对象'), { target: { value: 'b' } });
-  fireEvent.click(screen.getByRole('button', { name: '保存关系' }));
+  fireEvent.click(screen.getByRole('button', { name: '新增关系' }));
   await screen.findByRole('alert');
   expect((screen.getByLabelText('目标对象') as HTMLSelectElement).value).toBe('b');
-  fireEvent.click(screen.getByRole('button', { name: '删除此关系' }));
+  fireEvent.click(screen.getByRole('button', { name: '删除人工关系' }));
   await waitFor(() => expect(writes).toHaveLength(2));
   expect(writes[0]).toMatchObject({ method: 'POST', body: { expected_model_release_id: 'r1' } });
   expect(writes[1]).toEqual({ method: 'DELETE', body: { expected_revision: 3, expected_model_release_id: 'r1' } });
@@ -97,6 +97,6 @@ it.each([
   expect(screen.queryByRole('button', { name: '保存对象' })).toBeNull();
   fireEvent.click(screen.getByText('关系与目标对象'));
   await screen.findByText('暂无已保存关系。');
-  expect(screen.queryByRole('button', { name: '保存关系' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '新增关系' })).toBeNull();
   expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true);
 });

@@ -189,23 +189,37 @@ def refresh_adopted_mapping(session, proposal, change, user):
     return True
 
 
-def import_proposal(session, proposal, ctx):
-    """Caller holds the project/proposal write lock; everything commits together."""
-    access(session, ctx.user, proposal.project_id, "sources:write")
+def import_preconditions(session, proposal, project):
+    """Shared review/publication gate, not authorization or candidate validation."""
     if proposal.imported:
-        return proposal.imported
+        raise DomainError(409, "proposal_already_imported", "实例已导入，无需重复导入")
+    if proposal.status != "adopted":
+        raise DomainError(409, "document_mapping_required", "请先采纳候选")
     if not proposal.source_id:
-        raise DomainError(409, "document_mapping_required", "请先采纳并发布文档映射")
+        raise DomainError(409, "document_mapping_required", "此提案没有文档实例来源，无需在这里导入")
     source = session.scalar(select(Source).where(
-        Source.id == proposal.source_id, Source.tenant_id == ctx.user.tenant_id,
-        Source.project_id == ctx.project.id, Source.kind == "document",
+        Source.id == proposal.source_id, Source.tenant_id == proposal.tenant_id,
+        Source.project_id == project.id, Source.kind == "document",
     ))
     if source is None:
         raise DomainError(409, "document_source_unavailable", "文档事实来源不可用")
     if proposal.changeset_id:
         change = session.get(ChangeSet, proposal.changeset_id)
-        if not change or change.status != "published" or change.release_id != ctx.project.active_release_id:
-            conflict("请先发布当前绑定草稿；发布版改变后须重新核对候选")
+        if not change or change.status != "published":
+            conflict("请先发布当前绑定草稿，再导入实例")
+        if change.release_id != project.active_release_id:
+            conflict("本体发布版本已改变，请基于当前发布版重新核对候选")
+    elif proposal.baseline_release_id != project.active_release_id:
+        conflict("本体发布版本已改变，请基于当前发布版重新核对候选")
+    return source
+
+
+def import_proposal(session, proposal, ctx):
+    """Caller holds the project/proposal write lock; everything commits together."""
+    access(session, ctx.user, proposal.project_id, "sources:write")
+    if proposal.imported:
+        return proposal.imported
+    source = import_preconditions(session, proposal, ctx.project)
     definition = active_definition(session, ctx.project)
     groups = selected_groups(proposal)
     mappings = document_mappings(proposal, definition)

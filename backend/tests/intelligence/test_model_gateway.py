@@ -200,6 +200,29 @@ def test_credentials_and_tool_parameters_cannot_hide_in_configuration():
             validate_connection(data)
 
 
+@pytest.mark.parametrize("value", ["false", "true", 0, 1, None, [], {}])
+def test_thinking_switch_rejects_non_boolean_configuration(value):
+    data = ConnectionInput.model_validate({
+        "name": "Synthetic", "base_url": "https://example.test/v1",
+        "models": [{"id": "custom", "parameters": {"enable_thinking": value, "thinking_budget": 4096}}],
+        "roles": {"extraction": "custom", "synthesis": "custom"},
+    })
+    with pytest.raises(DomainError) as caught:
+        validate_connection(data)
+    assert caught.value.status == 422
+    assert caught.value.code == "invalid_thinking_mode"
+
+
+@pytest.mark.parametrize("parameters", [{}, {"enable_thinking": False}, {"enable_thinking": True, "thinking_budget": 4096}])
+def test_thinking_switch_can_be_omitted_disabled_or_bounded(parameters):
+    data = ConnectionInput.model_validate({
+        "name": "Synthetic", "base_url": "https://example.test/v1",
+        "models": [{"id": "custom", "parameters": parameters}],
+        "roles": {"extraction": "custom", "synthesis": "custom"},
+    })
+    assert validate_connection(data) == "https://example.test/v1"
+
+
 @pytest.fixture(params=["platform", "pg_platform"])
 def gateway_platform(request):
     client, app, a, b = request.getfixturevalue(request.param)

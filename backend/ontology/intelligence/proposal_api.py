@@ -16,6 +16,7 @@ from ontology.core.errors import DomainError, conflict
 from ontology.core.schemas import RevisionInput
 from ontology.documents.history import capture_current_parse
 from ontology.documents.storage_models import Document
+from ontology.identity.models import Project
 from ontology.identity.security import access, audit, authenticated
 from ontology.intelligence.models import ModelConnection
 from ontology.intelligence.proposal_models import AIPage, AIProposal
@@ -101,9 +102,17 @@ def view(session, proposal, *, summary=False):
         result.pop("relations", None)
         result.pop("definition", None)
     else:
+        from ontology.intelligence.projection import import_preconditions
+
         change = session.get(ChangeSet, proposal.changeset_id) if proposal.changeset_id else None
         result["review_definition"] = review_definition(session, proposal, change)
         result["review_changeset_revision"] = change.revision if change else None
+        try:
+            import_preconditions(session, proposal, session.get(Project, proposal.project_id))
+        except DomainError as exc:
+            result.update(import_ready=False, import_block_reason=exc.message)
+        else:
+            result.update(import_ready=True, import_block_reason=None)
     return result
 
 

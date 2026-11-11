@@ -39,6 +39,19 @@ def retry_budget_cny(previous_budget, total_budget, checkpoints, own_checkpoint)
     )
 
 
+def matches_evaluation(inputs, document_id, pages, quality, goal):
+    """Resume only the same source and explicit page selection, keeping its ledger."""
+    saved_pages = inputs.get("pages", {}).get(document_id)
+    return (
+        inputs.get("quality") == quality
+        and inputs.get("instructions") == goal
+        and [item["id"] for item in inputs.get("documents", [])] == [document_id]
+        and not inputs.get("sources")
+        and saved_pages is not None
+        and set(saved_pages) == set(pages)
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pdf")
@@ -152,7 +165,7 @@ def main():
                     (
                         row
                         for row in session.scalars(select(AIProposal))
-                        if row.inputs["quality"] == quality and row.inputs["instructions"] == goal
+                        if matches_evaluation(row.inputs, document["id"], selected, quality, goal)
                     ),
                     None,
                 )

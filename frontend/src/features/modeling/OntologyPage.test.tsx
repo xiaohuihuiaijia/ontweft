@@ -73,3 +73,20 @@ it('keeps the published editor mounted while the management definition reloads',
   expect((screen.getByLabelText('变更名称') as HTMLInputElement).value).toBe('发布后保留结果');
   expect(screen.queryByRole('heading', { name: '新建模型变更' })).toBeNull();
 });
+
+
+it('explains separate approval for the current revision author while preserving single-person and other-reviewer approval', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ items: [], total: 0 })));
+  const draft = { id: 'change', project_id: 'p', title: '待审批', author_id: 'author', revision: 4, status: 'validated', definition: { types: [], mappings: [] }, validation: { valid: true, errors: [] } };
+  const props = { projectId: 'p', can: () => true, onDirty: () => {}, onClose: () => {}, onUpdated: () => {}, initialDraft: draft, initialDefinition: draft.definition, initialBaselineReleaseId: null };
+  const view = render(<OntologyEditor {...props} {...{ modelApproval: { userId: 'author', mode: 'separate' as const } }} />);
+  const button = screen.getByRole('button', { name: '批准当前修订' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  expect(screen.getByText('当前修订由你编辑，请由另一位有审批权限的成员批准。')).toBeTruthy();
+  fireEvent.click(button);
+  expect(fetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
+  view.rerender(<OntologyEditor {...props} {...{ modelApproval: { userId: 'author', mode: 'single' as const } }} />);
+  expect(button.disabled).toBe(false);
+  view.rerender(<OntologyEditor {...props} {...{ modelApproval: { userId: 'reviewer', mode: 'separate' as const } }} />);
+  expect(button.disabled).toBe(false);
+});

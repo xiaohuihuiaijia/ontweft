@@ -1,17 +1,19 @@
 import copy
 
 import pytest
+from ontology.core.domain import active_definition
 from ontology.core.errors import DomainError
 from ontology.identity.models import User
 from ontology.identity.security import access
 from ontology.intelligence.connection_api import router
 from ontology.intelligence.projection import import_proposal, prepare_document_source
 from ontology.intelligence.proposal_models import AIProposal, DocumentRelationContribution
+from ontology.modeling.models import ChangeSet
+from ontology.modeling.schemas import Definition
 from ontology.objects.models import Entity, Relation
 from ontology.sources.ingestion import fingerprint
 from ontology.sources.models import Source, SourceRecordRevision, SourceSnapshot
 from sqlalchemy import func, select
-from tests.support.platform import publish
 from tests.support.postgres import pg_databases as pg_databases  # noqa: PLC0414 - fixture registration
 from tests.support.postgres import pg_platform as pg_platform  # noqa: PLC0414 - fixture registration
 
@@ -47,13 +49,35 @@ def prepare(case, *, candidates=None, definition=None, relations=None):
             tenant_id=ids["tenant_id"], project_id=ids["project_id"], owner_id=user.id,
             connection_id=connection["id"], connection_revision=1,
             baseline_release_id=ctx.project.active_release_id, inputs={"documents": [{"id": document["id"]}]},
-            status="ready", definition=copy.deepcopy(definition or base), candidates=copy.deepcopy(candidates or initial),
+            status="adopted", definition=copy.deepcopy(definition or base), candidates=copy.deepcopy(candidates or initial),
             relations=copy.deepcopy(relations or []),
         )
         session.add(proposal)
         session.flush()
         prepare_document_source(session, proposal, user)
+        if Definition.model_validate(proposal.definition) != Definition.model_validate(active_definition(session, ctx.project)):
+            change = ChangeSet(
+                tenant_id=ids["tenant_id"], project_id=ids["project_id"], author_id=user.id,
+                title="Reviewed document mapping", definition=proposal.definition,
+                baseline_release_id=ctx.project.active_release_id,
+            )
+            session.add(change)
+            session.flush()
+            proposal.changeset_id = change.id
         return proposal.id, proposal.definition, proposal.source_id
+
+
+def publish_prepared(case, proposal_id):
+    client, app, ids, *_ = case
+    with app.state.db.transaction(ids["tenant_id"]) as session:
+        change_id = session.get(AIProposal, proposal_id).changeset_id
+    change = client.get(f"/api/changesets/{change_id}").json()
+    for operation in ("validate", "approve", "publish"):
+        response = client.post(
+            f"/api/changesets/{change_id}/{operation}", json={"expected_revision": change["revision"]}
+        )
+        assert response.status_code == 200, response.text
+        change = response.json()
 
 
 def apply(case, proposal_id):
@@ -65,9 +89,9 @@ def apply(case, proposal_id):
 
 
 def test_approved_document_facts_use_contributions_and_idempotent_marker(document_case):
-    client, app, ids, *_ = document_case
-    proposal_id, definition, source_id = prepare(document_case)
-    publish(client, ids["project_id"], definition)
+    _client, app, ids, *_ = document_case
+    proposal_id, _definition, source_id = prepare(document_case)
+    publish_prepared(document_case, proposal_id)
     first = apply(document_case, proposal_id)
     assert first["imported"] == 1 and first["counts"]["created"] == 1
     assert apply(document_case, proposal_id) == first
@@ -84,9 +108,9 @@ def test_approved_document_facts_use_contributions_and_idempotent_marker(documen
 
 
 def test_narrower_second_goal_preserves_existing_fields_and_business_identity(document_case):
-    client, app, ids, *_ = document_case
+    _client, app, ids, *_ = document_case
     first_id, definition, source_id = prepare(document_case)
-    publish(client, ids["project_id"], definition)
+    publish_prepared(document_case, first_id)
     initial_result = apply(document_case, first_id)
     assert initial_result["counts"]["blocked"] == 0, initial_result
     candidate = copy.deepcopy(document_case[-1][0])
@@ -106,7 +130,8 @@ def test_unpublished_mapping_cannot_materialize_candidates(document_case):
     proposal_id, _, _ = prepare(document_case)
     with pytest.raises(DomainError) as caught:
         apply(document_case, proposal_id)
-    assert caught.value.code == "document_mapping_unpublished"
+    assert caught.value.code == "revision_conflict"
+    assert "请先发布" in caught.value.message
 
 
 def test_missing_business_key_is_not_replaced_with_row_number(document_case):
@@ -132,7 +157,7 @@ def test_document_relation_coexists_with_manual_relation(document_case):
     second.update(id="b", properties={"code": "B"}, business_key={"code": "B"})
     candidates.append(second)
     first_id, definition, _ = prepare(document_case, candidates=candidates)
-    publish(client, ids["project_id"], definition)
+    publish_prepared(document_case, first_id)
     apply(document_case, first_id)
     with app.state.db.transaction(ids["tenant_id"], write=True) as session:
         entities = {row.properties["code"]: row for row in session.scalars(select(Entity)).all()}

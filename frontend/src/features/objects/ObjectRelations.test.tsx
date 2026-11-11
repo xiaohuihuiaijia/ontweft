@@ -39,7 +39,7 @@ it('returns to the preceding relation page when the last item on a page is delet
   await screen.findByText('→ related · 目标-1');
   fireEvent.click(within(screen.getByRole('group', { name: '对象关系分页' })).getByRole('button', { name: '下一页' }));
   await screen.findByText('→ related · 目标-26');
-  fireEvent.click(screen.getByRole('button', { name: '删除此关系' }));
+  fireEvent.click(screen.getByRole('button', { name: '删除人工关系' }));
   await screen.findByText('→ related · 目标-1');
   expect(screen.queryByText('→ related · 目标-26')).toBeNull();
 });
@@ -55,4 +55,18 @@ it('does not retain relation evidence from the preceding page after access is de
   fireEvent.click(within(screen.getByRole('group', { name: '对象关系分页' })).getByRole('button', { name: '下一页' }));
   await screen.findByText('关系权限已撤销');
   await waitFor(() => expect(screen.queryByText(/先前授权目标/)).toBeNull());
+});
+
+
+it('reports retained source support instead of claiming a relationship disappeared', async () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, options) => {
+    if (options?.method === 'DELETE') return json({ ok: true, retained_by_document: true });
+    return String(input).includes('/relations?') ? json({ items: [{ id: 'edge', revision: 2, source_id: 'o', target_id: 'target', type_key: 'related' }], total: 1 }) : json({ items: [], total: 0 });
+  });
+  render(<ObjectRelations {...props} canWrite />);
+  fireEvent.click(await screen.findByRole('button', { name: '删除人工关系' }));
+  expect(confirm).toHaveBeenCalledWith('删除这条关系的人工支持？仍有来源或持续规则支持时，关系会保留；不会删除对象或修改来源系统。');
+  await screen.findByText('人工支持已删除；关系仍由来源或持续规则保留。');
+  expect(screen.getByText('→ related · target')).toBeTruthy();
 });

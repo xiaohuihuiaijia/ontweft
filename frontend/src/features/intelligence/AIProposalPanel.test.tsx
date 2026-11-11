@@ -273,3 +273,26 @@ it('clears cross-page document selections when a page read loses access', async 
   expect(screen.queryByText('先前授权资料.pdf')).toBeNull();
   expect((screen.getByRole('button', { name: '自动理解并起草' }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+
+it('blocks import until the server confirms the published prerequisites and refreshes after publishing', async () => {
+  let available = false;
+  let draft = { id: 'change', project_id: 'project', title: '已采纳草稿', revision: 2, status: 'approved', definition, validation: { valid: true, errors: [] } };
+  const fetch = mocks((path, options) => {
+    if (path === '/api/ai/proposals/p1') return json({ ...ready, status: 'adopted', changeset_id: 'change', import_ready: available, import_block_reason: available ? null : '请先发布当前绑定草稿' });
+    if (path === '/api/changesets/change') return json(draft);
+    if (path === '/api/changesets/change/publish') { available = true; draft = { ...draft, revision: 3, status: 'published' }; return json(draft); }
+  });
+  render(<AIProposalPanel projectId="project" can={() => true} onDirty={() => {}} />);
+  await screen.findByRole('option', { name: '产品规格 · ready' });
+  fireEvent.change(screen.getByLabelText('生成记录'), { target: { value: 'p1' } });
+  const button = await screen.findByRole('button', { name: '导入所选实例' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  expect(screen.getByText('请先发布当前绑定草稿')).toBeTruthy();
+  fireEvent.click(button);
+  expect(fetch.mock.calls.some(([path]) => String(path).endsWith('/import'))).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: '打开模型变更集' }));
+  fireEvent.click(await screen.findByRole('button', { name: '发布已批准修订' }));
+  await waitFor(() => expect(button.disabled).toBe(false));
+  expect(screen.queryByText('请先发布当前绑定草稿')).toBeNull();
+});

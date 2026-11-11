@@ -11,7 +11,8 @@ export interface FieldMapping { source_field: string; transform: 'identity' | 't
 export interface MappingDef { key: string; source_id: string; resource_id: string; type_key: string; schema_fingerprint: string; identity_fields?: string[]; fields: Record<string, FieldMapping> }
 export interface Definition { types: TypeDef[]; mappings?: MappingDef[] }
 export interface DefinitionResult { definition: Definition; release_id?: string | null; version: number }
-export interface ChangeSet { id: string; project_id: string; title: string; revision: number; status: string; definition: Definition; baseline_release_id?: string; validation?: { valid: boolean; errors: unknown[]; job_id?: string; objects_checked?: number }; approved_by?: string; validation_job?: { id: string; status: string; error?: string; objects_checked: number } }
+export interface ModelApproval { userId: string; mode?: 'single' | 'separate' }
+export interface ChangeSet { author_id?: string; id: string; project_id: string; title: string; revision: number; status: string; definition: Definition; baseline_release_id?: string; validation?: { valid: boolean; errors: unknown[]; job_id?: string; objects_checked?: number }; approved_by?: string; validation_job?: { id: string; status: string; error?: string; objects_checked: number } }
 export interface BusinessObject { id: string; project_id: string; type_key: string; properties: RecordData; evidence?: unknown[]; revision: number; data_status?: 'active' | 'conflict' | 'incomplete' | 'withdrawn'; model_release_id?: string | null; model_version?: number; created_at?: string; updated_at?: string }
 export interface GraphNode { id: string; label: string; type_key: string; type_label?: string; visible_property_count?: number; kind: string; properties: RecordData; revision?: number }
 export interface GraphEdge { id: string; source: string; target: string; label: string; type_key: string; kind: string; cardinality?: 'one' | 'many' }

@@ -49,6 +49,8 @@ def validate_connection(data: ConnectionInput) -> str:
         safe_config(model.parameters)
         if set(model.parameters) - PARAMETERS:
             raise DomainError(422, "unsupported_model_parameter", "仅支持采样及思考参数，不允许覆盖工具或请求内容")
+        if "enable_thinking" in model.parameters and not isinstance(model.parameters["enable_thinking"], bool):
+            raise DomainError(422, "invalid_thinking_mode", "思考开关须为布尔值 true 或 false")
         thinking_budget = model.parameters.get("thinking_budget")
         if thinking_budget is not None and (
             isinstance(thinking_budget, bool) or not isinstance(thinking_budget, int)

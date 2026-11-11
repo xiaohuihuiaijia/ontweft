@@ -5,31 +5,31 @@ import { useResource } from '../../shared/hooks/hooks';
 import { MappingEditor } from './MappingEditor';
 import { ModelStarter, ModelWorkflow } from './ModelStarter';
 import { AIProposalPanel } from '../intelligence/AIProposalPanel';
-import type { ChangeSet, DataType, Definition, DefinitionResult, ListResult, MappingDef, TypeDef, TypeList } from '../../shared/model/types';
+import type { ModelApproval, ChangeSet, DataType, Definition, DefinitionResult, ListResult, MappingDef, TypeDef, TypeList } from '../../shared/model/types';
 
 const typeOptions: DataType[] = ['string', 'integer', 'number', 'boolean', 'date', 'datetime', 'enum', 'json'];
-interface Props { projectId: string; can: (permission: string) => boolean; onDirty: (dirty: boolean) => void }
+interface Props { modelApproval?: ModelApproval; projectId: string; can: (permission: string) => boolean; onDirty: (dirty: boolean) => void }
 
-export function OntologyPage({ projectId, can, onDirty }: Props) {
+export function OntologyPage({ projectId, can, onDirty, modelApproval }: Props) {
   const types = useResource<TypeList>(scoped('/ontology/types', projectId));
   const management = useResource<DefinitionResult>(can('ontology:write') || can('ontology:approve') || can('ontology:publish') ? scoped('/ontology/definition', projectId) : null);
   const changes = useResource<ListResult<ChangeSet>>(scoped('/changesets', projectId));
   const [editor, setEditor] = useState<{ draft?: ChangeSet; definition: Definition; baseline: string | null }>();
   const [aiOpen, setAiOpen] = useState(false);
   return <><PageTitle title="本体模型" description="定义业务类型、字段与关系，通过变更集验证、审核和发布。">{can('ontology:write') && <button onClick={() => { if (management.data) setEditor({ definition: management.data.definition, baseline: management.data.release_id ?? null }); }} disabled={!management.data || editor !== undefined}>新建变更集</button>}</PageTitle>
-    <div className="section-heading"><div><h2>AI 辅助起草</h2><p className="muted">从已接入的数据或文档生成有来源的模型与实例候选。</p></div><button className="secondary" aria-expanded={aiOpen} onClick={() => setAiOpen(value => !value)}>{aiOpen ? '收起 AI 工作台' : 'AI 起草本体'}</button></div>{aiOpen && <AIProposalPanel projectId={projectId} can={can} onDirty={onDirty} onUpdated={() => { changes.reload(); types.reload(); management.reload(); }} />}
+    <div className="section-heading"><div><h2>AI 辅助起草</h2><p className="muted">从已接入的数据或文档生成有来源的模型与实例候选。</p></div><button className="secondary" aria-expanded={aiOpen} onClick={() => setAiOpen(value => !value)}>{aiOpen ? '收起 AI 工作台' : 'AI 起草本体'}</button></div>{aiOpen && <AIProposalPanel modelApproval={modelApproval} projectId={projectId} can={can} onDirty={onDirty} onUpdated={() => { changes.reload(); types.reload(); management.reload(); }} />}
     <ErrorNotice error={management.error} onRetry={management.reload} /><div className="section-heading"><h2>已发布类型</h2><span className="muted">{types.data?.version ? `版本 ${types.data.version}` : '尚无发布版本'}</span></div>
     {types.loading ? <Loading /> : types.error ? <ErrorNotice error={types.error} onRetry={types.reload} /> : !types.data?.items.length ? <Empty title="尚未定义业务类型">新建变更集，手工添加类型与字段。完成验证和发布后即可创建对象。</Empty> : <div className="card-grid">{types.data.items.map(type => <article className="model-card" key={type.key}><div className="model-symbol">{type.label.slice(0, 1)}</div><h3>{type.label}</h3><code>{type.key}</code><p>{type.description || '暂无业务定义'}</p><div className="card-footer"><span>{type.properties.length} 个字段</span><span>{type.relations.length} 种关系</span></div></article>)}</div>}
     <div className="section-heading"><h2>变更集</h2><button className="text-button" onClick={changes.reload}>刷新</button></div>
     {changes.loading ? <Loading /> : changes.error ? <ErrorNotice error={changes.error} onRetry={changes.reload} /> : !changes.data?.items.length ? <Empty title="暂无变更记录" /> : <div className="table-wrap"><table><thead><tr><th>变更名称</th><th>状态</th><th>修订</th><th>类型数</th><th /></tr></thead><tbody>{changes.data.items.map(item => <tr key={item.id}><td>{item.title}</td><td><Status value={item.status} /></td><td>{item.revision}</td><td>{item.definition.types.length}</td><td><button className="text-button" disabled={editor !== undefined} onClick={() => setEditor({ draft: item, definition: item.definition, baseline: item.baseline_release_id ?? null })}>查看变更</button></td></tr>)}</tbody></table></div>}
-    {editor && <OntologyEditor key={editor.draft?.id ?? 'new'} projectId={projectId} can={can} onDirty={onDirty} initialDraft={editor.draft} initialDefinition={editor.definition} initialBaselineReleaseId={editor.baseline} onClose={() => setEditor(undefined)} onUpdated={published => { changes.reload(); if (published) { types.reload(); management.reload(); } }} />}
+    {editor && <OntologyEditor modelApproval={modelApproval} key={editor.draft?.id ?? 'new'} projectId={projectId} can={can} onDirty={onDirty} initialDraft={editor.draft} initialDefinition={editor.definition} initialBaselineReleaseId={editor.baseline} onClose={() => setEditor(undefined)} onUpdated={published => { changes.reload(); if (published) { types.reload(); management.reload(); } }} />}
   </>;
 }
 
 export interface OntologyFocus { typeKey: string; relationKey?: string }
 interface EditorProps extends Props { initialDraft?: ChangeSet; initialDefinition: Definition; initialBaselineReleaseId: string | null; initialTitle?: string; onSaveDefinition?: (definition: Definition, title: string) => Promise<void>; focus?: OntologyFocus; onClose: () => void; onUpdated: (published: boolean) => void }
 
-export function OntologyEditor({ projectId, can, onDirty, initialDraft, initialDefinition, initialBaselineReleaseId, initialTitle, onSaveDefinition, focus, onClose, onUpdated }: EditorProps) {
+export function OntologyEditor({ projectId, can, onDirty, modelApproval, initialDraft, initialDefinition, initialBaselineReleaseId, initialTitle, onSaveDefinition, focus, onClose, onUpdated }: EditorProps) {
   const [baselineReleaseId] = useState(initialBaselineReleaseId);
   const [draft, setDraft] = useState<ChangeSet | null>(initialDraft ?? null);
   const [definition, setDefinition] = useState<TypeDef[]>(() => structuredClone(initialDefinition.types));
@@ -46,6 +46,7 @@ export function OntologyEditor({ projectId, can, onDirty, initialDraft, initialD
     const timer = window.setInterval(() => request<ChangeSet>(`/changesets/${encodeURIComponent(draft.id)}`).then(value => { setDraft(value); if (value.status !== 'validating') onUpdated(false); }).catch(setError), 2000);
     return () => window.clearInterval(timer);
   }, [draft?.id, draft?.status]);
+  const selfApprovalBlocked = modelApproval?.mode === 'separate' && draft?.author_id === modelApproval.userId;
   const validationStopped = !!draft?.validation_job && ['failed', 'cancelled'].includes(draft.validation_job.status);
   const editable = !draft || ['draft', 'validated'].includes(draft.status) || validationStopped;
 
@@ -103,9 +104,10 @@ export function OntologyEditor({ projectId, can, onDirty, initialDraft, initialD
       <MappingEditor projectId={projectId} types={definition} value={mappings} onChange={value => { setMappings(value); setDirty(true); }} disabled={!editable || busy || !can('ontology:write')} canReadSources={can('sources:write')} preview={can('ontology:write') && can('sources:write') ? { draft, dirty, busy } : undefined} />
       {draft?.status === 'validating' && <p role="status" className={validationStopped ? 'notice warning' : 'notice'}>{validationStopped ? `校验任务已停止：${draft.validation_job?.error ?? '已取消'}。可修改草稿重新校验，或在设置 → 任务中心重试。` : `正在后台校验对象与关系，已检查 ${draft.validation_job?.objects_checked ?? 0} 个对象。可关闭面板后查看结果。`}</p>}
       {draft?.status !== 'validating' && draft?.validation && typeof draft.validation.valid === 'boolean' && <section><h3>验证结果</h3><Status value={draft.validation.valid ? 'succeeded' : 'failed'} /><JsonView value={draft.validation.errors} /></section>}
+      {draft?.status === 'validated' && can('ontology:approve') && selfApprovalBlocked && <p className="notice" role="status">当前修订由你编辑，请由另一位有审批权限的成员批准。</p>}
       {remote && <section><h3>服务端最新版本 · {remote.revision}</h3><JsonView value={remote.definition} /><p className="muted">当前输入仍保留。关闭后重新打开可加载该版本。</p></section>}
       {error && draft ? <button className="secondary" onClick={async () => { try { const latest = await request<ChangeSet>(scoped(`/changesets/${encodeURIComponent(draft.id)}`, projectId)); setRemote(latest); } catch (e) { setError(e); } }}>查看最新版本（保留草稿）</button> : null}
-    </div><footer className="drawer-actions"><span className="muted">{dirty ? '有未保存修改' : '已与当前修订同步'}</span>{editable && can('ontology:write') && <button disabled={busy || !title.trim() || (!dirty && !!draft)} onClick={save}>{busy ? '处理中…' : '保存草稿'}</button>}{draft && !dirty && <>{['draft', 'validated'].includes(draft.status) && can('ontology:write') && <button disabled={busy} onClick={() => transition('validate')}>验证</button>}{draft.status === 'validated' && draft.validation?.valid && can('ontology:approve') && <button disabled={busy} onClick={() => transition('approve')}>批准当前修订</button>}{draft.status === 'approved' && can('ontology:publish') && <button disabled={busy} onClick={() => transition('publish')}>发布已批准修订</button>}</>}</footer></Drawer>;
+    </div><footer className="drawer-actions"><span className="muted">{dirty ? '有未保存修改' : '已与当前修订同步'}</span>{editable && can('ontology:write') && <button disabled={busy || !title.trim() || (!dirty && !!draft)} onClick={save}>{busy ? '处理中…' : '保存草稿'}</button>}{draft && !dirty && <>{['draft', 'validated'].includes(draft.status) && can('ontology:write') && <button disabled={busy} onClick={() => transition('validate')}>验证</button>}{draft.status === 'validated' && draft.validation?.valid && can('ontology:approve') && <button disabled={busy || selfApprovalBlocked} onClick={() => transition('approve')}>批准当前修订</button>}{draft.status === 'approved' && can('ontology:publish') && <button disabled={busy} onClick={() => transition('publish')}>发布已批准修订</button>}</>}</footer></Drawer>;
 }
 
 

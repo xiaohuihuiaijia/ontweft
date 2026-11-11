@@ -11,14 +11,14 @@ import { loadObjectEditSession, ObjectEditor, type ObjectEditSession } from '../
 import { OntologyEditor, type OntologyFocus } from '../modeling/OntologyPage';
 import type { KnowledgePage } from '../knowledge/KnowledgePages';
 const KnowledgeEditor = lazy(() => import('../knowledge/KnowledgePages').then(m => ({ default: m.KnowledgeEditor })));
-import type { Definition, DefinitionResult, GraphEdge, GraphKind, GraphNode, GraphResult, TypeList } from '../../shared/model/types';
+import type { ModelApproval, Definition, DefinitionResult, GraphEdge, GraphKind, GraphNode, GraphResult, TypeList } from '../../shared/model/types';
 
 type GraphEditor =
   | { kind: 'object'; session: ObjectEditSession; relationKey?: string }
   | { kind: 'model'; definition: Definition; baselineReleaseId: string | null; focus: OntologyFocus }
   | { kind: 'knowledge'; value: KnowledgePage };
 
-export function GraphPage({ projectId, can, onDirty, role, knowledgeEnabled = false, userId = '' }: { projectId: string; can: (permission: string) => boolean; onDirty: (dirty: boolean) => void; role?: string; knowledgeEnabled?: boolean; userId?: string }) {
+export function GraphPage({ modelApproval, projectId, can, onDirty, role, knowledgeEnabled = false, userId = '' }: { modelApproval?: ModelApproval; projectId: string; can: (permission: string) => boolean; onDirty: (dirty: boolean) => void; role?: string; knowledgeEnabled?: boolean; userId?: string }) {
   const [kind, setKind] = useState<GraphKind>('instances');
   const [selection, setSelection] = useState<{ node?: string; edge?: string }>({});
   const [editor, setEditor] = useState<GraphEditor>();
@@ -115,7 +115,7 @@ export function GraphPage({ projectId, can, onDirty, role, knowledgeEnabled = fa
           {samePair.length > 1 && <div className="graph-parallel-note"><p>{selectedEdge.source === selectedEdge.target ? '这个节点上' : '这两个节点间'}有 {samePair.length} 条具名关系。可在画布或此处逐条选择：</p>{samePair.map(edge => <button key={edge.id} disabled={locked} className={edge.id === selectedEdge.id ? 'selected' : 'secondary'} onClick={() => selectEdge(edge)}>{nodeName(edge.source)} — {edge.label} → {nodeName(edge.target)}</button>)}</div>}
           {kind === 'model' && <>{can('ontology:write') && <button disabled={locked} className="secondary" onClick={() => openEdge(selectedEdge)}>编辑关系定义（变更集）</button>}<p className="muted">编辑来源类型中的具名关系，包含业务角色、目标类型与基数。批准并发布后生效。</p></>}
           {kind === 'knowledge' && selectedEdge.kind === 'citation' && <><button disabled={locked} className="secondary" onClick={() => openKnowledge(selectedEdge.source)}>{can('knowledge:write') ? '编辑所属知识页与引用' : '查看所属知识页'}</button><p className="muted">增加或移除引用须保存知识页新修订并发布；不直接修改图中的边。</p></>}
-          {kind === 'instances' && <button disabled={locked} className="secondary" onClick={() => openEdge(selectedEdge)}>打开来源对象与关系</button>}
+          {kind === 'instances' && <button disabled={locked} className="secondary" onClick={() => openEdge(selectedEdge)}>管理来源对象的关系</button>}
         </> : <div className="graph-overview">
           <h2>让关系变得清晰</h2><p>选择节点查看属性，选择连线查看关系方向与业务含义。</p>
           <dl className="graph-summary"><div><dt>可见节点</dt><dd>{visible.nodes.length}</dd></div><div><dt>可见关系</dt><dd>{visible.edges.length}</dd></div><div><dt>节点类型</dt><dd>{new Set(visible.nodes.map(node => groupKey(node, kind))).size}</dd></div></dl>
@@ -128,7 +128,7 @@ export function GraphPage({ projectId, can, onDirty, role, knowledgeEnabled = fa
       <details className="node-list"><summary>关系列表（键盘可操作）</summary><div className="node-chips">{visible.edges.map(edge => <button disabled={locked} aria-pressed={edge.id === selectedEdge?.id} className={edge.id === selectedEdge?.id ? 'selected' : 'secondary'} key={edge.id} onClick={() => selectEdge(edge)}>{nodeName(edge.source)} — {edge.label} → {nodeName(edge.target)}</button>)}</div>{!visible.edges.length && <p className="muted">当前筛选没有可见关系。</p>}<p className="muted">同对节点的不同关系以分开的曲线显示，同一节点上的关系以环线显示；此列表可用键盘逐条查看。</p></details>
     </>}
     {editor?.kind === 'object' && <ObjectEditor key={editor.session.object?.id} {...editor.session} initialRelationKey={editor.relationKey} role={role} projectId={projectId} canWrite={can('objects:write')} canReadContributions={can('sources:write')} onSaved={() => void explore.refresh()} onClose={() => setEditor(undefined)} onDirty={onDirty} />}
-    {editor?.kind === 'model' && <OntologyEditor projectId={projectId} can={can} initialDefinition={editor.definition} initialBaselineReleaseId={editor.baselineReleaseId} focus={editor.focus} onDirty={onDirty} onClose={() => setEditor(undefined)} onUpdated={published => { if (published) { graph.reload(); types.reload(); } }} />}
+    {editor?.kind === 'model' && <OntologyEditor modelApproval={modelApproval} projectId={projectId} can={can} initialDefinition={editor.definition} initialBaselineReleaseId={editor.baselineReleaseId} focus={editor.focus} onDirty={onDirty} onClose={() => setEditor(undefined)} onUpdated={published => { if (published) { graph.reload(); types.reload(); } }} />}
     {editor?.kind === 'knowledge' && <Suspense fallback={<Loading />}><KnowledgeEditor key={editor.value.id} projectId={projectId} initialPage={editor.value} canWrite={can('knowledge:write')} canPublish={can('knowledge:publish')} onDirty={onDirty} onClose={() => setEditor(undefined)} onUpdated={graph.reload} /></Suspense>}
   </section>;
 }

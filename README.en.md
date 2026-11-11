@@ -22,7 +22,7 @@ A product manual, a spreadsheet and a database often describe different parts of
 | **Draft an ontology** | AI suggests types, properties, relations and mappings; reuse existing definitions, edit candidates, then validate, approve and publish |
 | **Bring in data** | CSV/XLSX and PostgreSQL; explicit business keys, immutable file versions, mappings and exact cross-source identity binding |
 | **Maintain relationships** | Recompute saved rules as matching fields change; preserve manual relationships, source contributions and historical evidence |
-| **Work in the graph** | Authorized global search, paginated neighbors, drag and pin, saved personal views; click nodes to edit and inspect or modify relationships |
+| **Work in the graph** | Authorized global search, paginated neighbors, drag and pin, saved personal views; click nodes to edit, inspect named relationships, and add or remove manual relationships |
 | **Collaborate** | Project and field permissions, model revisions, versioned evidence and audit records; separate model author and approver in enterprise mode |
 
 Five main destinations: **Data, Ontology, Objects, Graph, Settings**. One PostgreSQL database, one API service and the existing worker. No separate graph or vector service required. Manual modeling and deterministic ingestion work without an AI key; additional connectors, knowledge and automation remain optional.
