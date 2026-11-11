@@ -56,7 +56,7 @@ The local demo uses persistent SQLite in `var/local-demo/` and binds only to loo
 
 The integration uses configurable OpenAI-compatible Chat Completions. Text, vision and structured-output capabilities are declared and tested separately. Bailian is the first live-tested service; interface compatibility does not imply that other providers have been verified.
 
-PDF pages render locally. Native text and tables are read first; configured vision models handle complex pages. Inputs include PDF, DOCX, XLSX, PPTX, PNG/JPEG, CSV, text and Markdown. Office page numbers denote logical units. Document uploads default to **256 MiB**; deterministic table imports have separate [size and structure limits](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/data-to-ontology.md).
+PDF pages render locally with native text extraction; configured vision models interpret table structure and complex pages. Office files and spreadsheets retain directly readable structure. Inputs include PDF, DOCX, XLSX, PPTX, PNG/JPEG, CSV, text and Markdown. Office page numbers denote logical units. Document uploads default to **256 MiB**; deterministic table imports have separate [size and structure limits](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/data-to-ontology.md).
 
 Page progress and evidence versions remain traceable. Changing the business goal can reuse base recognition results. Candidates are editable; models cannot run arbitrary SQL, publish definitions directly or bypass import confirmation. **No standalone OCR engine, GPU or resident local model service is required. Configured external models incur provider charges.**
 
