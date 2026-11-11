@@ -1625,9 +1625,9 @@
     },
     {
       "path": "backend/tests/objects/test_entity_status.py",
-      "bytes": 13121,
-      "sha256": "0c3ec303683d9701ef204e0b889c2d10d7ce75beffc8ddb39dfeaacce21b5c2c",
-      "source": "backend/tests/objects/test_entity_status.py"
+      "bytes": 13148,
+      "sha256": "776d524b094a6aa24702b4688b239d5b7b9498579a87241cf8ad3a6c5466bea8",
+      "source": "maintained-in-public-repository"
     },
     {
       "path": "backend/tests/objects/test_graph_exploration.py",
@@ -2039,8 +2039,8 @@
     },
     {
       "path": "docs/beta-verification.md",
-      "bytes": 18708,
-      "sha256": "b244e3f775c562476b0bbcbeeca91d77a0d8bc1a7eb147e64efb0091c04515e4",
+      "bytes": 18971,
+      "sha256": "c88e20eec0e63b6d9d8b0d5b1cd0b75c5ac38a09c57c3dbebd657f8be98b0976",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2111,8 +2111,8 @@
     },
     {
       "path": "docs/project-audit.md",
-      "bytes": 9505,
-      "sha256": "510aa5458ed1c913dc45c2074c5b1b1cd4cf30ef432f7f73fb29a2f823e0befc",
+      "bytes": 9805,
+      "sha256": "1e8df6d6df83e546538f2fac29b9c723905d439220d2449396b08346a880db1c",
       "source": "maintained-in-public-repository"
     },
     {
