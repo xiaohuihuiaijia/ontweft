@@ -111,7 +111,7 @@ async function main() {
     if (server.exitCode === null) { server.kill(); await Promise.race([new Promise(resolve => server.once('exit', resolve)), pause(5000)]); }
     log.end();
     const parent = fs.realpathSync(os.tmpdir());
-    if (server.exitCode !== null && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-scale-')) fs.rmSync(temp, { recursive: true, force: true });
+    if ((server.exitCode !== null || server.signalCode !== null) && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-scale-')) fs.rmSync(temp, { recursive: true, force: true });
     fs.writeFileSync(path.join(output, 'graph-scale-result.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
   }
 }

@@ -62,15 +62,28 @@ def pages(
         conditions.append(knowledge_condition(ctx, revision=revision))
         if "knowledge:write" not in ctx.permissions and "knowledge:publish" not in ctx.permissions:
             conditions.append(KnowledgePage.published_revision.is_not(None))
-        rows = session.scalars(
-            select(KnowledgePage)
+        can_edit = bool({"knowledge:write", "knowledge:publish"} & ctx.permissions)
+        columns = [
+            getattr(KnowledgeRevision if not can_edit and column.name in {"title", "references", "revision"}
+                    else KnowledgePage, column.name).label(column.name)
+            for column in KnowledgePage.__table__.columns if column.name != "body"
+        ]
+        query = select(*columns).select_from(KnowledgePage)
+        if not can_edit:
+            query = query.join(KnowledgeRevision, (
+                (KnowledgeRevision.page_id == KnowledgePage.id)
+                & (KnowledgeRevision.tenant_id == user.tenant_id)
+                & (KnowledgeRevision.revision == KnowledgePage.published_revision)
+            ))
+        rows = session.execute(
+            query
             .where(*conditions)
-            .order_by(KnowledgePage.created_at.desc())
+            .order_by(KnowledgePage.created_at.desc(), KnowledgePage.id.desc())
             .offset(offset)
             .limit(limit)
-        ).all()
+        ).mappings().all()
         return {
-            "items": [page_view(session, row, ctx, summary=True) for row in rows],
+            "items": [dict(row) for row in rows],
             "total": session.scalar(select(func.count()).select_from(KnowledgePage).where(*conditions)),
         }
 

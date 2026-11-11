@@ -30,7 +30,7 @@ Office／文本的新提案固定其逻辑分页所用的解析版本，原文�
 
 ## 升级
 
-先备份数据库与文件资产，然后停止 API、worker，更新源码并构建镜像，执行 `docker compose run --rm migrate`，再启动服务。迁移失败时保留数据库与备份，修正原因后重试；不要修改历史迁移或直接覆盖数据文件。
+先备份数据库与文件资产，然后停止 API、worker，更新源码并构建镜像，执行 `docker compose --env-file /secure/ontweft.env run --rm migrate`，再启动服务。迁移失败时保留数据库与备份，修正原因后重试；不要修改历史迁移或直接覆盖数据文件。
 
 从早期 Alpha 升级到 Beta 时，已有迁移包括业务唯一键、增量校验序号、文件版本、持续规则和检索词项索引。原文件位置不变，旧表格自动登记为版本 1。对象检索的派生字段会清空重建；业务对象、来源证据、发布模型与冻结函数不清空。准备好 worker，并在检索索引完成重建前保留“更新中”提示。
 
@@ -38,7 +38,7 @@ Office／文本的新提案固定其逻辑分页所用的解析版本，原文�
 
 AI 文档迁移 `ef311111a100` 增加模型连接、提案、不可变页面结果和文档关系事实。当前迁移入口、开发初始化、测试与压测共用同一授权策略，重新执行时会撤销运行角色的过时表权限；历史解析及 AI 页面结果只允许读取与追加。此轮授权收敛不新增迁移，不删除已保存记录。
 
-本机 SQLite 体验目录升级：先停止体验 API 和 worker，执行 `python scripts/start_local_demo.py migrate --data-dir <原目录>`，再照常启动。该命令先生成可打开的 SQLite 备份，再升级历史采集代与查询索引；未升级时入口给出明确提示，不自动改写旧库。数据库备份文件需要按自己的保留策略管理。
+本机 SQLite 体验目录升级：先停止体验 API 和 worker，执行 `uv run --locked --no-dev python scripts/start_local_demo.py migrate --data-dir <原目录>`，再照常启动。该命令先生成可打开的 SQLite 备份，再升级历史采集代与查询索引；未升级时入口给出明确提示，不自动改写旧库。数据库备份文件需要按自己的保留策略管理。
 
 ## 文件存储维护
 
@@ -81,8 +81,8 @@ docker compose up -d
 
 ```sh
 uv sync --locked --extra dev --extra knowledge --extra integrations
-python scripts/verify_deployment.py
-python scripts/verify_deployment.py --scale
+uv run --locked --extra dev --extra knowledge --extra integrations python scripts/verify_deployment.py
+uv run --locked --extra dev --extra knowledge --extra integrations python scripts/verify_deployment.py --scale
 ```
 
 该工具使用已构建的 `ontweft:beta-test` 镜像（可设置 `ONTOLOGY_TEST_IMAGE`），仅创建随机命名的独立 Compose 项目和合成记录，验证异人审批、worker、健康、指标、备份、恢复与原件一致性。`--scale` 增加到 10 万合成对象和 100 万关系，附件仍只有一份真实上传 CSV，因此不代表大体积文档库恢复。结束时只清理它创建的两个测试项目及卷。实际结果写入 `var/reports/`，不能替代生产数据分布和灾难条件验收。

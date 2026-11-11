@@ -444,15 +444,14 @@ async def prepare_content_access(request: Request, user=Depends(authenticated)):
         with request.app.state.db.transaction(user.tenant_id) as session:
             for key, model in mapping:
                 if key in request.path_params:
-                    row = session.scalar(
-                        select(model).where(
+                    project_id = session.scalar(
+                        select(model.project_id).where(
                             model.id == request.path_params[key], model.tenant_id == user.tenant_id
                         )
                     )
-                    if row is None:
+                    if project_id is None:
                         missing()
-                    access(session, user, row.project_id)
-                    project_id = row.project_id
+                    access(session, user, project_id)
                     break
     if isinstance(project_id, str) and project_id:
         await refresh_project(

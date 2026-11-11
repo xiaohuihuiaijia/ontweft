@@ -194,7 +194,7 @@ async function main() {
     log.end();
     // Delete only the unique test directory created above, after the child stops.
     const parent = fs.realpathSync(os.tmpdir());
-    if (server.exitCode !== null && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-starter-')) fs.rmSync(temp, { recursive: true, force: true });
+    if ((server.exitCode !== null || server.signalCode !== null) && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-starter-')) fs.rmSync(temp, { recursive: true, force: true });
     fs.writeFileSync(path.join(output, 'starter-browser-result.json'), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result));
   }

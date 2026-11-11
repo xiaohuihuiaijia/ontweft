@@ -1,7 +1,7 @@
 <p align="center"><img src="frontend/public/brand/ontweft-favicon.svg" width="64" height="64" alt="Ontweft mark" /></p>
 <h1 align="center">Ontweft · 序枢</h1>
 <p align="center"><strong>Connect knowledge to business.</strong><br />Turn documents and databases into editable business ontologies with traceable evidence.</p>
-<p align="center">AI-assisted modeling · Interactive graphs · Self-hosted · Apache-2.0</p>
+<p align="center"><strong>Enterprise ontology · Knowledge graphs · Knowledge management</strong><br />AI-assisted modeling · Self-hosted · Apache-2.0</p>
 <p align="center"><a href="README.md">简体中文</a> · English · <a href="#get-started">Get started</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md">Deployment</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/issues">Share a use case</a></p>
 
 ![The real Ontweft workbench: named business relationships and an editable customer-view object](docs/images/graph-workbench.png)
@@ -10,7 +10,7 @@
 
 > **Try Enterprise Beta.** This page and the commands below refer to `codex/slim-enterprise-beta`, under review in [PR #1](https://github.com/xiaohuihuiaijia/ontweft/pull/1). Application code on `main` is still the earlier Alpha. The UI and detailed guides are primarily Chinese.
 
-## Give your data a shared business meaning
+## From source material to traceable knowledge graphs
 
 A product manual, a spreadsheet and a database often describe different parts of the same business. Ontweft helps you define their types, properties and relationships, then map records into objects you can search, trace and edit.
 
@@ -24,6 +24,17 @@ A product manual, a spreadsheet and a database often describe different parts of
 | **Maintain relationships** | Recompute saved rules as matching fields change; preserve manual relationships, source contributions and historical evidence |
 | **Work in the graph** | Authorized global search, paginated neighbors, drag and pin, saved personal views; click nodes to edit, inspect named relationships, and add or remove manual relationships |
 | **Collaborate** | Project and field permissions, model revisions, versioned evidence and audit records; separate model author and approver in enterprise mode |
+
+## Where Ontweft fits
+
+| Your use case | What you build |
+| --- | --- |
+| **Product specifications** scattered across manuals and spreadsheets | Review evidence-linked candidates, define a product ontology, then search attributes and explore relationships |
+| **Business knowledge graphs** spanning customers, orders and products | Bind deterministic records with business keys and navigate named relationships |
+| **Knowledge management** with inconsistent concepts or untraceable conclusions | Agree on types and properties, retain versions and sources, and decide what becomes a business fact |
+| **Knowledge base management** for documents and team knowledge | Enable the optional knowledge extension for pages, full-text search and evidence links; a turnkey Q&A chatbot is not included |
+
+An **ontology** defines the kinds of things, their properties and allowed relationships. A **knowledge graph** connects actual objects under those definitions. A **knowledge base** retains documents and knowledge pages. Ontweft connects these layers; uploading a file alone does not make its content governed knowledge.
 
 Five main destinations: **Data, Ontology, Objects, Graph, Settings**. One PostgreSQL database, one API service and the existing worker. No separate graph or vector service required. Manual modeling and deterministic ingestion work without an AI key; additional connectors, knowledge and automation remain optional.
 
@@ -62,7 +73,7 @@ Page progress and evidence versions remain traceable. Changing the business goal
 
 ## What has been verified
 
-Checks include isolated database regressions, real Chromium workflows, Linux/PostgreSQL CI and synthetic deployment/restore exercises. This audit fixes source projection scope, relationship indexes, historical evidence navigation, UI races and repeated queries. See the [audit](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md) and [current CI](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks).
+Checks include isolated database regressions, real Chromium workflows, Linux/PostgreSQL CI and synthetic deployment/restore exercises. Ongoing fixes address reproduced failures in sequential file updates, source withdrawal previews, relationship matching, stale form state, model usage accounting and list queries. See the [audit](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md) and [current CI](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks).
 
 A synthetic benchmark covers **100,000 objects / 1,000,000 relationships / 50 users**. Unique-code search P95 still exceeds the one-second target; this is not a production SLA. Human-verified document accuracy, full-document processing, live CDC failure recovery and large-attachment disaster recovery still need dedicated acceptance tests. [Measurements and limits →](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/beta-verification.md)
 
@@ -77,6 +88,6 @@ A synthetic benchmark covers **100,000 objects / 1,000,000 relationships / 50 us
 
 **Python / FastAPI / SQLAlchemy / PostgreSQL · React / TypeScript / Sigma / Graphology.** A modular monolith shaped by concrete use cases.
 
-If this direction is useful to you, **Star** the repository to follow progress. [Share a use case or report an issue](https://github.com/xiaohuihuiaijia/ontweft/issues): what data are you connecting, what question should it answer, and where did you get stuck? Use sanitized examples. Report security concerns privately under the [security policy](SECURITY.md).
+Looking for a self-hosted ontology, knowledge graph or evidence-linked knowledge management tool? **Star** the repository to follow progress. [Share a use case or report an issue](https://github.com/xiaohuihuiaijia/ontweft/issues): what data are you connecting, what question should it answer, and where did you get stuck? Use sanitized examples. Report security concerns privately under the [security policy](SECURITY.md).
 
 Project-owned code is [Apache-2.0](LICENSE). Third-party components retain their licenses and [notices](frontend/public/THIRD_PARTY_NOTICES.txt); see [screenshot provenance](docs/images/README.md) and [NOTICE](NOTICE). No claim of production readiness, a complete security audit, trademark clearance or complete binary/model redistribution clearance is made.

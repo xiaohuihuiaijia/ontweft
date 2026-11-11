@@ -1,7 +1,7 @@
 <p align="center"><img src="frontend/public/brand/ontweft-favicon.svg" width="64" height="64" alt="序枢标志" /></p>
 <h1 align="center">序枢 Ontweft</h1>
 <p align="center"><strong>让知识连接业务。</strong><br />从文档和数据库，构建有来源、可编辑、持续更新的业务本体。</p>
-<p align="center">AI 辅助建模 · 交互式图谱 · 自部署 · Apache-2.0</p>
+<p align="center"><strong>企业本体 · 知识图谱 · 知识管理</strong><br />AI 辅助建模 · 自部署 · Apache-2.0</p>
 <p align="center">简体中文 · <a href="README.en.md">English</a> · <a href="#开始使用">开始使用</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md">部署文档</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/issues">反馈场景</a></p>
 
 ![Ontweft 真实工作台：探索具名业务关系，查看并编辑客户全景对象](docs/images/graph-workbench.png)
@@ -10,7 +10,7 @@
 
 > **当前试用版本：Enterprise Beta。** 展示与下方命令对应 `codex/slim-enterprise-beta`，功能代码在 [PR #1](https://github.com/xiaohuihuiaijia/ontweft/pull/1) 中审核；`main` 的应用代码仍是此前 Alpha。界面以中文为主。
 
-## 把业务含义、数据与证据连起来
+## 从资料到可追溯的知识图谱
 
 一份产品手册、一组业务表、一套数据库，往往描述着同一个业务的不同部分。Ontweft 帮你定义其中的类型、属性和关系，再把原始记录映射成可以检索、追溯与编辑的对象。
 
@@ -24,6 +24,17 @@
 | **维护关系** | 持续规则随字段变化增量重算；区分人工关系与来源贡献，保留历史依据 |
 | **在图谱中工作** | 授权全库搜索、按需展开邻域、拖动与固定节点、恢复个人视图；单击节点编辑；查看具名关系，新增或删除人工关系 |
 | **团队协作** | 项目与字段权限、模型修订、版本化证据和审计；企业模式默认异人模型审批 |
+
+## 哪些场景适合 Ontweft？
+
+| 你正在解决的问题 | 在 Ontweft 中形成什么 |
+| --- | --- |
+| **产品资料与规格治理**：型号、参数、条件散落在 PDF 和表格中 | 审阅有原文出处的候选，建立产品本体，再按属性检索和查看关系 |
+| **业务知识图谱**：客户、订单、产品分散在不同系统中 | 用业务键连接确定性的记录，通过具名关系探索业务对象 |
+| **知识管理**：同一个概念叫法不一致，结论无法回查 | 明确类型与属性、保留版本和来源，确认哪些内容可以成为业务事实 |
+| **知识库管理**：希望组织文档、知识页面并控制访问 | 按需启用知识扩展，使用页面、全文检索和证据关联；不是开箱即用的问答机器人 |
+
+**本体**规定“有哪些东西、有什么属性、可以如何关联”；**知识图谱**呈现这些规则下的具体对象；**知识库**保存资料与知识页面。Ontweft 将它们连接起来，不把文件上传等同于知识已经治理完成。
 
 只有 **数据、本体、对象、图谱、设置** 五个主入口。核心是一套 PostgreSQL、一个 API 服务和现有 worker。无需额外图数据库或向量服务；手工建模和确定性采集无需 AI Key。非核心连接器、知识与自动化按需启用。
 
@@ -62,7 +73,7 @@ PDF 在本地分页渲染并提取原生文字，表格结构与复杂页面交�
 
 ## 已验证什么
 
-已运行隔离数据库回归、真实 Chromium 工作流、Linux/PostgreSQL CI，以及合成数据部署与恢复验证。本轮进一步修复了来源投影范围、关系匹配索引、历史证据定位、页面竞态和重复查询，详见[项目审查](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md)与[当前 CI](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks)。
+已运行隔离数据库回归、真实 Chromium 工作流、Linux/PostgreSQL CI，以及合成数据部署与恢复验证。持续修复围绕可复现问题：连续文件更新、来源撤回预览、关系匹配、表单状态、模型费用记账及列表读取，详见[项目审查](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md)与[当前 CI](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks)。
 
 已有 **10 万对象 / 100 万关系 / 50 用户**的合成规模测量；唯一编码搜索 P95 仍高于 1 秒目标，不能据此宣称生产 SLA。复杂文档的人工准确率、整本处理、真实 CDC 故障恢复与大附件灾难恢复仍需专项验收。[完整测量与限制 →](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/beta-verification.md)
 
@@ -77,6 +88,6 @@ PDF 在本地分页渲染并提取原生文字，表格结构与复杂页面交�
 
 **Python / FastAPI / SQLAlchemy / PostgreSQL · React / TypeScript / Sigma / Graphology。** 保持模块化单体，优先解决具体场景，不建设额外的平台层。
 
-如果这正是你需要的方向，欢迎 **Star** 关注进展。也欢迎[带着一个业务场景来提 Issue](https://github.com/xiaohuihuiaijia/ontweft/issues)：你要连接什么数据、回答什么问题、在哪一步遇到了阻碍。请使用脱敏示例；安全问题按[安全说明](SECURITY.md)私下报告。
+如果你正在寻找自部署的企业本体、知识图谱或可追溯的知识管理工具，欢迎 **Star** 关注进展。也欢迎[带着一个业务场景来提 Issue](https://github.com/xiaohuihuiaijia/ontweft/issues)：你要连接什么数据、回答什么问题、在哪一步遇到了阻碍。请使用脱敏示例；安全问题按[安全说明](SECURITY.md)私下报告。
 
 自有代码采用 [Apache-2.0](LICENSE)，第三方组件保留原许可与[必要通知](frontend/public/THIRD_PARTY_NOTICES.txt)。[截图来源](docs/images/README.md)与 [NOTICE](NOTICE)随仓库提供。当前不宣称生产可用性、完整安全审计、商标清查或全部二进制/模型再分发验收通过。

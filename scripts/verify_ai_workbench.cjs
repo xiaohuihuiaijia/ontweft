@@ -44,7 +44,8 @@ const modelDefinition = { types: [{ key: 'SyntheticProduct', label: '合成产�
 
 async function main() {
   fs.mkdirSync(output, { recursive: true });
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ontweft-ai-browser-'));
+  const temporaryRoot = fs.realpathSync(os.tmpdir());
+  const temp = fs.mkdtempSync(path.join(temporaryRoot, 'ontweft-ai-browser-'));
   const reservation = net.createServer();
   await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
   const port = reservation.address().port;
@@ -101,18 +102,22 @@ async function main() {
     await page.getByLabel('连接名称', { exact: true }).fill('合成模型 · 浏览器验收');
     await page.getByLabel('兼容 API 地址', { exact: true }).fill(modelUrl);
     await page.getByLabel('允许受信任的内网模型地址', { exact: true }).check();
-    const savedConnection = page.waitForResponse(response => response.url().endsWith('/api/model-connections') && response.request().method() === 'POST');
-    await page.getByRole('button', { name: '保存模型连接' }).click();
-    const saved = await savedConnection; assert.equal(saved.status(), 201, await saved.text());
+    const [saved] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/model-connections') && response.request().method() === 'POST'),
+      page.getByRole('button', { name: '保存模型连接' }).click(),
+    ]);
+    assert.equal(saved.status(), 201, await saved.text());
     await page.getByRole('button', { name: '测试提取模型' }).click();
     await page.getByText(/测试通过/).waitFor();
     phase = 'upload';
     await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('button', { name: '数据源', exact: true }).click();
     await page.getByRole('button', { name: '文档资料', exact: true }).click();
     await page.getByLabel('上传业务资料', { exact: true }).setInputFiles({ name: 'synthetic-specification.pdf', mimeType: 'application/pdf', buffer: syntheticPdf() });
-    const uploadedResponse = page.waitForResponse(response => response.url().endsWith('/api/documents/upload') && response.request().method() === 'POST');
-    await page.getByRole('button', { name: '保存原件' }).click();
-    const uploaded = await uploadedResponse; assert.equal(uploaded.status(), 201, await uploaded.text());
+    const [uploaded] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/documents/upload') && response.request().method() === 'POST'),
+      page.getByRole('button', { name: '保存原件' }).click(),
+    ]);
+    assert.equal(uploaded.status(), 201, await uploaded.text());
     const document = (await uploaded.json()).document;
     await page.getByRole('button', { name: '刷新文档' }).click();
     await page.getByRole('button', { name: '查看第 1 页' }).waitFor();
@@ -120,9 +125,11 @@ async function main() {
     await page.getByLabel(`文档 ${document.id} 的页码范围`, { exact: true }).fill('2');
     await page.getByLabel('你希望理解什么？（可选）', { exact: true }).fill('只提取型号、名称与额定电压，保留单位和来源');
     phase = 'proposal';
-    const submittedResponse = page.waitForResponse(response => response.url().endsWith('/api/ai/proposals') && response.request().method() === 'POST');
-    await page.getByRole('button', { name: '按需求生成候选' }).click();
-    const submitted = await submittedResponse; assert.equal(submitted.status(), 202, await submitted.text());
+    const [submitted] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/ai/proposals') && response.request().method() === 'POST'),
+      page.getByRole('button', { name: '按需求生成候选' }).click(),
+    ]);
+    assert.equal(submitted.status(), 202, await submitted.text());
     const proposalId = (await submitted.json()).id;
     let proposal;
     for (let i = 0; i < 120; i++) { proposal = await (await context.request.get(`${base}/api/ai/proposals/${proposalId}`)).json(); if (['ready', 'failed', 'partial'].includes(proposal.status)) break; await pause(500); }
@@ -148,9 +155,11 @@ async function main() {
     await page.getByText('发布成功，已发布模型已刷新。', { exact: true }).waitFor();
     await page.getByRole('button', { name: '关闭侧栏', exact: true }).click();
     phase = 'import';
-    const importResponse = page.waitForResponse(response => response.url().endsWith(`/ai/proposals/${proposalId}/import`) && response.request().method() === 'POST');
-    await page.getByRole('button', { name: '导入所选实例', exact: true }).click();
-    const imported = await importResponse; assert.equal(imported.status(), 200, await imported.text());
+    const [imported] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith(`/ai/proposals/${proposalId}/import`) && response.request().method() === 'POST'),
+      page.getByRole('button', { name: '导入所选实例', exact: true }).click(),
+    ]);
+    assert.equal(imported.status(), 200, await imported.text());
     const importResult = await imported.json(); assert.equal(importResult.imported, 1);
     const auth = await (await context.request.get(base + '/api/auth/me')).json();
     const objects = await (await context.request.get(`${base}/api/objects?project_id=${auth.projects[0].id}`)).json();
@@ -206,8 +215,26 @@ async function main() {
     if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); result.visibleText = await page.locator('body').innerText().catch(() => ''); }
     throw error;
   } finally {
+    await browser?.close();
+    for (const process of [...children].reverse()) {
+      if (process.exitCode === null && process.signalCode === null) {
+        const exited = new Promise(resolve => process.once('exit', resolve));
+        process.kill();
+        await Promise.race([exited, pause(5000)]);
+      }
+    }
+    for (const log of logs) log.end();
+    await new Promise(resolve => modelServer.close(resolve));
+    result.childrenStopped = children.every(process => process.exitCode !== null || process.signalCode !== null);
+    const resolvedTemp = fs.realpathSync(temp);
+    if (result.childrenStopped && resolvedTemp === path.resolve(temp) && path.dirname(resolvedTemp) === temporaryRoot && path.basename(resolvedTemp).startsWith('ontweft-ai-browser-')) {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try { fs.rmSync(resolvedTemp, { recursive: true, force: true }); result.temporaryDataRemoved = true; break; }
+        catch (error) { result.cleanupError = error.code; await pause(250); }
+      }
+      if (result.temporaryDataRemoved) delete result.cleanupError;
+    }
     fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(result, null, 2));
-    await browser?.close(); for (const process of children) process.kill(); for (const log of logs) log.end(); modelServer.close();
     console.log(JSON.stringify({ passed: result.passed, phase: result.failedPhase, report: path.relative(root, path.join(output, 'result.json')) }));
   }
 }

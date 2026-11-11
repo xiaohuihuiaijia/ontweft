@@ -6,8 +6,8 @@ from sqlalchemy import select
 
 from ontology.core.domain import active_definition, wire_value
 from ontology.core.errors import DomainError, conflict, forbidden
-from ontology.core.scalars import bounded_decimal, canonical_time
 from ontology.core.models import uid
+from ontology.core.scalars import bounded_decimal, canonical_time
 from ontology.core.schemas import StrictModel
 from ontology.identity.security import access, allowed_field, audit, authenticated
 from ontology.objects.models import Entity, Relation
@@ -112,7 +112,7 @@ def matching_plan(session, ctx, rule, *, issue_offset=0, issue_limit=SAMPLE_SIZE
     for target in targets:
         key = _value_key(target.properties.get(rule.target_field), family)
         if key is not None:
-            index.setdefault(key, []).append(target)
+            index.setdefault(key, {})[target.id] = target
     existing = (
         session.scalars(
             select(Relation)
@@ -150,16 +150,19 @@ def matching_plan(session, ctx, rule, *, issue_offset=0, issue_limit=SAMPLE_SIZE
     for source in sources:
         value = source.properties.get(rule.source_field)
         key = _value_key(value, family)
-        matches = index.get(key, []) if key is not None else []
-        target = matches[0] if len(matches) == 1 else None
+        matches = index.get(key, {}) if key is not None else {}
+        excluded_self = not rule.allow_self and source.id in matches
+        candidate_count = len(matches) - int(excluded_self)
+        target = (
+            next((row for row in matches.values() if not excluded_self or row.id != source.id), None)
+            if candidate_count == 1 else None
+        )
         if key is None:
             status = "missing_value"
-        elif not matches:
-            status = "unmatched"
-        elif len(matches) > 1:
+        elif not candidate_count:
+            status = "self_excluded" if excluded_self else "unmatched"
+        elif candidate_count > 1:
             status = "ambiguous"
-        elif source.id == target.id and not rule.allow_self:
-            status = "self_excluded"
         elif target.id in linked.get(source.id, set()):
             status = "existing"
         elif relation["cardinality"] == "one" and linked.get(source.id):
@@ -175,7 +178,7 @@ def matching_plan(session, ctx, rule, *, issue_offset=0, issue_limit=SAMPLE_SIZE
             "target_id": target.id if target else None,
             "target_revision": target.revision if target else None,
             "status": status,
-            "candidate_count": len(matches),
+            "candidate_count": candidate_count,
         }
         if len(samples) < SAMPLE_SIZE:
             samples.append(sample)

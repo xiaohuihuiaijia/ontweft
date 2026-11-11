@@ -15,8 +15,16 @@ from ontology.core.errors import DomainError, conflict
 from ontology.core.models import uid
 from ontology.core.schemas import StrictModel
 from ontology.identity.security import access, audit, authenticated
+from ontology.jobs.models import Job
+from ontology.objects.contributions.models import SourceContribution
 from ontology.sources.ingestion import schema_fingerprint
-from ontology.sources.models import Source, SourceFileVersion, SourceIdentity
+from ontology.sources.models import (
+    Source,
+    SourceFileVersion,
+    SourceIdentity,
+    SourceRecordRevision,
+    SourceSnapshot,
+)
 from ontology.sources.service import source_view
 from ontology.sources.snapshot_api import enqueue_snapshot
 from ontology.sources.tabular import MAX_BYTES, MAX_EXPANDED_BYTES, TabularError, read_tables
@@ -57,6 +65,33 @@ def keyed_rows(table, fields):
             raise DomainError(422, "non_unique_business_key", "业务键存在空值或重复，请先修正文件")
         result[key] = values
     return result
+
+
+def withdrawn_records(session, source, tables, mode):
+    """Count live source records, not objects or only the previous upload's rows."""
+    counts = {f"sheet_{i + 1}": 0 for i in range(len(tables))}
+    if mode != "replace":
+        return counts
+    keys = source.config["business_keys"]
+    incoming = {resource: set(keyed_rows(table, keys[resource])) for resource, table in zip(counts, tables)}
+    absent = {resource: set() for resource in counts}
+    rows = session.execute(
+        select(SourceIdentity.resource_id, SourceRecordRevision.source_key)
+        .join(SourceContribution, SourceContribution.identity_id == SourceIdentity.id)
+        .join(SourceRecordRevision, SourceRecordRevision.id == SourceIdentity.last_record_id)
+        .where(
+            SourceIdentity.tenant_id == source.tenant_id,
+            SourceIdentity.project_id == source.project_id,
+            SourceIdentity.source_id == source.id,
+            SourceIdentity.resource_id.in_(counts),
+            SourceContribution.active.is_(True),
+        )
+    )
+    for resource, key in rows:
+        identity = tuple(key[field] for field in keys[resource])
+        if identity not in incoming[resource]:
+            absent[resource].add(identity)
+    return {resource: len(values) for resource, values in absent.items()}
 
 
 class FileIdentity(StrictModel):
@@ -166,6 +201,7 @@ def preview_version(
             ):
                 conflict("工作表或字段结构已改变，请作为新来源审核映射；原来源与证据保持不变")
             preview = {}
+            withdrawn = withdrawn_records(session, source, tables, mode)
             for i, (old, new) in enumerate(zip(previous, tables)):
                 resource = f"sheet_{i + 1}"
                 left, right = keyed_rows(old, keys[resource]), keyed_rows(new, keys[resource])
@@ -175,6 +211,7 @@ def preview_version(
                     "updated": sum(left[k] != right[k] for k in common),
                     "unchanged": sum(left[k] == right[k] for k in common),
                     "absent": len(left.keys() - right.keys()),
+                    "withdrawn": withdrawn[resource],
                 }
             version_id = uid()
             config = {
@@ -254,12 +291,36 @@ def apply_version(
             return {"source": source_view(source), "version": row_dict(version)}
         if source.revision != data.expected_revision or source.revision != version.base_revision:
             conflict("来源配置或文件版本已改变，请重新预览")
-        UploadedTablesConnector(
+        pending = session.scalar(
+            select(Job.id)
+            .join(SourceSnapshot, SourceSnapshot.id == Job.payload["snapshot_id"].as_string())
+            .where(
+                Job.tenant_id == source.tenant_id,
+                Job.project_id == source.project_id,
+                Job.kind == "source.snapshot",
+                Job.status.in_(["pending", "running", "retry_wait"]),
+                SourceSnapshot.source_id == source.id,
+            )
+            .limit(1)
+        )
+        if pending:
+            raise DomainError(
+                409, "file_sync_pending", "此来源仍有未完成的同步任务，请等待完成或明确取消后再应用新版本",
+                {"job_id": pending},
+            )
+        connector = UploadedTablesConnector(
             SimpleNamespace(
                 id=source.id, tenant_id=source.tenant_id, project_id=source.project_id, config=version.config
             ),
             request.app.state.settings,
         )
+        if version.config["file_mode"] == "replace":
+            withdrawn = withdrawn_records(session, source, connector.tables, "replace")
+            if any(
+                version.preview.get(resource, {}).get("withdrawn") != count
+                for resource, count in withdrawn.items()
+            ):
+                conflict("来源贡献已改变，请重新预览并核对本次撤回的来源记录")
         source.config, source.resources = dict(version.config), list(version.resources)
         source.revision += 1
         version.applied_revision = source.revision

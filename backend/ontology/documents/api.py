@@ -5,6 +5,7 @@ from urllib.parse import quote, urlencode
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
+from sqlalchemy.orm import defer, load_only
 
 from ontology.content_access.models import DocumentSource
 from ontology.content_access.service import (
@@ -17,6 +18,7 @@ from ontology.core.domain import row_dict, scoped_record
 from ontology.core.errors import DomainError, conflict, missing
 from ontology.core.models import uid
 from ontology.documents.history import (
+    ACTIVE_PARSE_STATUSES,
     active_parse_job,
     current_parse,
     parse_payload,
@@ -42,6 +44,49 @@ def document_view(session, row, *, summary=False):
     )
     if not row.ir_fingerprint and retained_parse_state(row):
         result["ir_fingerprint"] = ir_fingerprint(row.ir)
+    return result
+
+
+def document_summaries(session, rows):
+    if not rows:
+        return []
+    ids = [row.id for row in rows]
+    snapshots = dict(session.execute(
+        select(DocumentParseVersion.document_id, DocumentParseVersion.id)
+        .join(Document, Document.id == DocumentParseVersion.document_id)
+        .where(
+            Document.id.in_(ids), DocumentParseVersion.tenant_id == rows[0].tenant_id,
+            DocumentParseVersion.project_id == rows[0].project_id,
+            DocumentParseVersion.source_revision == Document.revision,
+            DocumentParseVersion.parse_revision == Document.parse_revision,
+        )
+    ).all())
+    active = {}
+    for job in session.execute(
+        select(Job.id, Job.status, Job.payload["engine"].as_string().label("engine"),
+               Job.payload["document_id"].as_string().label("document_id"))
+        .where(
+            Job.tenant_id == rows[0].tenant_id, Job.project_id == rows[0].project_id,
+            Job.kind == "document.parse", Job.status.in_(ACTIVE_PARSE_STATUSES),
+            Job.payload["document_id"].as_string().in_(ids),
+        ).order_by(Job.created_at, Job.id)
+    ):
+        active.setdefault(job.document_id, {"id": job.id, "status": job.status, "engine": job.engine})
+    # Only old records without a stored fingerprint need their IR inspected.
+    legacy_ids = [row.id for row in rows if not row.ir_fingerprint]
+    if legacy_ids:
+        session.scalars(select(Document).options(load_only(Document.id, Document.ir)).where(
+            Document.id.in_(legacy_ids), Document.tenant_id == rows[0].tenant_id,
+        )).all()
+    result = []
+    for row in rows:
+        item = row_dict(row, exclude=("storage_key", "ir"))
+        item.update(current_parse_id=snapshots.get(row.id), active_parse_job=active.get(row.id))
+        if not row.ir_fingerprint and retained_parse_state(row):
+            from ontology.search.content.units import ir_fingerprint
+
+            item["ir_fingerprint"] = ir_fingerprint(row.ir)
+        result.append(item)
     return result
 
 
@@ -148,13 +193,14 @@ def documents(
         ]
         rows = session.scalars(
             select(Document)
+            .options(defer(Document.ir), defer(Document.storage_key))
             .where(*conditions)
-            .order_by(Document.created_at.desc())
+            .order_by(Document.created_at.desc(), Document.id.desc())
             .offset(offset)
             .limit(limit)
         ).all()
         return {
-            "items": [document_view(session, x, summary=True) for x in rows],
+            "items": document_summaries(session, rows),
             "total": session.scalar(select(func.count()).select_from(Document).where(*conditions)),
         }
 

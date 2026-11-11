@@ -88,31 +88,21 @@ class Run:
 
     def generate(self, role, instruction, text, schema, images=None, limit=12000):
         self.reservations = []
-        try:
-            result = self.client.generate(
-                role,
-                instruction=instruction,
-                text=text,
-                images=images,
-                schema=schema,
-                max_output_tokens=limit,
-                before_request=self.reserve,
-            )
-        except ModelCallError as exc:
-            # A charged but unusable answer still has real usage. Network failures
-            # without provider usage retain their reservation until reconciled.
-            if exc.cost is not None:
-                self.record_usage(exc.usage, exc.cost)
-            raise
-        self.record_usage(result.usage, result.cost, model=result.model, elapsed_ms=result.elapsed_ms)
-        return result
 
-    def record_usage(self, usage, cost, *, model=None, elapsed_ms=0):
+        def received(response):
+            self.record_usage(**response, reservation=self.reservations.pop())
+
+        return self.client.generate(
+            role, instruction=instruction, text=text, images=images, schema=schema,
+            max_output_tokens=limit, before_request=self.reserve, after_response=received,
+        )
+
+    def record_usage(self, usage, cost, *, reservation, model=None, elapsed_ms=0):
         with self.db.transaction(self.run["tenant_id"], write=True) as session:
             job, _ = self.verify(session)
             cp = copy.deepcopy(job.checkpoint)
             if cost is not None:
-                cp["reserved_cny"] = max(0, cp.get("reserved_cny", 0) - sum(self.reservations))
+                cp["reserved_cny"] = max(0, cp.get("reserved_cny", 0) - reservation)
                 cp["cost_cny"] = cp.get("cost_cny", 0) + cost
             totals = dict(cp.get("usage", {}))
             for key, value in usage.items():
@@ -123,7 +113,7 @@ class Run:
                 cp["last_model"] = model
                 models = cp.setdefault("models_used", {})
                 measured = models.setdefault(model, {"calls": 0, "elapsed_ms": 0})
-                measured["calls"] += len(self.reservations)
+                measured["calls"] += 1
                 measured["elapsed_ms"] += elapsed_ms
             job.checkpoint = cp
 

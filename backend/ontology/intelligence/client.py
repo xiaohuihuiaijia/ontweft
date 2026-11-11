@@ -76,6 +76,7 @@ class ModelClient:
         self, role, *, instruction: str, text: str, schema: dict, images=None,
         validate: Callable | None = None, max_output_tokens: int | None = None,
         before_request: Callable | None = None,
+        after_response: Callable | None = None,
     ) -> GenerationResult:
         model = model_for(self.connection, role)
         images = images or []
@@ -147,6 +148,7 @@ class ModelClient:
                         "output_tokens": reserved_output, "reasoning_tokens": thinking_budget,
                         "estimated_cost": estimated_cost(model, estimate, reserved_output),
                     })
+                request_started = time.monotonic()
                 try:
                     response = http.post(endpoint, json=payload, headers=headers)
                 except httpx.TimeoutException:
@@ -164,17 +166,30 @@ class ModelClient:
                 try:
                     body = response.json()
                     raw_usage = body.get("usage") or {}
-                    if not raw_usage or not any(key in raw_usage for key in ("prompt_tokens", "input_tokens")) or not any(key in raw_usage for key in ("completion_tokens", "output_tokens")):
-                        usage["reported"] = False
+                    reported = bool(raw_usage) and any(key in raw_usage for key in ("prompt_tokens", "input_tokens")) and any(key in raw_usage for key in ("completion_tokens", "output_tokens"))
+                    usage["reported"] = usage["reported"] and reported
                     incoming = max(0, int(raw_usage.get("prompt_tokens", raw_usage.get("input_tokens", 0))))
                     outgoing = max(0, int(raw_usage.get("completion_tokens", raw_usage.get("output_tokens", 0))))
                     usage["input_tokens"] += incoming
                     usage["output_tokens"] += outgoing
                     usage["total_tokens"] += incoming + outgoing
+                except (ValueError, TypeError, KeyError, IndexError, AttributeError):
+                    raise ModelCallError(502, "model_invalid_response", "模型服务返回了不可识别的响应") from None
+                if after_response:
+                    # Settle each received answer before a possible repair request.
+                    # A later refusal/timeout must not erase this known charge.
+                    after_response({
+                        "usage": {"input_tokens": incoming, "output_tokens": outgoing,
+                                  "total_tokens": incoming + outgoing, "reported": reported},
+                        "cost": estimated_cost(model, incoming, outgoing) if reported else None,
+                        "model": str(body.get("model") or model.id),
+                        "elapsed_ms": round((time.monotonic() - request_started) * 1000),
+                    })
+                try:
                     choice = body["choices"][0]
                     raw = choice["message"]["content"]
                     finish_reason = choice.get("finish_reason")
-                except (ValueError, TypeError, KeyError, IndexError, AttributeError):
+                except (TypeError, KeyError, IndexError, AttributeError):
                     raise ModelCallError(502, "model_invalid_response", "模型服务返回了不可识别的响应") from None
                 cost = estimated_cost(model, usage["input_tokens"], usage["output_tokens"]) if usage["reported"] else None
                 if finish_reason in {"length", "max_tokens"}:

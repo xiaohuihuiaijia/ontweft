@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
 from sqlalchemy import func, select
+from sqlalchemy.orm import defer
 
 from ontology.content_access.service import content_context, prepare_content_access, require_document
 from ontology.core.domain import exact_json_text, row_dict, scoped_record, wire_value
@@ -130,10 +131,13 @@ def parses(
     user=Depends(authenticated),
 ):
     with read_transaction(request.app.state.db, user.tenant_id) as session:
-        doc = scoped_record(session, Document, document_id, user)
+        doc = session.scalar(select(Document).options(defer(Document.ir)).where(
+            Document.id == document_id, Document.tenant_id == user.tenant_id,
+        ))
+        if doc is None:
+            missing()
         ctx = content_context(session, request, user, doc.project_id)
         require_document(session, ctx, doc.id)
-        session.refresh(doc)
         conditions = (
             DocumentParseVersion.tenant_id == doc.tenant_id,
             DocumentParseVersion.project_id == doc.project_id,
@@ -141,6 +145,7 @@ def parses(
         )
         rows = session.scalars(
             select(DocumentParseVersion)
+            .options(defer(DocumentParseVersion.ir))
             .where(*conditions)
             .order_by(
                 DocumentParseVersion.source_revision.desc(),

@@ -27,6 +27,11 @@ from ontology.modeling.schemas import Definition
 from ontology.sources.models import Source
 
 router = APIRouter()
+JOB_PROGRESS_FIELDS = (
+    "stage", "pages_total", "pages_completed", "current_page", "model_batches_completed",
+    "model_batches_total", "facts_pages_completed", "cost_cny", "reserved_cny", "requests",
+    "last_model", "models_used", "usage",
+)
 
 
 def check_inputs(session, proposal, user, *, current_versions=True):
@@ -67,7 +72,7 @@ def review_definition(session, proposal, change=None):
     return change.definition
 
 
-def view(session, proposal, *, summary=False):
+def view(session, proposal):
     result = row_dict(proposal)
     result["inputs"] = {key: value for key, value in proposal.inputs.items() if key != "document_resources"}
     job = session.get(Job, proposal.job_id) if proposal.job_id else None
@@ -78,43 +83,46 @@ def view(session, proposal, *, summary=False):
         result["job"]["checkpoint"] = {
             k: v
             for k, v in job.checkpoint.items()
-            if k
-            in {
-                "stage",
-                "pages_total",
-                "pages_completed",
-                "current_page",
-                "model_batches_completed",
-                "model_batches_total",
-                "facts_pages_completed",
-                "cost_cny",
-                "reserved_cny",
-                "requests",
-                "last_model",
-                "models_used",
-                "usage",
-            }
+            if k in JOB_PROGRESS_FIELDS
         }
         if proposal.status in {"pending", "running"}:
             result["status"] = job.status if job.status != "succeeded" else proposal.status
     result["candidate_count"] = len(proposal.candidates)
-    if summary:
-        result.pop("candidates", None)
-        result.pop("relations", None)
-        result.pop("definition", None)
-    else:
-        from ontology.intelligence.projection import import_preconditions
+    from ontology.intelligence.projection import import_preconditions
 
-        change = session.get(ChangeSet, proposal.changeset_id) if proposal.changeset_id else None
-        result["review_definition"] = review_definition(session, proposal, change)
-        result["review_changeset_revision"] = change.revision if change else None
-        try:
-            import_preconditions(session, proposal, session.get(Project, proposal.project_id))
-        except DomainError as exc:
-            result.update(import_ready=False, import_block_reason=exc.message)
-        else:
-            result.update(import_ready=True, import_block_reason=None)
+    change = session.get(ChangeSet, proposal.changeset_id) if proposal.changeset_id else None
+    result["review_definition"] = review_definition(session, proposal, change)
+    result["review_changeset_revision"] = change.revision if change else None
+    try:
+        import_preconditions(session, proposal, session.get(Project, proposal.project_id))
+    except DomainError as exc:
+        result.update(import_ready=False, import_block_reason=exc.message)
+    else:
+        result.update(import_ready=True, import_block_reason=None)
     return result
+
+
+def summary_jobs(session, job_ids, tenant_id, project_id):
+    if not job_ids:
+        return {}
+    columns = [Job.id, Job.status, Job.error]
+    for key in JOB_PROGRESS_FIELDS:
+        # Preserve missing versus explicit JSON null without loading the private
+        # checkpoint (which also contains model output and database samples).
+        kind = (func.json_type(Job.checkpoint, f"$.{key}")
+                if session.get_bind().dialect.name == "sqlite"
+                else func.json_typeof(Job.checkpoint[key]))
+        columns.extend((Job.checkpoint[key].label(key), kind.label(f"kind_{key}")))
+    rows = session.execute(select(*columns).where(
+        Job.tenant_id == tenant_id, Job.project_id == project_id, Job.id.in_(job_ids),
+    )).mappings()
+    return {
+        row["id"]: {
+            "id": row["id"], "status": row["status"], "error": row["error"],
+            "checkpoint": {key: row[key] for key in JOB_PROGRESS_FIELDS if row[f"kind_{key}"] is not None},
+        }
+        for row in rows
+    }
 
 
 @router.post("/ai/proposals", status_code=202)
@@ -198,15 +206,25 @@ def proposals(
         access(session, user, project_id, "ontology:write")
         access(session, user, project_id, "sources:write")
         conditions = (AIProposal.tenant_id == user.tenant_id, AIProposal.project_id == project_id)
-        rows = session.scalars(
-            select(AIProposal)
+        columns = [column for column in AIProposal.__table__.columns
+                   if column.name not in {"candidates", "relations", "definition"}]
+        items = [dict(row) for row in session.execute(
+            select(*columns, func.json_array_length(AIProposal.candidates).label("candidate_count"))
             .where(*conditions)
             .order_by(AIProposal.created_at.desc(), AIProposal.id.desc())
             .offset(offset)
             .limit(limit)
-        )
+        ).mappings()]
+        jobs = summary_jobs(session, {item["job_id"] for item in items if item["job_id"]}, user.tenant_id, project_id)
+        for item in items:
+            item["inputs"] = {key: value for key, value in item["inputs"].items() if key != "document_resources"}
+            job = jobs.get(item["job_id"])
+            if job:
+                item["job"] = job
+                if item["status"] in {"pending", "running"} and job["status"] != "succeeded":
+                    item["status"] = job["status"]
         return {
-            "items": [view(session, row, summary=True) for row in rows],
+            "items": items,
             "total": session.scalar(select(func.count()).select_from(AIProposal).where(*conditions)),
             "limit": limit,
             "offset": offset,

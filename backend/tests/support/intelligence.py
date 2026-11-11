@@ -5,7 +5,7 @@ import io
 import json
 from typing import ClassVar
 
-from ontology.intelligence.client import GenerationResult, ModelClient
+from ontology.intelligence.client import GenerationResult, ModelCallError, ModelClient
 from ontology.intelligence.prompts import FACT_SCHEMA, MODEL_SCHEMA, PAGE_SCHEMA
 
 
@@ -63,7 +63,17 @@ class SyntheticModel:
         self.cost = 0.01
 
         def generate(_client, role, **kwargs):
-            return self.generate(role, **kwargs)
+            after_response = kwargs.pop("after_response", None)
+            try:
+                result = self.generate(role, **kwargs)
+            except ModelCallError as exc:
+                if after_response and (exc.usage or exc.cost is not None):
+                    after_response({"usage": exc.usage, "cost": exc.cost})
+                raise
+            if after_response:
+                after_response({"usage": result.usage, "cost": result.cost,
+                                "model": result.model, "elapsed_ms": result.elapsed_ms})
+            return result
 
         monkeypatch.setattr(ModelClient, "generate", generate)
 

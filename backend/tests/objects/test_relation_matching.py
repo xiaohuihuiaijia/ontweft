@@ -281,6 +281,42 @@ def test_self_relations_require_explicit_choice_and_old_model_baselines_are_reje
 
 
 @pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])
+@pytest.mark.parametrize("peer_count,status,relation_count", [(1, "self_excluded", 0), (2, "create", 2), (3, "ambiguous", 0)])
+def test_preview_and_continuous_rules_exclude_self_before_counting_candidates(request, fixture_name, peer_count, status, relation_count):
+    from ontology.worker import process_one
+
+    client, app, owner, _ = request.getfixturevalue(fixture_name)
+    release = publish(client, owner["project_id"], {"types": [{
+        "key": "Peer", "label": "Peer",
+        "properties": [{"key": "code", "label": "Code", "data_type": "string"}],
+        "relations": [{"key": "peer", "label": "Peer", "target_type": "Peer", "cardinality": "one"}],
+    }]})["release_id"]
+    for _ in range(peer_count):
+        response = client.post("/api/objects", json={
+            "project_id": owner["project_id"], "type_key": "Peer", "properties": {"code": "same"},
+        })
+        assert response.status_code == 201, response.text
+    rule = {
+        "project_id": owner["project_id"], "expected_model_release_id": release,
+        "source_type": "Peer", "relation_key": "peer", "source_field": "code",
+        "target_field": "code", "allow_self": False,
+    }
+    plan = preview(client, rule)
+    assert plan["counts"][status] == peer_count
+    assert all(row["candidate_count"] == peer_count - 1 for row in plan["samples"])
+    response = client.post("/api/relation-rules", json={"name": "Non-self peers", "rule": rule})
+    assert response.status_code == 201, response.text
+    for _ in range(20):
+        if not process_one(app.state.db, app.state.settings):
+            break
+    else:
+        raise AssertionError("Rule queue did not converge")
+    rows = client.get("/api/relations", params={"project_id": owner["project_id"]}).json()["items"]
+    assert len(rows) == relation_count
+    assert all(row["source_id"] != row["target_id"] for row in rows)
+
+
+@pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])
 def test_concurrent_manual_and_matched_single_target_writes_have_one_winner(request, fixture_name):
     client, app, owner, _ = request.getfixturevalue(fixture_name)
     rule = setup_model(client, owner)

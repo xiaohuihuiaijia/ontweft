@@ -116,9 +116,13 @@ def test_selected_postgres_resource_to_ai_draft_publish_and_existing_import(
             ],
             "gaps": [],
         }
-        return GenerationResult(
+        result = GenerationResult(
             data, "synthetic-model", {"input_tokens": 100, "output_tokens": 50}, cost=0.01
         )
+        if kwargs.get("after_response"):
+            kwargs["after_response"]({"usage": result.usage, "cost": result.cost,
+                                      "model": result.model, "elapsed_ms": result.elapsed_ms})
+        return result
 
     monkeypatch.setattr(ModelClient, "generate", generate)
     response = client.post(
