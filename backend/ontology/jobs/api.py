@@ -1,3 +1,6 @@
+import time
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select, update
 
@@ -24,7 +27,25 @@ from ontology.search.content.index import enqueue_content
 from ontology.sources.models import SourceSnapshot
 
 router = APIRouter(dependencies=[Depends(prepare_content_access)])
-KNOWLEDGE_GRAPH_EDGE_LIMIT = 1000
+
+
+def job_view(row):
+    result = row_dict(row)
+    if row.kind == "ai.propose":
+        hidden = {
+            "source_profiles",
+            "definition",
+            "pages",
+            "suggested_mappings",
+            "gaps",
+            "facts_completed",
+            "facts_segments_completed",
+            "facts_ranges",
+            "page_input_versions",
+            "facts_blocked_range",
+        }
+        result["checkpoint"] = {k: v for k, v in row.checkpoint.items() if k not in hidden}
+    return result
 
 
 @router.get("/jobs")
@@ -45,7 +66,7 @@ def jobs(
             select(Job).where(*conditions).order_by(Job.created_at.desc()).offset(offset).limit(limit)
         ).all()
         return {
-            "items": [row_dict(x) for x in rows],
+            "items": [job_view(x) for x in rows],
             "total": session.scalar(select(func.count()).select_from(Job).where(*conditions)),
         }
 
@@ -112,4 +133,30 @@ def job_operation(job_id: str, operation: str, request: Request, user=Depends(au
                     ("cancelled", "采集任务已取消") if status == "cancelled" else ("pending", None)
                 )
         audit(session, user, row.project_id, f"job.{operation}", row.id)
-        return row_dict(row)
+        return job_view(row)
+
+
+@router.get("/jobs/metrics")
+def job_metrics(request: Request, project_id: str, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        ctx = content_context(session, request, user, project_id, permission="jobs:manage")
+        conditions = (Job.tenant_id == user.tenant_id, Job.project_id == project_id, job_condition(ctx))
+        rows = session.execute(
+            select(Job.kind, Job.status, func.count()).where(*conditions).group_by(Job.kind, Job.status)
+        ).all()
+        oldest = session.scalar(
+            select(func.min(Job.created_at)).where(*conditions, Job.status.in_(["pending", "retry_wait"]))
+        )
+        age = max(0, (datetime.now(UTC) - datetime.fromisoformat(oldest)).total_seconds()) if oldest else 0
+    heartbeat = request.app.state.settings.data_dir / "worker.heartbeat"
+    try:
+        worker_age = max(0, time.time() - heartbeat.stat().st_mtime)
+    except FileNotFoundError:
+        worker_age = None
+    return {
+        "jobs": [{"kind": kind, "status": status, "count": count} for kind, status, count in rows],
+        "pending": sum(count for _, status, count in rows if status in {"pending", "retry_wait"}),
+        "failed": sum(count for _, status, count in rows if status == "failed"),
+        "oldest_pending_seconds": round(age, 1),
+        "worker_heartbeat_age_seconds": worker_age,
+    }

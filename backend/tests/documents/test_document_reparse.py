@@ -48,6 +48,45 @@ def baseline(document):
     }
 
 
+def test_reparse_checks_source_in_streams_and_applies_current_byte_limit(platform, monkeypatch):
+    from pathlib import Path
+
+    client, app, owner, _ = platform
+    document = parsed(platform, text="a" * (2 * 1024 * 1024))
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        path = app.state.settings.data_dir / "assets" / session.get(Document, document["id"]).storage_key
+    original = Path.open
+
+    class BoundedReader:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.stream.close()
+
+        def read(self, size=-1):
+            assert 0 <= size <= 1024 * 1024, "Reparse must not copy the entire original into memory"
+            return self.stream.read(size)
+
+    def bounded_open(self, *args, **kwargs):
+        stream = original(self, *args, **kwargs)
+        return BoundedReader(stream) if self == path else stream
+
+    monkeypatch.setattr(Path, "open", bounded_open)
+    response = reparse(client, document)
+    assert response.status_code == 202, response.text
+    assert client.post(f"/api/jobs/{response.json()['job']['id']}/cancel").status_code == 200
+    app.state.settings.max_upload_bytes = 1024
+    response = reparse(client, document)
+    assert response.status_code == 422 and response.json()["error"]["code"] == "resource_limit"
+
+
 def reparse(client, document):
     return client.post(f"/api/documents/{document['id']}/reparse", json=baseline(document))
 
@@ -493,7 +532,7 @@ def test_permission_revoked_during_real_parser_execution_blocks_finish(reparse_p
         ("docling", "pdf", "torch", "layout"),
         ("basic", "docx", "defusedxml", "native"),
         ("basic", "xlsx", "openpyxl", "native"),
-        ("basic", "pdf", "pypdf", "native"),
+        ("basic", "pdf", "pypdfium2", "native"),
     ],
 )
 def test_direct_dependency_change_rejects_frozen_parse_job(

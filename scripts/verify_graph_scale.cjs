@@ -3,7 +3,7 @@ const fs = require('node:fs'); const path = require('node:path'); const os = req
 const crypto = require('node:crypto'); const net = require('node:net'); const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const root = path.resolve(__dirname, '..'); const output = path.join(root, 'var/reports/open-source-readiness-20261109');
+const root = path.resolve(__dirname, '..'); const output = path.join(root, 'var/reports/graph-scale');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const percentile = (values, p) => [...values].sort((a, b) => a - b)[Math.max(0, Math.ceil(values.length * p) - 1)];
 
@@ -111,7 +111,7 @@ async function main() {
     if (server.exitCode === null) { server.kill(); await Promise.race([new Promise(resolve => server.once('exit', resolve)), pause(5000)]); }
     log.end();
     const parent = fs.realpathSync(os.tmpdir());
-    if (server.exitCode !== null && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-scale-')) fs.rmSync(temp, { recursive: true, force: true });
+    if ((server.exitCode !== null || server.signalCode !== null) && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-scale-')) fs.rmSync(temp, { recursive: true, force: true });
     fs.writeFileSync(path.join(output, 'graph-scale-result.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
   }
 }

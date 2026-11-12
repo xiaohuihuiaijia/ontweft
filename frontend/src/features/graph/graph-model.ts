@@ -1,7 +1,7 @@
 import type { GraphEdge, GraphKind, GraphNode, GraphResult, TypeDef } from '../../shared/model/types';
 
 export interface GraphSelection { node?: string; edge?: string }
-const palette = ['#356eae', '#b7652c', '#7b58a1', '#27836d', '#b44865', '#69832f', '#307f98', '#986746', '#655bab', '#a37722', '#358262', '#a14a48'];
+const palette = ['#356eae', '#b7652c', '#7b58a1', '#27836d', '#b44865', '#69832f', '#307f98', '#986746', '#655bab', '#a37722', '#358262', '#a14a48', '#526c61'];
 export const groupKey = (node: GraphNode, kind: GraphKind) => kind === 'knowledge' ? node.kind : node.type_key || node.kind;
 export function groupColor(key: string) {
   let hash = 2166136261;
@@ -59,10 +59,13 @@ export function edgeLanes(edges: GraphEdge[]): Map<string, EdgeLane> {
   return lanes;
 }
 
-export interface LayoutInput { ids: string[]; edges: { source: string; target: string }[] }
+export interface LayoutInput { ids: string[]; edges: { source: string; target: string }[]; positions?: Position[] }
 export interface Position { id: string; x: number; y: number }
 /** Independent bounded spring/repulsion layout. Edges affect placement, never business semantics. */
 export function layoutGraph(input: LayoutInput): Position[] {
+  // Existing coordinates are anchors; expanding a neighborhood only relaxes
+  // newly added nodes. Initial disconnected graphs retain component packing.
+  if (input.positions?.length) return springLayout(input);
   const ids = [...new Set(input.ids)].sort().slice(0, 500);
   const adjacency = new Map(ids.map(id => [id, new Set<string>()]));
   const edges = input.edges.slice(0, 1000).filter(edge => adjacency.has(edge.source) && adjacency.has(edge.target));
@@ -100,9 +103,15 @@ export function layoutGraph(input: LayoutInput): Position[] {
 
 function springLayout(input: LayoutInput): Position[] {
   const ids = [...new Set(input.ids)].sort().slice(0, 500); const n = ids.length;
-  if (!n) return []; if (n === 1) return [{ id: ids[0], x: 0, y: 0 }];
+  const retained = new Map((input.positions ?? []).map(point => [point.id, point]));
+  if (!n) return []; if (n === 1) return [retained.get(ids[0]) ?? { id: ids[0], x: 0, y: 0 }];
   const index = new Map(ids.map((id, i) => [id, i]));
-  const points = ids.map((id, i) => { const angle = i * Math.PI * (3 - Math.sqrt(5)); const radius = 1.5 * Math.sqrt((i + 1) / n); return { id, x: Math.cos(angle) * radius, y: Math.sin(angle) * radius }; });
+  const points = ids.map((id, i) => {
+    if (retained.has(id)) return { ...retained.get(id)! };
+    const anchors = input.edges.filter(edge => edge.source === id || edge.target === id).map(edge => retained.get(edge.source === id ? edge.target : edge.source)).filter((point): point is Position => !!point);
+    const angle = i * Math.PI * (3 - Math.sqrt(5)); const radius = anchors.length ? 0.2 : 1.5 * Math.sqrt((i + 1) / n);
+    return { id, x: (anchors.length ? anchors.reduce((sum, point) => sum + point.x, 0) / anchors.length : 0) + Math.cos(angle) * radius, y: (anchors.length ? anchors.reduce((sum, point) => sum + point.y, 0) / anchors.length : 0) + Math.sin(angle) * radius };
+  });
   const pairs = new Set<string>();
   const edges = input.edges.slice(0, 1000).map(e => [index.get(e.source), index.get(e.target)]).filter((e): e is [number, number] => {
     if (e[0] === undefined || e[1] === undefined || e[0] === e[1]) return false;
@@ -123,7 +132,7 @@ function springLayout(input: LayoutInput): Position[] {
       force[i].x -= dx * power; force[i].y -= dy * power; force[j].x += dx * power; force[j].y += dy * power;
     }
     const temperature = 0.16 * (1 - step / steps) + 0.003;
-    for (let i = 0; i < n; i++) { const length = Math.hypot(force[i].x, force[i].y); const factor = length ? Math.min(length, temperature) / length : 0; points[i].x += force[i].x * factor; points[i].y += force[i].y * factor; }
+    for (let i = 0; i < n; i++) { if (retained.has(points[i].id)) continue; const length = Math.hypot(force[i].x, force[i].y); const factor = length ? Math.min(length, temperature) / length : 0; points[i].x += force[i].x * factor; points[i].y += force[i].y * factor; }
   }
   return points;
 }

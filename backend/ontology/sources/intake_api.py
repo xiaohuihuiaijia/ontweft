@@ -1,5 +1,4 @@
 import hashlib
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -11,11 +10,11 @@ from ontology.core.models import uid
 from ontology.core.schemas import StrictModel
 from ontology.identity.security import access, audit, authenticated
 from ontology.sources.ingestion import schema_fingerprint
-from ontology.sources.models import Source
+from ontology.sources.models import Source, SourceFileVersion
 from ontology.sources.proposals import propose
 from ontology.sources.service import require_source_read_identity, source_view
-from ontology.sources.tabular import MAX_BYTES, MAX_EXPANDED_BYTES, TabularError, read_tables
-from ontology.sources.tabular_connector import UploadedTablesConnector, bundle_path, serialize_tables
+from ontology.sources.tabular import MAX_BYTES
+from ontology.sources.tabular_connector import UploadedTablesConnector, bundle_path
 
 router = APIRouter()
 
@@ -33,20 +32,12 @@ def upload_tables(
     db, settings = request.app.state.db, request.app.state.settings
     with db.transaction(user.tenant_id) as session:
         access(session, user, project_id, "sources:write")
-    filename = Path((file.filename or "data.csv").replace("\\", "/")).name[:250]
+    from ontology.sources.file_versions import read_upload
+
+    filename, content, tables, normalized = read_upload(file, settings, encoding, delimiter)
     name = name.strip() or filename[:200]
     if len(name) > 200:
         raise DomainError(422, "invalid_name", "数据源名称最多 200 个字符")
-    content = file.file.read(min(MAX_BYTES, settings.max_upload_bytes) + 1)
-    if not content or len(content) > min(MAX_BYTES, settings.max_upload_bytes):
-        raise DomainError(413, "upload_size", "表格不能为空，且不能超过 10 MiB 或服务端配置限制")
-    try:
-        tables = read_tables(content, filename, encoding=encoding, delimiter=delimiter)
-    except TabularError as exc:
-        raise DomainError(422, "invalid_table", str(exc)) from None
-    normalized = serialize_tables(tables)
-    if len(normalized) > MAX_EXPANDED_BYTES:
-        raise DomainError(422, "table_budget", "规范化数据超出处理预算，请拆分文件")
     source = Source(
         id=uid(),
         tenant_id=user.tenant_id,
@@ -68,6 +59,7 @@ def upload_tables(
     path = bundle_path(settings, source)
     path.mkdir(parents=True, exist_ok=False)
     written = []
+    commit_started = False
     try:
         for leaf, data in (("original", content), ("tables.json", normalized)):
             target = path / leaf
@@ -82,6 +74,18 @@ def upload_tables(
             access(session, user, project_id, "sources:write")
             session.add(source)
             session.flush()
+            session.add(
+                SourceFileVersion(
+                    tenant_id=source.tenant_id,
+                    project_id=source.project_id,
+                    source_id=source.id,
+                    number=1,
+                    base_revision=1,
+                    applied_revision=1,
+                    config=dict(source.config),
+                    resources=list(source.resources),
+                )
+            )
             audit(
                 session,
                 user,
@@ -91,11 +95,14 @@ def upload_tables(
                 {"content_sha256": source.config["content_sha256"], "tables": len(tables)},
             )
             result = source_view(source)
+            commit_started = True
         return result
     except Exception:
-        for target in written:
-            target.unlink(missing_ok=True)
-        path.rmdir()
+        # Commit acknowledgement can fail after the database stored the source.
+        if not commit_started:
+            for target in written:
+                target.unlink(missing_ok=True)
+            path.rmdir()
         raise
 
 

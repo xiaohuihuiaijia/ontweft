@@ -5,13 +5,12 @@ from time import monotonic
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
-from sqlalchemy import and_, event, exists, func, literal_column, or_, select, text
+from sqlalchemy import and_, event, exists, func, or_, select, text
 from sqlalchemy.exc import DBAPIError
 
 from ontology.core.domain import active_definition, entity_view
-from ontology.core.errors import DomainError, conflict, missing
+from ontology.core.errors import DomainError, conflict
 from ontology.core.schemas import StrictModel
-from ontology.identity.models import Project, User
 from ontology.identity.security import access, allowed_field, audit, authenticated
 from ontology.objects.models import Entity
 from ontology.search.objects.index import current_state, index_status, reset_project, scoped
@@ -25,7 +24,18 @@ router = APIRouter()
 def read_transaction(db, tenant_id):
     try:
         with db.transaction(tenant_id) as session:
-            if session.bind.dialect.name == "postgresql":
+            if session.bind.dialect.name == "postgresql" and session.bind.dialect.server_version_info >= (
+                17,
+            ):
+                # PG 17 bounds the whole read transaction itself. No extra SET
+                # round trip before every ORM SELECT on the supported deployment.
+                session.execute(
+                    text(
+                        "SELECT set_config('transaction_timeout','3000ms',true), "
+                        "set_config('lock_timeout','1000ms',true)"
+                    )
+                )
+            elif session.bind.dialect.name == "postgresql":
                 session.execute(text("SET LOCAL statement_timeout = '3000ms'"))
                 session.execute(text("SET LOCAL lock_timeout = '1000ms'"))
                 deadline = monotonic() + 3
@@ -50,7 +60,11 @@ def read_transaction(db, tenant_id):
         state = getattr(exc.orig, "sqlstate", None) or (
             diagnostic.get("C") if isinstance(diagnostic, dict) else None
         )
-        if state in {"57014", "55P03"}:
+        if exc.connection_invalidated:
+            # pg8000 reports a server-terminated transaction as a disconnected
+            # socket rather than exposing PG 17's 25P04 diagnostic.
+            raise DomainError(503, "search_unavailable", "检索连接已中断或超过总时间预算，请重试") from None
+        if state in {"57014", "55P03", "25P04"}:
             raise DomainError(
                 503, "search_time_budget", "全文查询超过时间或锁等待预算，请缩小范围后重试"
             ) from None
@@ -65,6 +79,7 @@ class SearchBaseline(StrictModel):
 
 class SearchInput(SearchBaseline):
     q: str = Field(min_length=1, max_length=200)
+    count_total: bool = True
     type_key: str | None = None
     limit: int = Field(default=20, ge=1, le=50)
     offset: int = Field(default=0, ge=0, le=1000)
@@ -73,27 +88,7 @@ class SearchInput(SearchBaseline):
 def read_context(session, user, project_id):
     # A response uses one model/membership/object baseline through count and
     # pagination. Current authorization is read after waiting for the lock.
-    project = session.scalar(
-        select(Project)
-        .where(
-            Project.id == project_id,
-            Project.tenant_id == user.tenant_id,
-        )
-        .with_for_update(read=True)
-        .execution_options(populate_existing=True)
-    )
-    if project is None:
-        missing()
-    session.scalar(
-        select(User)
-        .where(
-            User.id == user.id,
-            User.tenant_id == user.tenant_id,
-        )
-        .with_for_update(read=True)
-        .execution_options(populate_existing=True)
-    )
-    return access(session, user, project_id)
+    return access(session, user, project_id, read_lock=True)
 
 
 def baseline(ctx, data):
@@ -105,14 +100,10 @@ def baseline(ctx, data):
 
 
 def term_match(session, term):
-    if session.bind.dialect.name == "postgresql":
-        config = literal_column("'simple'::regconfig")
-        return func.to_tsvector(config, ObjectSearchField.token_text).op("@@")(
-            func.plainto_tsquery(config, term)
-        )
-    # SQLite is an explicitly documented reference backend for local tests.
-    # The production path above uses the actual PostgreSQL expression GIN.
-    return ObjectSearchField.token_text.contains(" " + term + " ", autoescape=True)
+    # Equality can use the scoped B-tree under forced RLS. PG's non-leakproof
+    # @@ / to_tsvector expression caused a full tenant scan in measured plans.
+    # Terms are already normalized by the shared versioned tokenizer.
+    return ObjectSearchField.token_text == " " + term + " "
 
 
 @router.get("/search/status")
@@ -157,13 +148,14 @@ def search(data: SearchInput, request: Request, user=Depends(authenticated)):
         state = current_state(session, ctx.project)
         result = {
             "items": [],
-            "total": 0,
+            "total": 0 if data.count_total else None,
+            "has_more": False,
             "limit": data.limit,
             "offset": data.offset,
             "query": {"text": data.q, "terms": terms, "mode": "all_terms"},
             "release_id": ctx.project.active_release_id,
             "model_version": ctx.project.version,
-            "index": index_status(session, ctx.project),
+            "index": index_status(session, ctx.project, state=state),
             "matches": {},
         }
         if state is None:
@@ -201,7 +193,7 @@ def search(data: SearchInput, request: Request, user=Depends(authenticated)):
             ObjectSearchDocument.tokenizer_version == TOKENIZER_VERSION,
             ObjectSearchDocument.status == "ready",
         ]
-        # Each term may occur in a different authorized field/chunk. Hidden
+        # Each term may occur in a different authorized field posting. Hidden
         # fields never contribute to membership, counts, ordering or snippets.
         for term in terms:
             conditions.append(
@@ -219,23 +211,32 @@ def search(data: SearchInput, request: Request, user=Depends(authenticated)):
             .join(ObjectSearchDocument, ObjectSearchDocument.entity_id == Entity.id)
             .where(*conditions)
         )
-        result["total"] = session.scalar(select(func.count()).select_from(query.subquery()))
+        if data.count_total:
+            result["total"] = session.scalar(select(func.count()).select_from(query.subquery()))
         entities = session.scalars(
-            query.order_by(Entity.updated_at.desc(), Entity.id).offset(data.offset).limit(data.limit)
+            query.order_by(Entity.updated_at.desc(), Entity.id).offset(data.offset).limit(data.limit + 1)
         ).all()
-        result["items"] = [entity_view(session, entity, ctx) for entity in entities]
-        for entity in entities:
-            fields = session.scalars(
-                select(ObjectSearchField.field_key)
+        result["has_more"] = len(entities) > data.limit
+        entities = entities[: data.limit]
+        by_type = {definition["key"]: definition for definition in definitions}
+        result["items"] = [
+            entity_view(session, entity, ctx, definition=by_type[entity.type_key]) for entity in entities
+        ]
+        result["matches"] = {entity.id: {"fields": []} for entity in entities}
+        if entities:
+            fields = session.execute(
+                select(ObjectSearchField.entity_id, ObjectSearchField.field_key)
+                .join(Entity, ObjectSearchField.entity_id == Entity.id)
                 .where(
                     *scoped(ObjectSearchField, ctx.project),
-                    ObjectSearchField.entity_id == entity.id,
+                    ObjectSearchField.entity_id.in_([entity.id for entity in entities]),
                     ObjectSearchField.generation == state.generation,
-                    ObjectSearchField.field_key.in_(visible.get(entity.type_key, [])),
+                    or_(*access_terms),
                     or_(*(term_match(session, term) for term in terms)),
                 )
                 .distinct()
-                .order_by(ObjectSearchField.field_key)
+                .order_by(ObjectSearchField.entity_id, ObjectSearchField.field_key)
             ).all()
-            result["matches"][entity.id] = {"fields": fields}
+            for entity_id, field in fields:
+                result["matches"][entity_id]["fields"].append(field)
         return result

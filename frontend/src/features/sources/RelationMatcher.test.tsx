@@ -19,6 +19,7 @@ async function selectRule() {
 it('requires an explicit partial choice and submits exactly the previewed rule and version', async () => {
   let applied: Record<string, unknown> | undefined;
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (String(url).includes('/relation-rules')) return new Response(JSON.stringify({ items: [] }));
     if (String(url).endsWith('match-apply')) {
       applied = JSON.parse(options?.body as string);
       return new Response(JSON.stringify({ created: 1, existing: 0, unresolved: 1, message: '已记录规则与修订' }));
@@ -39,7 +40,7 @@ it('requires an explicit partial choice and submits exactly the previewed rule a
 });
 
 it('retains a stale preview error and clears preview when its rule is edited', async () => {
-  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).endsWith('match-apply') ? { error: { message: '对象已改变，请重新预览' } } : String(url).endsWith('match-preview') ? { ...report, unresolved_count: 0 } : types), { status: String(url).endsWith('match-apply') ? 409 : 200 }));
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/relation-rules') ? { items: [] } : String(url).endsWith('match-apply') ? { error: { message: '对象已改变，请重新预览' } } : String(url).endsWith('match-preview') ? { ...report, unresolved_count: 0 } : types), { status: String(url).endsWith('match-apply') ? 409 : 200 }));
   render(<RelationMatcher projectId="p" disabled={false} onBusy={noop} onDirty={noop} />);
   await selectRule();
   fireEvent.click(screen.getByRole('button', { name: '预览关系匹配' }));
@@ -54,6 +55,7 @@ it('pages through all unresolved records without changing the confirmed rule or 
   const issues = Array.from({ length: 26 }, (_, index) => ({ source_id: `object-${index}`, source_revision: 1, value: `unmatched-${index}`, target_id: null, status: 'unmatched', candidate_count: 0 }));
   const pages: Record<string, unknown>[] = [];
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (String(url).includes('/relation-rules')) return new Response(JSON.stringify({ items: [] }));
     if (String(url).endsWith('match-issues')) {
       const body = JSON.parse(options?.body as string); pages.push(body);
       return new Response(JSON.stringify({ plan_hash: report.plan_hash, rows: issues.slice(body.offset, body.offset + body.limit), offset: body.offset, limit: body.limit, total: 26 }));

@@ -10,7 +10,8 @@ from pathlib import Path
 
 from ontology.cli import bootstrap
 from ontology.core.config import Settings
-from ontology.core.db import Base, Database
+from ontology.core.db import Database
+from ontology.core.registry import grant_runtime_access
 from ontology.identity.models import Tenant
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
@@ -22,23 +23,6 @@ def main():
     admin_url = (data / "database-url.txt").read_text().strip()
     runtime_file = data / "runtime-database-url.txt"
     admin = create_engine(admin_url)
-    immutable = {
-        "releases",
-        "entity_revisions",
-        "knowledge_revisions",
-        "document_sources",
-        "knowledge_source_dependencies",
-        "document_parse_versions",
-        "audit_events",
-        "source_record_revisions",
-        "action_attempts",
-        "function_runs",
-        "cdc_events",
-        "contribution_revisions",
-        "contribution_decisions",
-        "cdc_projection_bindings",
-        "cdc_projection_windows",
-    }
     with admin.begin() as connection:
         if not connection.scalar(text("SELECT 1 FROM pg_roles WHERE rolname = 'ontology_runtime'")):
             password = secrets.token_hex(32)
@@ -52,19 +36,7 @@ def main():
             raise RuntimeError("Runtime role already exists, but its local credentials file is missing")
         else:
             runtime_url = make_url(runtime_file.read_text().strip())
-        connection.execute(text("REVOKE CREATE ON SCHEMA public FROM PUBLIC"))
-        connection.execute(text("GRANT USAGE ON SCHEMA public TO ontology_runtime"))
-        for table in Base.metadata.sorted_tables:
-            grants = (
-                "SELECT"
-                if table.name == "tenants"
-                else "SELECT, INSERT"
-                if table.name in immutable
-                else "SELECT, INSERT, UPDATE, DELETE"
-            )
-            connection.execute(text(f'REVOKE ALL ON TABLE "{table.name}" FROM ontology_runtime'))
-            connection.execute(text(f'GRANT {grants} ON TABLE "{table.name}" TO ontology_runtime'))
-        connection.execute(text("GRANT SELECT ON alembic_version TO ontology_runtime"))
+        grant_runtime_access(connection, "ontology_runtime")
     runtime_file.write_text(runtime_url.render_as_string(hide_password=False), encoding="utf-8")
     db = Database(Settings(database_url=admin_url, data_dir=data))
     login_file = data / "development-login.json"

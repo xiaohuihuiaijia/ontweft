@@ -29,6 +29,8 @@ class TypeDefinition(StrictModel):
     label: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=4000)
     properties: list[PropertyDefinition] = Field(default_factory=list, max_length=200)
+    unique_keys: list[list[str]] = Field(default_factory=list, max_length=16)
+    key_semantics: Literal["legacy", "canonical"] = "canonical"
     relations: list[RelationDefinition] = Field(default_factory=list, max_length=100)
 
 
@@ -45,6 +47,7 @@ class MappingDefinition(StrictModel):
     resource_id: str = Field(min_length=1, max_length=500)
     type_key: str
     schema_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    identity_fields: list[str] = Field(default_factory=list, max_length=16)
     fields: dict[str, FieldMapping] = Field(min_length=1, max_length=200)
 
 

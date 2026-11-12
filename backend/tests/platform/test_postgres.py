@@ -68,6 +68,35 @@ def test_session_resolution_is_token_scoped_and_history_is_immutable(pg_platform
         assert session.scalar(select(Audit.id)) is not None
 
 
+def test_runtime_provisioning_revokes_stale_ai_evidence_permissions(pg_databases):
+    from ontology.core.registry import grant_runtime_access
+    from sqlalchemy.engine import make_url
+
+    admin, runtime_url = pg_databases
+    role_name = make_url(runtime_url).username
+    role = admin.engine.dialect.identifier_preparer.quote(role_name)
+    with admin.engine.begin() as connection:
+        # An earlier deployment gave this evidence table mutable-table permissions.
+        connection.execute(text(f"GRANT UPDATE, DELETE ON ai_document_pages TO {role}"))
+        assert connection.scalar(
+            text("SELECT has_table_privilege(:role, 'ai_document_pages', 'UPDATE')"), {"role": role_name}
+        )
+        grant_runtime_access(connection, role_name)
+        for permission in ("UPDATE", "DELETE"):
+            assert not connection.scalar(
+                text("SELECT has_table_privilege(:role, 'ai_document_pages', :permission)"),
+                {"role": role_name, "permission": permission},
+            )
+        for permission in ("SELECT", "INSERT"):
+            assert connection.scalar(
+                text("SELECT has_table_privilege(:role, 'ai_document_pages', :permission)"),
+                {"role": role_name, "permission": permission},
+            )
+        assert connection.scalar(
+            text("SELECT has_table_privilege(:role, 'ai_proposals', 'UPDATE')"), {"role": role_name}
+        )
+
+
 def test_postgres_publish_and_concurrent_object_cas(pg_platform, definition):
     client, _, a, _ = pg_platform
     publish(client, a["project_id"], definition)

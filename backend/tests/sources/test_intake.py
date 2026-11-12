@@ -196,7 +196,7 @@ def test_multisheet_upload_creates_distinct_editable_types_and_imports_each_tabl
 
 
 def test_upload_rechecks_permission_and_removes_only_its_uncommitted_files(platform, monkeypatch):
-    from ontology.sources import intake_api
+    from ontology.sources import file_versions as intake_api
 
     client, app, owner, _ = platform
     original = intake_api.serialize_tables
@@ -220,6 +220,35 @@ def test_upload_rechecks_permission_and_removes_only_its_uncommitted_files(platf
     assert not any(path.is_file() for path in root.rglob("*"))
     with app.state.db.transaction(owner["tenant_id"]) as session:
         assert not session.scalars(select(Source)).all()
+
+
+def test_upload_preserves_files_when_commit_response_is_lost(platform, monkeypatch):
+    from contextlib import contextmanager
+    from sqlalchemy import func
+
+    client, app, owner, _ = platform
+    transaction = app.state.db.transaction
+
+    @contextmanager
+    def lost_commit_response(*args, **kwargs):
+        with transaction(*args, **kwargs) as session:
+            before = session.scalar(select(func.count()).select_from(Source))
+            yield session
+            added = session.scalar(select(func.count()).select_from(Source)) > before
+        if added:
+            raise OSError("synthetic lost commit response")
+
+    monkeypatch.setattr(app.state.db, "transaction", lost_commit_response)
+    content = b"name\nsynthetic\n"
+    with pytest.raises(OSError, match="lost commit response"):
+        client.post(
+            "/api/sources/upload",
+            data={"project_id": owner["project_id"]},
+            files={"file": ("data.csv", content)},
+        )
+    sources = client.get("/api/sources", params={"project_id": owner["project_id"]}).json()["items"]
+    assert len(sources) == 1
+    assert client.get(f"/api/sources/{sources[0]['id']}/original").content == content
 
 
 def test_xlsx_declared_dimensions_cannot_hide_rows_or_bypass_budget():

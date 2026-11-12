@@ -166,11 +166,12 @@ it('binds original evidence mode and clears existing results and evidence when a
 
 it('adds the content search navigation with current-project management permission rather than the account permission union', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
-    if (String(input) === '/api/auth/me') return json({ user: { id: 'u', email: 'reader@example.test', display_name: '读者' }, tenant: { id: 't', name: '测试企业' }, projects: [{ id: 'reader', name: '只读项目', permissions: ['objects:read'] }, { id: 'owner', name: '维护项目', permissions: ['objects:read', 'sources:write'] }], permissions: ['objects:read', 'sources:write'] });
+    if (String(input) === '/api/auth/me') return json({ features: ['knowledge'], user: { id: 'u', email: 'reader@example.test', display_name: '读者' }, tenant: { id: 't', name: '测试企业' }, projects: [{ id: 'reader', name: '只读项目', permissions: ['objects:read'] }, { id: 'owner', name: '维护项目', permissions: ['objects:read', 'sources:write'] }], permissions: ['objects:read', 'sources:write'] });
     if (String(input).includes('/search/content/status')) return json(index);
     return json({ items: [], total: 0, release_id: null, version: 0 });
   });
   render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: '知识页面' }));
   fireEvent.click(await screen.findByRole('button', { name: '内容检索' }));
   await screen.findByRole('heading', { name: '内容检索' }); await screen.findByText('文档：已就绪');
   expect(screen.queryByRole('button', { name: '重建当前范围内容索引' })).toBeNull();

@@ -130,7 +130,7 @@ def query_objects(session, ctx, query: ObjectQuery):
         .limit(query.limit)
     ).all()
     return {
-        "items": [entity_view(session, obj, ctx) for obj in objects],
+        "items": [entity_view(session, obj, ctx, definition=type_def) for obj in objects],
         "total": total,
         "release_id": ctx.project.active_release_id,
         "version": ctx.project.version,
@@ -203,8 +203,9 @@ def objects(
             .offset(offset)
             .limit(limit)
         ).all()
+        by_type = {definition["key"]: definition for definition in definitions}
         return {
-            "items": [entity_view(session, x, ctx) for x in rows],
+            "items": [entity_view(session, x, ctx, definition=by_type.get(x.type_key)) for x in rows],
             "total": total,
             "release_id": ctx.project.active_release_id,
         }
@@ -218,16 +219,17 @@ def create_object(data: ObjectInput, request: Request, user=Depends(authenticate
         definition = type_definition(session, ctx.project, data.type_key)
         ensure_writable(definition, data.properties, ctx.role)
         values = validate_properties(definition, data.properties)
+        evidence = []
         if data.evidence:
             from ontology.knowledge.references import validate_references
 
-            validate_references(session, ctx, data.evidence)
+            evidence = validate_references(session, ctx, data.evidence)
         obj = Entity(
             tenant_id=user.tenant_id,
             project_id=data.project_id,
             type_key=data.type_key,
             properties=values,
-            evidence=data.evidence,
+            evidence=evidence,
             release_id=ctx.project.active_release_id,
         )
         session.add(obj)
@@ -307,6 +309,7 @@ def relations(
     project_id: str,
     object_id: str | None = None,
     limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     user=Depends(authenticated),
 ):
     with request.app.state.db.transaction(user.tenant_id) as session:
@@ -325,10 +328,14 @@ def relations(
         ]
         if object_id:
             conditions.append(or_(Relation.source_id == object_id, Relation.target_id == object_id))
-        rows = session.scalars(select(Relation).where(*conditions).order_by(Relation.id).limit(limit)).all()
+        rows = session.scalars(
+            select(Relation).where(*conditions).order_by(Relation.id).offset(offset).limit(limit)
+        ).all()
         return {
             "items": [row_dict(x) for x in rows],
             "total": session.scalar(select(func.count()).select_from(Relation).where(*conditions)),
+            "limit": limit,
+            "offset": offset,
         }
 
 
@@ -352,6 +359,27 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
         relation = next((r for r in definition.get("relations", []) if r["key"] == data.type_key), None)
         if not relation or relation["target_type"] != target.type_key:
             raise DomainError(422, "invalid_relation", "关系谓词或目标类型不匹配")
+        if data.properties:
+            raise DomainError(422, "undefined_relation_properties", "请先定义关系属性；当前关系没有可写属性")
+        evidence = []
+        if data.evidence:
+            from ontology.knowledge.references import validate_references
+
+            evidence = validate_references(session, ctx, data.evidence)
+        existing = session.scalar(
+            select(Relation).where(
+                Relation.tenant_id == user.tenant_id,
+                Relation.project_id == data.project_id,
+                Relation.source_id == source.id,
+                Relation.target_id == target.id,
+                Relation.type_key == data.type_key,
+            )
+        )
+        if existing and not existing.manual:
+            existing.manual = True
+            existing.revision += 1
+            audit(session, user, data.project_id, "relation.manual.retained", existing.id)
+            return row_dict(existing)
         if relation["cardinality"] == "one" and session.scalar(
             select(Relation.id).where(
                 Relation.project_id == data.project_id,
@@ -360,12 +388,6 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
             )
         ):
             conflict("该关系只允许一个目标")
-        if data.properties:
-            raise DomainError(422, "undefined_relation_properties", "请先定义关系属性；当前关系没有可写属性")
-        if data.evidence:
-            from ontology.knowledge.references import validate_references
-
-            validate_references(session, ctx, data.evidence)
         row = Relation(
             tenant_id=user.tenant_id,
             project_id=data.project_id,
@@ -373,9 +395,12 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
             source_id=source.id,
             target_id=target.id,
             properties={},
-            evidence=data.evidence,
+            evidence=evidence,
         )
         session.add(row)
+        from ontology.objects.constraints import touch_entity
+
+        touch_entity(session, source)
         session.flush()
         audit(session, user, data.project_id, "relation.created", row.id)
         return row_dict(row)
@@ -389,9 +414,42 @@ def delete_relation(
         row = scoped_record(session, Relation, relation_id, user)
         ctx = access(session, user, row.project_id, "objects:write")
         ensure_model_baseline(session, ctx, data)
+        row = session.scalar(
+            select(Relation)
+            .where(Relation.id == relation_id, Relation.tenant_id == user.tenant_id)
+            .execution_options(populate_existing=True)
+        )
+        if row is None:
+            missing()
         if row.revision != data.expected_revision:
             conflict()
+        from ontology.objects.rule_models import RelationContribution
+
+        supported = session.scalar(
+            select(RelationContribution.id).where(RelationContribution.relation_id == row.id).limit(1)
+        )
+        from ontology.intelligence.proposal_models import DocumentRelationContribution
+
+        document_supported = session.scalar(
+            select(DocumentRelationContribution.id)
+            .where(DocumentRelationContribution.relation_id == row.id).limit(1)
+        )
+        if supported or document_supported:
+            if not row.manual:
+                conflict("关系仍有来源或持续规则贡献，请先处理对应来源")
+            row.manual = False
+            row.revision += 1
+            audit(session, user, row.project_id, "relation.manual.removed", row.id)
+            return {"ok": True, "retained_by_rules": bool(supported), "retained_by_document": bool(document_supported)}
+        from ontology.objects.constraints import touch_entity
+
+        touch_entity(session, session.get(Entity, row.source_id))
+        source = session.get(Entity, row.source_id)
         session.delete(row)
+        session.flush()
+        from ontology.objects.relation_rules import changed_entity
+
+        changed_entity(session, source)
         audit(session, user, row.project_id, "relation.deleted", row.id)
         return {"ok": True}
 
@@ -405,6 +463,8 @@ async def graph(
     user=Depends(authenticated),
 ):
     if kind == "knowledge":
+        if "knowledge" not in request.app.state.settings.extensions:
+            raise DomainError(409, "extension_disabled", "当前部署未启用知识资料扩展")
         from ontology.content_access.service import refresh_project
 
         await refresh_project(request, user, project_id)
@@ -468,62 +528,21 @@ async def graph(
             .order_by(Entity.id)
             .limit(limit + 1)
         ).all()
-        definitions = {t["key"]: t for t in active_definition(session, ctx.project)["types"]}
-        object_types = {obj.id: obj.type_key for obj in rows[:limit]}
-        nodes = []
-        for obj in rows[:limit]:
-            view = entity_view(session, obj, ctx, definition=definitions[obj.type_key])
-            props = view["properties"]
-            nodes.append(
-                {
-                    "id": obj.id,
-                    "label": str(props.get("name", props.get("title", obj.type_key))),
-                    "type_key": obj.type_key,
-                    "type_label": definitions[obj.type_key]["label"],
-                    "kind": "object",
-                    "properties": props,
-                    "revision": obj.revision,
-                }
-            )
-        ids = [n["id"] for n in nodes]
+        from ontology.objects.graph import graph_slice
+
+        ids = [obj.id for obj in rows[:limit]]
         rels = session.scalars(
             select(Relation)
             .where(
-                Relation.project_id == project_id,
                 Relation.tenant_id == user.tenant_id,
+                Relation.project_id == project_id,
                 Relation.source_id.in_(ids),
                 Relation.target_id.in_(ids),
             )
             .order_by(Relation.id)
             .limit(1001)
         ).all()
-        edges = []
-        for rel in rels[:1000]:
-            relation_def = next(
-                (
-                    item
-                    for item in definitions[object_types[rel.source_id]].get("relations", [])
-                    if item["key"] == rel.type_key
-                ),
-                {},
-            )
-            edges.append(
-                {
-                    "id": rel.id,
-                    "source": rel.source_id,
-                    "target": rel.target_id,
-                    "label": relation_def.get("label", rel.type_key),
-                    "type_key": rel.type_key,
-                    "kind": "relation",
-                    "cardinality": relation_def.get("cardinality"),
-                }
-            )
-        return {
-            **graph_baseline,
-            "nodes": nodes,
-            "edges": edges,
-            "truncated": len(rows) > limit or len(rels) > 1000,
-        }
+        return graph_slice(session, ctx, rows[:limit], rels, truncated=len(rows) > limit)
 
 
 @router.get("/audit")

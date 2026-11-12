@@ -95,7 +95,10 @@ def knowledge_condition(ctx, page_id=KnowledgePage.id, revision=None):
 
 
 def job_condition(ctx):
-    return (Job.kind != "document.parse") | document_condition(ctx, Job.payload["document_id"].as_string())
+    condition = (Job.kind != "document.parse") | document_condition(ctx, Job.payload["document_id"].as_string())
+    if not {"ontology:write", "sources:write"}.issubset(ctx.permissions):
+        condition &= Job.kind != "ai.propose"
+    return condition
 
 
 def audit_condition(ctx):
@@ -212,6 +215,9 @@ def content_context(session, request, user, project_id, *, permission="objects:r
     if permission != "objects:read":
         access(session, user, project_id, permission)
     ctx = read_context(session, user, project_id)
+    if "integrations" not in request.app.state.settings.extensions:
+        ctx.content_application_ids = []
+        return ctx
     login = session.scalar(
         select(LoginSession)
         .where(LoginSession.token_hash == token_hash(request.cookies.get("ontology_session", "")))
@@ -421,6 +427,8 @@ async def refresh_project(request, user, project_id, *, actions=("view",)):
 
 async def prepare_content_access(request: Request, user=Depends(authenticated)):
     # Route dependencies run before sync content handlers open transactions.
+    if "integrations" not in request.app.state.settings.extensions:
+        return
     path = request.url.path
     if path.endswith("/documents/upload"):
         return
@@ -436,15 +444,14 @@ async def prepare_content_access(request: Request, user=Depends(authenticated)):
         with request.app.state.db.transaction(user.tenant_id) as session:
             for key, model in mapping:
                 if key in request.path_params:
-                    row = session.scalar(
-                        select(model).where(
+                    project_id = session.scalar(
+                        select(model.project_id).where(
                             model.id == request.path_params[key], model.tenant_id == user.tenant_id
                         )
                     )
-                    if row is None:
+                    if project_id is None:
                         missing()
-                    access(session, user, row.project_id)
-                    project_id = row.project_id
+                    access(session, user, project_id)
                     break
     if isinstance(project_id, str) and project_id:
         await refresh_project(

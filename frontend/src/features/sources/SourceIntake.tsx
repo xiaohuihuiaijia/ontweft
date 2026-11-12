@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { request, write } from '../../shared/api/api';
-import type { Definition, RecordData } from '../../shared/model/types';
+import type { ModelApproval, Definition, RecordData } from '../../shared/model/types';
 import { ErrorNotice, ExactJson, Field } from '../../shared/ui/components';
 import { OntologyEditor } from '../modeling/OntologyPage';
 import './source-intake.css';
@@ -73,8 +73,8 @@ export function UploadTables({ projectId, disabled, onUploaded, onDirty, onBusy 
   </section>;
 }
 
-export function SourceModelBuilder({ source, projectId, can, disabled, onDirty, onBusy }: {
-  source: IntakeSource; projectId: string; can: (permission: string) => boolean; disabled: boolean;
+export function SourceModelBuilder({ modelApproval, source, projectId, can, disabled, onDirty, onBusy }: {
+  modelApproval?: ModelApproval; source: IntakeSource; projectId: string; can: (permission: string) => boolean; disabled: boolean;
   onDirty: (dirty: boolean) => void; onBusy: (busy: boolean) => void;
 }) {
   const resources = source.resources ?? [];
@@ -109,7 +109,7 @@ export function SourceModelBuilder({ source, projectId, can, disabled, onDirty, 
       <ul>{proposal.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
       <div className="toolbar"><button onClick={() => setEditing(true)}>编辑模型与来源映射</button><button className="secondary" onClick={() => setProposal(undefined)}>返回选择</button></div>
     </div>}
-    {proposal && editing && <OntologyEditor projectId={projectId} can={can} onDirty={onDirty} initialDefinition={proposal.definition} initialBaselineReleaseId={proposal.baseline_release_id}
+    {proposal && editing && <OntologyEditor modelApproval={modelApproval} projectId={projectId} can={can} onDirty={onDirty} initialDefinition={proposal.definition} initialBaselineReleaseId={proposal.baseline_release_id}
       onClose={() => { setEditing(false); setProposal(undefined); }} onUpdated={isPublished => { if (isPublished) setPublished(true); }} />}
   </section>;
 }

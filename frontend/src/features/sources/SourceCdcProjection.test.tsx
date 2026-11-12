@@ -123,3 +123,19 @@ it('keeps committed projection visible when fulltext fails and does not infer a 
   await screen.findByText('服务未提供独立全文索引进度');
   expect(screen.getByLabelText('CDC 水位').textContent).toContain('对象全文 fulltext—');
 });
+
+
+it('rebuilds a new generation against the current revision and hands the one-time credential to the parent', async () => {
+  const onRebuilt = vi.fn(); const result = { stream: { id: 'stream-2', generation: 'g2' }, token: 'synthetic-once' };
+  const writes: unknown[] = [];
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'POST') { expect(String(url)).toContain('/stream-1/rebuild'); writes.push(JSON.parse(String(options.body))); return json(result, 201); }
+    return json({ ...bound, can_rebuild: true, current: { release_id: 'release-2', version: 2, source_revision: 4 } });
+  });
+  render(<SourceCdcProjection {...props} onRebuilt={onRebuilt} />);
+  fireEvent.click(await screen.findByRole('button', { name: '从完整快照重建基线' }));
+  await waitFor(() => expect(onRebuilt).toHaveBeenCalledWith(result));
+  expect(writes).toEqual([{ expected_binding_id: 'binding-1', expected_release_id: 'release-2', expected_source_revision: 4, resource_ids: ['public.items', 'public.orders'] }]);
+  expect(screen.queryByText('synthetic-once')).toBeNull();
+});

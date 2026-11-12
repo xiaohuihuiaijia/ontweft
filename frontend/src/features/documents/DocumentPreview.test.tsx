@@ -43,3 +43,16 @@ it('keeps rows fully covered by a merged cell in the table layout', () => {
   expect(screen.getAllByRole('row')).toHaveLength(2);
   expect(screen.getAllByRole('cell')).toHaveLength(1);
 });
+
+
+it('does not carry an old source locator into another page with reused element identifiers', () => {
+  const first = { elements: [{ element_id: 'paragraph', kind: 'paragraph', text: '第一页正文', evidence: { page: 1, marker: 'first-page-anchor' } }] };
+  const next = { elements: [{ element_id: 'paragraph', kind: 'paragraph', text: '第二页正文', evidence: { page: 2, marker: 'second-page-anchor' } }] };
+  const view = render(<DocumentPreview value={first} compact />);
+  fireEvent.click(screen.getByRole('button', { name: '来源定位' }));
+  expect(screen.getByText(/first-page-anchor/)).toBeTruthy();
+  view.rerender(<DocumentPreview value={next} compact />);
+  expect(screen.queryByText(/first-page-anchor/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '来源定位' }));
+  expect(screen.getByText(/second-page-anchor/)).toBeTruthy();
+});

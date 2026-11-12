@@ -9,7 +9,7 @@ const model: TypeList = { items: [{ key: 'item', label: '物料', properties: [{
 const index: FulltextIndex = { kind: 'object_fulltext', generation: 'g1', tokenizer_version: 'cn-1', status: 'ready' };
 const object = { id: 'o1', project_id: 'p', type_key: 'item', revision: 1, properties: { name: '库存原料' }, data_status: 'active', model_release_id: 'r1', model_version: 1 };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
-const result = (extra: object = {}) => ({ items: [object], total: 21, limit: 20, offset: 0, query: { text: '库存 原料', terms: ['库存', '原料'], mode: 'all_terms' }, release_id: 'r1', model_version: 1, index, matches: { o1: { fields: ['name'] } }, ...extra });
+const result = (extra: object = {}) => ({ items: [object], total: null, has_more: true, limit: 20, offset: 0, query: { text: '库存 原料', terms: ['库存', '原料'], mode: 'all_terms' }, release_id: 'r1', model_version: 1, index, matches: { o1: { fields: ['name'] } }, ...extra });
 const props = { projectId: 'p', types: model, loadingTypes: false, refreshTypes: vi.fn(), opening: false, onOpen: vi.fn(), refreshKey: 0 };
 
 it('uses the model GET baseline and existing object table/editor, keeping pagination on applied keywords and safe fields', async () => {
@@ -30,7 +30,7 @@ it('uses the model GET baseline and existing object table/editor, keeping pagina
   fireEvent.change(screen.getByLabelText('全文对象类型'), { target: { value: 'item' } });
   fireEvent.click(screen.getByRole('button', { name: '执行全文检索' }));
   await screen.findByText('库存原料');
-  expect(bodies[0]).toEqual({ project_id: 'p', q: '库存 原料', type_key: 'item', limit: 20, offset: 0, expected_release_id: 'r1', expected_model_version: 1 });
+  expect(bodies[0]).toEqual({ count_total: false, project_id: 'p', q: '库存 原料', type_key: 'item', limit: 20, offset: 0, expected_release_id: 'r1', expected_model_version: 1 });
   expect(screen.getByText(/已返回的安全结果仅是当前可检索部分/)).not.toBeNull();
   expect(screen.getByText('授权命中字段')).not.toBeNull(); expect(screen.getByRole('cell', { name: '名称' })).not.toBeNull();
   fireEvent.change(screen.getByLabelText('全文关键词'), { target: { value: '尚未执行的词' } });
@@ -68,7 +68,7 @@ it('retains keywords on 409 and requires a fresh model read and explicit rebind 
 });
 
 it.each(['not_ready', 'failed'] as const)('does not equate %s zero results with absence, render HTML, or fall back to contains', async status => {
-  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, options) => String(input).includes('/search/status') ? json({ ...index, status }) : json(result({ items: [], total: 0, query: { text: '<img src=x onerror=alert(1)>', terms: ['<script>'], mode: 'all_terms' }, index: { ...index, status } })));
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => String(input).includes('/search/status') ? json({ ...index, status }) : json(result({ items: [], total: 0, query: { text: '<img src=x onerror=alert(1)>', terms: ['<script>'], mode: 'all_terms' }, index: { ...index, status } })));
   const view = render(<ObjectFulltext {...props} />);
   fireEvent.change(screen.getByLabelText('全文关键词'), { target: { value: '中文无结果' } });
   fireEvent.click(screen.getByRole('button', { name: '执行全文检索' }));

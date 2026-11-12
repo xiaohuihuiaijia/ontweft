@@ -56,12 +56,53 @@ def parser_environment(temporary_directory: Path | None = None, *, source_enviro
     return result
 
 
+def execute_parse(request, settings, execution_environment):
+    settings.data_dir.joinpath("temporary").mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="parse-", dir=settings.data_dir / "temporary") as temporary:
+        input_path, output_path = Path(temporary) / "request.json", Path(temporary) / "result.json"
+        input_path.write_text(json.dumps(request), encoding="utf-8")
+        completed = subprocess.run(
+            [sys.executable, "-m", "ontology.parse_task", str(input_path), str(output_path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=parser_environment(Path(temporary), source_environment=execution_environment),
+            timeout=180,
+            check=False,
+        )
+        if completed.returncode != 0 or not output_path.exists():
+            raise DomainError(422, "parser_failed", "解析器执行失败，原件已保留")
+        return json.loads(output_path.read_text(encoding="utf-8"))
+
+
 def process_one(db: Database, settings: Settings, worker_id: str | None = None) -> bool:
     worker_id = worker_id or str(uuid4())
-    run = claim(db, worker_id)
+    kinds = [
+        "source.snapshot",
+        "cdc.project",
+        "model.validate",
+        "relation.recompute",
+        "document.parse",
+        "ai.propose",
+    ]
+    run = claim(db, worker_id, kinds=kinds, source_kinds=settings.source_kinds)
     if not run:
         return False
     try:
+        if run["kind"] == "ai.propose":
+            from ontology.intelligence.pipeline import run_proposal
+
+            run_proposal(db, settings, run)
+            return True
+        if run["kind"] == "relation.recompute":
+            from ontology.objects.relation_rules import run_rule
+
+            run_rule(db, run)
+            return True
+        if run["kind"] == "model.validate":
+            from ontology.modeling.validation import run_validation
+
+            run_validation(db, run)
+            return True
         if run["kind"] == "source.snapshot":
             from ontology.sources.ingestion import run_snapshot
 
@@ -94,6 +135,8 @@ def process_one(db: Database, settings: Settings, worker_id: str | None = None) 
                 "document_id": doc.id,
                 "revision": doc.revision,
                 "engine": job.payload["engine"],
+                "limits": {"max_bytes": settings.max_upload_bytes},
+                "content_hash": doc.content_hash,
             }
             # Work-in-progress belongs to the Job. An already validated parse
             # stays readable until its replacement commits successfully.
@@ -101,21 +144,19 @@ def process_one(db: Database, settings: Settings, worker_id: str | None = None) 
             doc.state = retained or "processing"
             if retained is None:
                 enqueue_content(session, doc, "document")
-        settings.data_dir.joinpath("temporary").mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="parse-", dir=settings.data_dir / "temporary") as temporary:
-            input_path, output_path = Path(temporary) / "request.json", Path(temporary) / "result.json"
-            input_path.write_text(json.dumps(request), encoding="utf-8")
-            completed = subprocess.run(
-                [sys.executable, "-m", "ontology.parse_task", str(input_path), str(output_path)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                env=parser_environment(Path(temporary), source_environment=execution_environment),
-                timeout=180,
-                check=False,
+        native_pdf = request["engine"] == "basic" and Path(request["filename"]).suffix.lower() == ".pdf"
+        if native_pdf:
+            from ontology.documents.parse_batches import parse_pdf_batches
+
+            parsed = parse_pdf_batches(
+                db,
+                settings,
+                run,
+                request,
+                lambda batch: execute_parse(batch, settings, execution_environment),
             )
-            if completed.returncode != 0 or not output_path.exists():
-                raise DomainError(422, "parser_failed", "解析器执行失败，原件已保留")
-            parsed = json.loads(output_path.read_text(encoding="utf-8"))
+        else:
+            parsed = execute_parse(request, settings, execution_environment)
 
         def apply(session, job):
             doc = session.get(Document, job.payload["document_id"])
@@ -146,6 +187,10 @@ def process_one(db: Database, settings: Settings, worker_id: str | None = None) 
             error=None if parsed["ok"] else parsed["error"],
             apply=apply,
         )
+        if native_pdf and parsed["ok"]:
+            from ontology.documents.parse_batches import discard_pdf_batches
+
+            discard_pdf_batches(settings, run)
     except Exception as exc:  # noqa: BLE001 -- worker boundary must persist a safe failure without driver secrets.
         frames = [
             f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}"
@@ -169,7 +214,13 @@ def process_one(db: Database, settings: Settings, worker_id: str | None = None) 
             with db.transaction(run["tenant_id"]) as session:
                 job = fenced_job(session, run)
                 job.status, job.error, job.lease_until = "failed", message, 0
-                if job.kind == "document.parse":
+                if job.kind == "ai.propose":
+                    from ontology.intelligence.proposal_models import AIProposal
+
+                    job.result = {"error_code": exc.code if isinstance(exc, DomainError) else "ai_task_failed"}
+                    proposal = session.get(AIProposal, job.payload["proposal_id"])
+                    proposal.status = "partial" if job.checkpoint.get("pages") else "failed"
+                elif job.kind == "document.parse":
                     doc = session.get(Document, job.payload["document_id"])
                     if doc and doc.tenant_id == job.tenant_id and doc.project_id == job.project_id:
                         try:
@@ -197,11 +248,17 @@ def process_one(db: Database, settings: Settings, worker_id: str | None = None) 
 
 
 def run_worker(settings: Settings, once=False, action_registry=None):
+    from ontology.search.tokens import tokenizer
+
+    # Dictionary initialization belongs to process startup, never the first
+    # project's indexing transaction (which excludes object writes/searches).
+    tokenizer()
     db = Database(settings)
     worker_id = str(uuid4())
     registry = action_registry or {}
     try:
         while True:
+            (settings.data_dir / "worker.heartbeat").touch()
             from ontology.actions.runtime import process_one_action
 
             worked = False
@@ -211,7 +268,9 @@ def run_worker(settings: Settings, once=False, action_registry=None):
                 from ontology.cdc.projection import schedule_pending
 
                 schedule_pending(db, tenant_id)
-                if process_one_action(db, tenant_id, registry, worker_id):
+                if "automation" in settings.extensions and process_one_action(
+                    db, tenant_id, registry, worker_id
+                ):
                     worked = True
                     break
             if not worked:
@@ -226,7 +285,7 @@ def run_worker(settings: Settings, once=False, action_registry=None):
                     break
             from ontology.search.content.index import process_one_content_index
 
-            for tenant_id in tenants:
+            for tenant_id in tenants if "knowledge" in settings.extensions else ():
                 if process_one_content_index(db, tenant_id):
                     worked = True
                     break

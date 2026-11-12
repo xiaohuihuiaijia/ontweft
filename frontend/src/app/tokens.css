@@ -6,11 +6,11 @@
   --color-jade-hover: #195742;
   --color-mint: #c5e4d3;
   --color-paper: #f7f8f4;
-  --color-canvas: #f6f7f8;
+  --color-canvas: #f2f5f4;
   --color-surface: #ffffff;
   --color-ink: #222a2e;
   --color-muted: #626d73;
-  --color-line: #e0e4e6;
+  --color-line: #dce5e1;
   --color-input-line: #88938f;
   --color-soft: #eef4ef;
   --color-neutral-soft: #f0f2f3;
@@ -28,7 +28,7 @@
   --color-shadow: #162d2410;
   --color-sidebar-text: #d8e5dc;
   --color-sidebar-muted: #b4cbbf;
-  --color-sidebar-active: #2c4e40;
+  --color-sidebar-active: #2a5144;
   --color-sidebar-line: #466356;
   --color-focus: #236c56;
   --text-xs: 12px;
@@ -46,10 +46,10 @@
   --space-10: 40px;
   --space-12: 48px;
   --radius-control: 6px;
-  --radius-panel: 10px;
+  --radius-panel: 12px;
   --duration-feedback: 180ms;
   --ease-out: cubic-bezier(.22, 1, .36, 1);
-  --sidebar-width: 224px;
+  --sidebar-width: 208px;
   --shadow-panel: 0 12px 36px var(--color-shadow);
   --green: var(--color-jade);
   --line: var(--color-line);

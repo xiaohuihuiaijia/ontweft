@@ -127,3 +127,23 @@ class SourceIdentity(ProjectRecord, Base):
         String(40), default="snapshot-json-v1", server_default="snapshot-json-v1"
     )
     mapping_key: Mapped[str] = mapped_column(String(80))
+
+
+class SourceFileVersion(ProjectRecord, Base):
+    __tablename__ = "source_file_versions"
+    __table_args__ = (
+        UniqueConstraint("source_id", "number", name="uq_source_file_number"),
+        ForeignKeyConstraint(
+            ["tenant_id", "project_id", "source_id"],
+            ["sources.tenant_id", "sources.project_id", "sources.id"],
+            name="fk_file_version_source",
+        ),
+    )
+    source_id: Mapped[str] = mapped_column(String(36), index=True)
+    number: Mapped[int] = mapped_column(Integer)
+    base_revision: Mapped[int] = mapped_column(Integer)
+    applied_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    config: Mapped[dict] = mapped_column(JSON)
+    resources: Mapped[list] = mapped_column(JSON)
+    preview: Mapped[dict] = mapped_column(JSON, default=dict)
+    jobs: Mapped[list] = mapped_column(JSON, default=list)

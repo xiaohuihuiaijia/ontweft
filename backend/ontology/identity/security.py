@@ -105,14 +105,18 @@ def authenticated(request: Request) -> User:
         return user
 
 
-def access(session, user: User, project_id: str, permission="objects:read") -> Access:
+def access(session, user: User, project_id: str, permission="objects:read", *, read_lock=False) -> Access:
     query = select(Project).where(Project.id == project_id, Project.tenant_id == user.tenant_id)
     if permission != "objects:read" and permission != "audit:read":
         query = query.with_for_update()
+    elif read_lock:
+        query = query.with_for_update(read=True).execution_options(populate_existing=True)
     project = session.scalar(query)
     user_query = select(User).where(User.id == user.id, User.tenant_id == user.tenant_id)
     if permission not in {"objects:read", "audit:read"}:
         user_query = user_query.with_for_update(key_share=True)
+    elif read_lock:
+        user_query = user_query.with_for_update(read=True).execution_options(populate_existing=True)
     current_user = session.scalar(user_query)
     if not current_user or not current_user.active or current_user.revision != user.revision:
         raise DomainError(401, "unauthenticated", "账号或会话已失效")

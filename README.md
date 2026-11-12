@@ -2,13 +2,13 @@
 <h1 align="center">序枢 Ontweft</h1>
 <p align="center"><strong>让知识连接业务。</strong><br />从文档和数据库，构建有来源、可编辑、持续更新的业务本体。</p>
 <p align="center"><strong>企业本体 · 知识图谱 · 知识管理</strong><br />AI 辅助建模 · 自部署 · Apache-2.0</p>
-<p align="center">简体中文 · <a href="README.en.md">English</a> · <a href="#开始使用">开始使用</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md">部署文档</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/issues">反馈场景</a></p>
+<p align="center">简体中文 · <a href="README.en.md">English</a> · <a href="#开始使用">开始使用</a> · <a href="docs/deployment.md">部署文档</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/issues">反馈场景</a></p>
 
 ![Ontweft 真实工作台：探索具名业务关系，查看并编辑客户全景对象](docs/images/graph-workbench.png)
 
 <p align="center"><sub>真实应用与 API，22 个合成对象、30 条关系。通过实际拖动整理个人视图；点击节点进入详情与编辑。非客户数据。</sub></p>
 
-> **当前试用版本：Enterprise Beta。** 展示与下方命令对应 `codex/slim-enterprise-beta`，功能代码在 [PR #1](https://github.com/xiaohuihuiaijia/ontweft/pull/1) 中审核；`main` 的应用代码仍是此前 Alpha。界面以中文为主。
+> **当前版本：Enterprise Beta。** 默认 `main` 分支提供可运行的工作台，克隆后即可按下方步骤运行。界面以中文为主；复杂材料质量与生产部署仍需按自己的场景验收。
 
 ## 从资料到可追溯的知识图谱
 
@@ -43,7 +43,7 @@
 准备 **Python 3.12、uv、Node.js 22.12+**，运行：
 
 ```sh
-git clone --branch codex/slim-enterprise-beta https://github.com/xiaohuihuiaijia/ontweft.git
+git clone https://github.com/xiaohuihuiaijia/ontweft.git
 cd ontweft
 uv sync --locked --no-dev
 npm --prefix frontend ci
@@ -61,30 +61,30 @@ uv run --locked --no-dev python scripts/start_local_demo.py
 uv run --locked --no-dev python scripts/start_local_demo.py worker
 ```
 
-本机体验使用持久化 SQLite，数据保存在 `var/local-demo/`，仅监听回环地址。团队部署使用 PostgreSQL 与 HTTPS；见[部署指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md)。
+本机体验使用持久化 SQLite，数据保存在 `var/local-demo/`，仅监听回环地址。团队部署使用 PostgreSQL 与 HTTPS；见[部署指南](docs/deployment.md)。
 
 ## AI 提建议，业务事实由你确认
 
 接入层使用可配置的 OpenAI-compatible Chat Completions，文字、视觉与结构化输出能力分别声明和测试。百炼是首个实测服务；不把接口兼容视作其他供应商已通过验证。
 
-PDF 在本地分页渲染并提取原生文字，表格结构与复杂页面交给所配置的视觉模型；Office 和表格文件保留可直接读取的结构。支持 PDF、DOCX、XLSX、PPTX、PNG/JPEG、CSV、文本/Markdown；Office 页码是逻辑单元。文档上传默认 **256 MiB**，确定性表格导入另有[行列及大小预算](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/data-to-ontology.md)。
+PDF 在本地分页渲染并提取原生文字，表格结构与复杂页面交给所配置的视觉模型；Office 和表格文件保留可直接读取的结构。支持 PDF、DOCX、XLSX、PPTX、PNG/JPEG、CSV、文本/Markdown；Office 页码是逻辑单元。文档上传默认 **256 MiB**，确定性表格导入另有[行列及大小预算](docs/data-to-ontology.md)。
 
 页面进度与证据版本可追溯；修改业务要求可复用基础识别。模型产出进入可编辑候选，不能执行任意 SQL、直接发布模型或绕过实例导入确认。**无需独立 OCR、GPU 或常驻本地模型服务；配置外部模型后，调用按供应商计费。**
 
 ## 已验证什么
 
-已运行隔离数据库回归、真实 Chromium 工作流、Linux/PostgreSQL CI，以及合成数据部署与恢复验证。持续修复围绕可复现问题：连续文件更新、来源撤回预览、关系匹配、表单状态、模型费用记账及列表读取，详见[项目审查](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md)与[当前 CI](https://github.com/xiaohuihuiaijia/ontweft/pull/1/checks)。
+已运行隔离数据库回归、真实 Chromium 工作流、Linux/PostgreSQL CI，以及合成数据部署与恢复验证。持续修复围绕可复现问题：连续文件更新、来源撤回预览、关系匹配、表单状态、模型费用记账及列表读取，详见[项目审查](docs/project-audit.md)与[当前 CI](https://github.com/xiaohuihuiaijia/ontweft/actions/workflows/ci.yml)。
 
-已有 **10 万对象 / 100 万关系 / 50 用户**的合成规模测量；唯一编码搜索 P95 仍高于 1 秒目标，不能据此宣称生产 SLA。复杂文档的人工准确率、整本处理、真实 CDC 故障恢复与大附件灾难恢复仍需专项验收。[完整测量与限制 →](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/beta-verification.md)
+已有 **10 万对象 / 100 万关系 / 50 用户**的合成规模测量；唯一编码搜索 P95 仍高于 1 秒目标，不能据此宣称生产 SLA。复杂文档的人工准确率、整本处理、真实 CDC 故障恢复与大附件灾难恢复仍需专项验收。[完整测量与限制 →](docs/beta-verification.md)
 
 ## 文档与参与
 
 | 想了解什么 | 入口 |
 | --- | --- |
-| 第一次建立本体 | [入门指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/getting-started.md) · [从数据建模](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/data-to-ontology.md) |
-| 模型与图谱如何工作 | [本体方法论](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/ontology-methodology.md) · [图谱操作](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/graph.md) |
-| 部署、升级与扩展 | [部署指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/deployment.md) · [核心与扩展](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/enterprise-beta.md) |
-| 核对实现或提交代码 | [贡献指南](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/CONTRIBUTING.md) · [审查与待审核项](https://github.com/xiaohuihuiaijia/ontweft/blob/codex/slim-enterprise-beta/docs/project-audit.md) |
+| 第一次建立本体 | [入门指南](docs/getting-started.md) · [从数据建模](docs/data-to-ontology.md) |
+| 模型与图谱如何工作 | [本体方法论](docs/ontology-methodology.md) · [图谱操作](docs/graph.md) |
+| 部署、升级与扩展 | [部署指南](docs/deployment.md) · [核心与扩展](docs/enterprise-beta.md) |
+| 核对实现或提交代码 | [贡献指南](CONTRIBUTING.md) · [审查与待审核项](docs/project-audit.md) |
 
 **Python / FastAPI / SQLAlchemy / PostgreSQL · React / TypeScript / Sigma / Graphology。** 保持模块化单体，优先解决具体场景，不建设额外的平台层。
 

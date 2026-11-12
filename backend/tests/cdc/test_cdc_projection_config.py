@@ -15,11 +15,11 @@ from ontology.modeling.models import Release
 from ontology.objects.models import Entity
 from ontology.sources.ingestion import schema_fingerprint
 from ontology.sources.models import Source, SourceIdentity, SourceRecordRevision
-from sqlalchemy import func, inspect, select, text
+from sqlalchemy import MetaData, Table, func, inspect, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from tests.support.cdc import native_event
-from tests.support.cdc_evidence_migrations import isolated_database, seed_old
+from tests.support.cdc_evidence_migrations import historical_stream, isolated_database, seed_old
 from tests.support.platform import publish
 from tests.support.postgres import pg_databases as pg_databases  # noqa: PLC0414 - pytest fixture registration
 from tests.support.postgres import pg_platform as pg_platform  # noqa: PLC0414 - pytest fixture registration
@@ -123,6 +123,27 @@ def freeze(client, setup):
     return response.json()
 
 
+@pytest.mark.parametrize("fixture_name", ["platform", "pg_platform"])
+def test_configuration_ignores_unrelated_source_schema_drift(request, fixture_name):
+    platform = request.getfixturevalue(fixture_name)
+    client, app, owner, _ = platform
+    setup = prepare(platform)
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        other = Source(tenant_id=owner["tenant_id"], project_id=owner["project_id"],
+            name="Unrelated", kind="postgres", resources=copy.deepcopy(setup["resources"]))
+        session.add(other)
+        session.flush()
+        other_id = other.id
+    definition = copy.deepcopy(setup["definition"])
+    definition["mappings"].append({**copy.deepcopy(definition["mappings"][0]),
+        "key": "other", "source_id": other_id})
+    release = publish(client, owner["project_id"], definition)["release_id"]
+    setup["payload"]["expected_release_id"] = release
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        session.get(Source, other_id).resources = []
+    assert freeze(client, setup)["status"] == "waiting"
+
+
 @contextmanager
 def rejected_constraint(sqlstate="23503"):
     with pytest.raises(DBAPIError) as result:
@@ -187,12 +208,16 @@ def test_configuration_freezes_exact_published_scope_and_is_idempotent(request, 
         assert session.scalar(select(func.count()).select_from(Job)) == 0
 
 
-def test_binding_cannot_silently_follow_new_model_or_source_revision(platform):
+def test_binding_allows_labels_but_not_semantic_or_source_changes(platform):
     client, app, owner, _ = platform
     setup = prepare(platform)
     frozen = freeze(client, setup)["binding"]
     updated = copy.deepcopy(setup["definition"])
     updated["types"][0]["label"] = "新版条目"
+    publish(client, owner["project_id"], updated)
+    compatible = client.get(setup["url"]).json()
+    assert compatible["reason_code"] == "inbox_empty" and compatible["binding"] == frozen
+    updated["types"][0]["properties"][0]["required"] = False
     release = publish(client, owner["project_id"], updated)
     blocked = client.get(setup["url"]).json()
     assert blocked["reason_code"] == "binding_changed" and blocked["binding"] == frozen
@@ -493,11 +518,12 @@ def test_projection_migration_preserves_history_or_rejects_before_any_ddl(tmp_pa
         migrate("8c4f2d9a6b13")
         owner = seeded["owner"]
         with database.transaction(owner["tenant_id"]) as session:
-            stream = seed_stream(
+            stream = historical_stream(
                 session,
                 owner,
                 source_id=seeded["source_id"],
                 project_id=seeded["second_project"] if invalid_scope else owner["project_id"],
+                received_sequence=1,
             )
             raw = native_event(stream.generation)
             session.add(
@@ -512,7 +538,6 @@ def test_projection_migration_preserves_history_or_rejects_before_any_ddl(tmp_pa
                     record=raw,
                 )
             )
-            stream.received_sequence = 1
         models = (Source, Release, CdcStream, CdcEvent, SourceRecordRevision, SourceIdentity)
 
         def stored_rows():
@@ -520,7 +545,11 @@ def test_projection_migration_preserves_history_or_rejects_before_any_ddl(tmp_pa
                 return {
                     model.__tablename__: [
                         dict(row)
-                        for row in session.execute(select(model.__table__).order_by(model.id)).mappings()
+                        for row in session.execute(
+                            select(
+                                Table(model.__tablename__, MetaData(), autoload_with=session.connection())
+                            ).order_by(text("id"))
+                        ).mappings()
                     ]
                     for model in models
                 }

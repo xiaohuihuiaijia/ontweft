@@ -62,15 +62,28 @@ def pages(
         conditions.append(knowledge_condition(ctx, revision=revision))
         if "knowledge:write" not in ctx.permissions and "knowledge:publish" not in ctx.permissions:
             conditions.append(KnowledgePage.published_revision.is_not(None))
-        rows = session.scalars(
-            select(KnowledgePage)
+        can_edit = bool({"knowledge:write", "knowledge:publish"} & ctx.permissions)
+        columns = [
+            getattr(KnowledgeRevision if not can_edit and column.name in {"title", "references", "revision"}
+                    else KnowledgePage, column.name).label(column.name)
+            for column in KnowledgePage.__table__.columns if column.name != "body"
+        ]
+        query = select(*columns).select_from(KnowledgePage)
+        if not can_edit:
+            query = query.join(KnowledgeRevision, (
+                (KnowledgeRevision.page_id == KnowledgePage.id)
+                & (KnowledgeRevision.tenant_id == user.tenant_id)
+                & (KnowledgeRevision.revision == KnowledgePage.published_revision)
+            ))
+        rows = session.execute(
+            query
             .where(*conditions)
-            .order_by(KnowledgePage.created_at.desc())
+            .order_by(KnowledgePage.created_at.desc(), KnowledgePage.id.desc())
             .offset(offset)
             .limit(limit)
-        ).all()
+        ).mappings().all()
         return {
-            "items": [page_view(session, row, ctx, summary=True) for row in rows],
+            "items": [dict(row) for row in rows],
             "total": session.scalar(select(func.count()).select_from(KnowledgePage).where(*conditions)),
         }
 
@@ -192,8 +205,13 @@ def knowledge_history(page_id: str, request: Request, user=Depends(authenticated
 
 
 def knowledge_graph(session, ctx, limit):
-    pages = session.scalars(
-        select(KnowledgePage)
+    pages = session.execute(
+        select(KnowledgePage.id, KnowledgeRevision.title, KnowledgeRevision.references)
+        .join(
+            KnowledgeRevision,
+            (KnowledgeRevision.page_id == KnowledgePage.id)
+            & (KnowledgeRevision.revision == KnowledgePage.published_revision),
+        )
         .where(
             KnowledgePage.project_id == ctx.project.id,
             KnowledgePage.tenant_id == ctx.user.tenant_id,
@@ -207,36 +225,35 @@ def knowledge_graph(session, ctx, limit):
     ids = set()
     truncated = len(pages) > limit
     for page in pages[:limit]:
-        revision = session.scalar(
-            select(KnowledgeRevision).where(
-                KnowledgeRevision.page_id == page.id, KnowledgeRevision.revision == page.published_revision
-            )
-        )
         nodes.append(
             {
                 "id": page.id,
-                "label": revision.title,
+                "label": page.title,
                 "kind": "knowledge",
                 "type_key": "knowledge",
                 "properties": {},
             }
         )
         ids.add(page.id)
-    for page in pages[:limit]:
-        revision = session.scalar(
-            select(KnowledgeRevision).where(
-                KnowledgeRevision.page_id == page.id, KnowledgeRevision.revision == page.published_revision
-            )
-        )
-        for ref in revision.references:
-            doc = session.scalar(
-                select(Document).where(
-                    Document.id == ref["document_id"],
+    document_ids = sorted({ref["document_id"] for page in pages[:limit] for ref in page.references})
+    documents = {}
+    # Shared citations load each document once and never pull its potentially
+    # large parsed IR into a graph response. Bound IN lists for SQLite and PG.
+    for start in range(0, len(document_ids), 500):
+        documents.update(
+            (doc.id, doc)
+            for doc in session.execute(
+                select(Document.id, Document.filename, Document.revision).where(
+                    Document.id.in_(document_ids[start : start + 500]),
                     Document.project_id == ctx.project.id,
                     Document.tenant_id == ctx.user.tenant_id,
                     document_condition(ctx),
                 )
             )
+        )
+    for page in pages[:limit]:
+        for ref in page.references:
+            doc = documents.get(ref["document_id"])
             if doc and doc.id not in ids:
                 if len(nodes) >= limit:
                     truncated = True

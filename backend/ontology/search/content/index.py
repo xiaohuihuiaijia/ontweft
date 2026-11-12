@@ -131,22 +131,14 @@ def index_status(session, project, *, access_context=None):
                 )
             )
             conditions += (visible,)
-        pending = session.scalar(
-            select(func.count())
-            .select_from(ContentSearchRequest)
-            .where(
-                *conditions,
-                ContentSearchRequest.error.is_(None),
+        pending, errors = session.execute(
+            select(
+                func.count().filter(ContentSearchRequest.error.is_(None)),
+                func.count().filter(ContentSearchRequest.error.is_not(None)),
             )
-        )
-        errors = session.scalar(
-            select(func.count())
             .select_from(ContentSearchRequest)
-            .where(
-                *conditions,
-                ContentSearchRequest.error.is_not(None),
-            )
-        )
+            .where(*conditions)
+        ).one()
         status = (
             "not_ready"
             if not state

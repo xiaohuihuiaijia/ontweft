@@ -1,6 +1,26 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { SourcesPage } from './SourcesPage';
+
+let finishVersion: () => void;
+vi.mock('./FileVersions', () => ({ FileVersions: ({ source, onUpdated }: { source: { id: string; name: string; kind: string; revision: number; resources?: { resource_id: string }[] }; onUpdated: (value: unknown) => void }) => <>{['保存业务键', '提交文件版本'].map(action => <button key={action} onClick={() => { void new Promise<void>(resolve => { finishVersion = resolve; }).then(() => onUpdated({ ...source, revision: source.revision + 1, resources: source.resources?.map(resource => ({ ...resource, primary_key: ['c1'] })) ?? [] })); }}>测试：{action}</button>)}</> }));
+
+it('retains historical resources and snapshots without offering disabled connector operations', async () => {
+  const calls: string[] = [];
+  const source = { id: 'legacy', name: '历史 MongoDB', kind: 'mongo', revision: 1, config: {}, resources: [{ resource_id: 'items', name: 'items', fields: [], primary_key: ['id'], foreign_keys: [] }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    calls.push(String(url));
+    return new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [{ id: 'retained-snapshot', resource_id: 'items', status: 'complete', source_revision: 1 }], total: 1 } : { items: [source], total: 1 }));
+  });
+  render(<SourcesPage projectId="p" canWrite canConfigureProjection integrationsEnabled={false} onDirty={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看资源 →' }));
+  await screen.findByText('retained-snapshot');
+  fireEvent.click(screen.getByRole('button', { name: 'items' }));
+  expect(screen.getByText(/此连接器扩展已停用/)).toBeTruthy();
+  for (const name of ['测试连接', '发现资源', '读取最多 20 条样本', '采集所选资源快照']) expect(screen.queryByRole('button', { name })).toBeNull();
+  expect(screen.getByRole('button', { name: '查看记录与投影结果' })).toBeTruthy();
+  expect(calls.every(url => url.includes('/sources'))).toBe(true);
+});
 
 it('prevents source/resource switching while an old sample is in flight and clears samples before the next resource', async () => {
   let resolveSample: (response: Response) => void = () => {};
@@ -48,3 +68,80 @@ it.each([true, false])('shows exact sample text without parsing, or explicitly w
   expect(screen.queryByText(/9223372036854776000/)).toBeNull();
 });
 
+
+
+it('clears previously displayed source samples after current access is denied', async () => {
+  let revoked = false;
+  const source = { id: 's', name: '测试来源', kind: 'sqlite', revision: 1, config: {}, resources: [{ resource_id: 'A', name: 'A', fields: [], primary_key: ['id'], foreign_keys: [] }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    if (String(url).includes('/sample')) return revoked ? new Response(JSON.stringify({ error: { message: '来源访问已撤销' } }), { status: 403 }) : new Response(JSON.stringify({ sample_json: '{"secret":"先前授权样本"}' }));
+    return new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [], total: 0 } : { items: [source], total: 1 }));
+  });
+  render(<SourcesPage projectId="p" canWrite onDirty={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看资源 →' }));
+  fireEvent.click(screen.getByRole('button', { name: 'A' }));
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  await screen.findByText(/先前授权样本/);
+  revoked = true;
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  await screen.findByText('来源访问已撤销');
+  expect(screen.queryByText(/先前授权样本/)).toBeNull();
+  expect(screen.queryByRole('button', { name: '收起' })).toBeNull();
+});
+
+it('does not reopen the old source when its file version finishes after a source switch', async () => {
+  const sources = ['first', 'second'].map(id => ({ id, name: `来源 ${id}`, kind: 'tabular', revision: 1, config: {}, resources: [] }));
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [], total: 0 } : { items: sources, total: 2 })));
+  render(<SourcesPage projectId="p" canWrite onDirty={() => {}} />);
+  fireEvent.click((await screen.findAllByRole('button', { name: '查看资源 →' }))[0]);
+  fireEvent.click(screen.getByRole('button', { name: '测试：提交文件版本' }));
+  fireEvent.click(screen.getAllByRole('button', { name: '查看资源 →' })[1]);
+  await act(async () => { finishVersion(); });
+  expect(screen.getByRole('heading', { name: '来源 second', level: 2 })).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: '来源 first', level: 2 })).toBeNull();
+});
+
+it.each(['保存业务键', '提交文件版本'])('keeps the selected worksheet with fresh metadata and clears old samples after %s', async action => {
+  const sampleRequests: string[] = [];
+  const source = { id: 'sheet-source', name: '表格来源', kind: 'tabular', revision: 1, config: {}, resources: [{ resource_id: 'sheet_1', name: '工作表', fields: [{ name: 'c1', data_type: 'string', nullable: false }], primary_key: [], foreign_keys: [] }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    if (String(url).includes('/sample')) {
+      sampleRequests.push(String(url));
+      return new Response(JSON.stringify({ records: [{ values: { c1: sampleRequests.length === 1 ? '旧样本' : '新样本' } }], sample_json: '{}' }));
+    }
+    return new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [], total: 0 } : { items: [source], total: 1 }));
+  });
+  render(<SourcesPage projectId="p" canWrite onDirty={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看资源 →' }));
+  fireEvent.click(screen.getByRole('button', { name: '工作表' }));
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  await screen.findByText('旧样本');
+  fireEvent.click(screen.getByRole('button', { name: `测试：${action}` }));
+  await act(async () => { finishVersion(); });
+  expect(screen.getByText('主键：c1')).toBeTruthy();
+  expect(screen.queryByText('旧样本')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  await screen.findByText('新样本');
+  expect(sampleRequests).toHaveLength(2);
+  expect(sampleRequests.every(url => new URL(url, 'http://localhost').searchParams.get('resource') === 'sheet_1')).toBe(true);
+});
+
+it('discards a sample response from the previous source revision after a file update', async () => {
+  let resolveSample: (response: Response) => void = () => {};
+  const source = { id: 'sheet-source', name: '表格来源', kind: 'tabular', revision: 1, config: {}, resources: [{ resource_id: 'sheet_1', name: '工作表', fields: [{ name: 'c1', data_type: 'string', nullable: false }], primary_key: [], foreign_keys: [] }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+    if (String(url).includes('/sample')) return new Promise<Response>(resolve => { resolveSample = resolve; });
+    return new Response(JSON.stringify(String(url).includes('/snapshots') ? { items: [], total: 0 } : { items: [source], total: 1 }));
+  });
+  render(<SourcesPage projectId="p" canWrite onDirty={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看资源 →' }));
+  fireEvent.click(screen.getByRole('button', { name: '工作表' }));
+  fireEvent.click(screen.getByRole('button', { name: '读取最多 20 条样本' }));
+  fireEvent.click(screen.getByRole('button', { name: '测试：提交文件版本' }));
+  await act(async () => { finishVersion(); });
+  await act(async () => { resolveSample(new Response(JSON.stringify({ records: [{ values: { c1: '过期样本' } }], sample_json: '{}' }))); });
+  expect(screen.queryByText('过期样本')).toBeNull();
+  expect(screen.queryByRole('table', { name: '上传表格样本' })).toBeNull();
+  expect(screen.getByText('主键：c1')).toBeTruthy();
+  expect((screen.getByRole('button', { name: '读取最多 20 条样本' }) as HTMLButtonElement).disabled).toBe(false);
+});

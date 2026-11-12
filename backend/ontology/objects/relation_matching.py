@@ -1,7 +1,5 @@
 """Explicit, version-bound relation matching over already authorized typed objects."""
 
-from decimal import Decimal, InvalidOperation
-
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import select
@@ -9,6 +7,7 @@ from sqlalchemy import select
 from ontology.core.domain import active_definition, wire_value
 from ontology.core.errors import DomainError, conflict, forbidden
 from ontology.core.models import uid
+from ontology.core.scalars import bounded_decimal, canonical_time
 from ontology.core.schemas import StrictModel
 from ontology.identity.security import access, allowed_field, audit, authenticated
 from ontology.objects.models import Entity, Relation
@@ -49,10 +48,12 @@ def _property(type_def, key, role):
         forbidden()
     if prop["data_type"] == "json":
         raise DomainError(422, "unsupported_match", "请选择明确的标量字段，JSON 不用于隐式关系匹配")
-    return prop
+    return {**prop, "key_semantics": type_def.get("key_semantics", "legacy")}
 
 
 def _family(prop):
+    if prop["data_type"] in {"date", "datetime"} and prop.get("key_semantics") == "canonical":
+        return prop["data_type"] + "-canonical"
     return "text" if prop["data_type"] in {"string", "enum"} else prop["data_type"]
 
 
@@ -62,11 +63,11 @@ def _value_key(value, family):
     if family == "number":
         # Decimal equality preserves exact value without a floating point round trip.
         try:
-            value = Decimal(str(value))
-            if not value.is_finite():
-                raise InvalidOperation()
-        except (ValueError, InvalidOperation):
+            value = bounded_decimal(value)
+        except ValueError:
             raise DomainError(422, "invalid_match_value", "对象包含无效十进制值，请先修正数据") from None
+    elif family in {"date-canonical", "datetime-canonical"}:
+        value = canonical_time(family.split("-")[0], value)
     return family, value
 
 
@@ -111,7 +112,7 @@ def matching_plan(session, ctx, rule, *, issue_offset=0, issue_limit=SAMPLE_SIZE
     for target in targets:
         key = _value_key(target.properties.get(rule.target_field), family)
         if key is not None:
-            index.setdefault(key, []).append(target)
+            index.setdefault(key, {})[target.id] = target
     existing = (
         session.scalars(
             select(Relation)
@@ -149,16 +150,19 @@ def matching_plan(session, ctx, rule, *, issue_offset=0, issue_limit=SAMPLE_SIZE
     for source in sources:
         value = source.properties.get(rule.source_field)
         key = _value_key(value, family)
-        matches = index.get(key, []) if key is not None else []
-        target = matches[0] if len(matches) == 1 else None
+        matches = index.get(key, {}) if key is not None else {}
+        excluded_self = not rule.allow_self and source.id in matches
+        candidate_count = len(matches) - int(excluded_self)
+        target = (
+            next((row for row in matches.values() if not excluded_self or row.id != source.id), None)
+            if candidate_count == 1 else None
+        )
         if key is None:
             status = "missing_value"
-        elif not matches:
-            status = "unmatched"
-        elif len(matches) > 1:
+        elif not candidate_count:
+            status = "self_excluded" if excluded_self else "unmatched"
+        elif candidate_count > 1:
             status = "ambiguous"
-        elif source.id == target.id and not rule.allow_self:
-            status = "self_excluded"
         elif target.id in linked.get(source.id, set()):
             status = "existing"
         elif relation["cardinality"] == "one" and linked.get(source.id):
@@ -174,7 +178,7 @@ def matching_plan(session, ctx, rule, *, issue_offset=0, issue_limit=SAMPLE_SIZE
             "target_id": target.id if target else None,
             "target_revision": target.revision if target else None,
             "status": status,
-            "candidate_count": len(matches),
+            "candidate_count": candidate_count,
         }
         if len(samples) < SAMPLE_SIZE:
             samples.append(sample)
@@ -242,6 +246,9 @@ def apply_matches(data: ApplyMatch, request: Request, user=Depends(authenticated
                 evidence=[],
             )
             session.add(row)
+            from ontology.objects.constraints import touch_entity
+
+            touch_entity(session, source)
             created.append(
                 {
                     "relation_id": row.id,

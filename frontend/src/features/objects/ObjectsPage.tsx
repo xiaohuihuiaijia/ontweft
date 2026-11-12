@@ -4,6 +4,7 @@ import { Drawer, Empty, ErrorNotice, Field, JsonView, Loading, Pager, PageTitle 
 import { useResource } from '../../shared/hooks/hooks';
 import { parseProperties, propertyInputs, samePropertyValue } from '../../shared/model/model';
 import { ObjectRelations } from './ObjectRelations';
+import { ObjectDocumentEvidence } from './ObjectDocumentEvidence';
 import { ObjectContributions } from './contributions/ObjectContributions';
 import { ObjectFulltext } from './ObjectFulltext';
 import { ObjectTable } from './ObjectTable';
@@ -23,7 +24,7 @@ export async function loadObjectEditSession(projectId: string, id?: string): Pro
   return { object, types: currentTypes.items, modelReleaseId: currentTypes.release_id, modelVersion: currentTypes.version };
 }
 
-export function ObjectEditor({ object, types: initialTypes, modelReleaseId, modelVersion, projectId, onSaved, onClose, onDirty, canWrite, canReadContributions = false, role }: { object?: BusinessObject; types: TypeDef[]; modelReleaseId: string | null; modelVersion?: number; projectId: string; onSaved: () => void; onClose: () => void; onDirty: (dirty: boolean) => void; canWrite: boolean; canReadContributions?: boolean; role?: string }) {
+export function ObjectEditor({ object, types: initialTypes, modelReleaseId, modelVersion, projectId, onSaved, onClose, onDirty, canWrite, canReadContributions = false, initialRelationKey, role }: { object?: BusinessObject; types: TypeDef[]; modelReleaseId: string | null; modelVersion?: number; projectId: string; onSaved: () => void; onClose: () => void; onDirty: (dirty: boolean) => void; canWrite: boolean; canReadContributions?: boolean; initialRelationKey?: string; role?: string }) {
   const [types] = useState(initialTypes);
   const [baseline] = useState({ releaseId: modelReleaseId, version: modelVersion });
   const [typeKey, setTypeKey] = useState(object?.type_key ?? types[0]?.key ?? '');
@@ -62,12 +63,12 @@ export function ObjectEditor({ object, types: initialTypes, modelReleaseId, mode
       {dataStatus !== 'active' && <div className="notice warning" role="status"><strong>数据状态：{{ conflict: '来源冲突', incomplete: '数据不完整', withdrawn: '来源已撤回' }[dataStatus]}</strong><p>{dataReason[dataStatus]}</p><p>普通属性表单当前只读；已保留的人工字段仍可查看。普通对象修改不能恢复数据状态，默认查询、图谱、关系候选、函数与动作不会把该对象作为有效输入。</p></div>}
       {decisionDirty && <p className="notice warning">有尚未提交的字段裁决草稿，普通属性和关系修改暂时禁用，避免互相覆盖。</p>}
       {!type ? <Empty title="没有可用的已发布类型" /> : <><PropertyFields fields={writable} values={values} disabled={busy || !canEdit} onChange={(key, value) => { setValues(v => ({ ...v, [key]: value })); setDirty(true); setSaved(false); }} /><PropertyFields fields={readOnly} values={values} disabled onChange={() => {}} /></>}
-      {current?.evidence && <details><summary>来源证据</summary><JsonView value={current.evidence} /></details>}
+      {current?.evidence && <details><summary>来源证据</summary><ObjectDocumentEvidence evidence={current.evidence} visibleFields={fields.map(field => field.key)} canReadContributions={canReadContributions} /><JsonView value={current.evidence} /></details>}
       {current && <ObjectContributions objectId={current.id} objectRevision={current.revision} modelReleaseId={baseline.releaseId} canRead={canReadContributions} canDecide={canReadContributions && canWrite && !dirty && !busy} onDirty={setDecisionDirty} onSubmitting={setDecisionSubmitting} onDecided={result => {
         if (result.model_release_id !== baseline.releaseId) { setError(new ApiError(409, '裁决已提交，但当前编辑器模型与返回对象不同；请关闭并重新打开核对。')); onSaved(); return; }
         setCurrent(result); setValues(propertyInputs(result.properties)); setRemote(undefined); setError(undefined); setSaved(false); onSaved();
       }} />}
-      {current && type && <ObjectRelations key={`${current.id}:${current.revision}`} object={current} type={type} modelReleaseId={baseline.releaseId} canWrite={canEdit && !dirty} onChanged={onSaved} />}
+      {current && type && <ObjectRelations initialRelationKey={initialRelationKey} key={`${current.id}:${current.revision}`} object={current} type={type} modelReleaseId={baseline.releaseId} canWrite={canEdit && !dirty} onChanged={onSaved} />}
       {error && current ? <button type="button" className="secondary" onClick={async () => { try { setRemote(await request<BusinessObject>(scoped(`/objects/${encodeURIComponent(current.id)}`, projectId))); } catch (e) { setError(e); } }}>读取最新版本作比较</button> : null}
       {remote && <section><h3>远端修订 {remote.revision}</h3><JsonView value={remote.properties} /><p className="muted">本地输入保持不变。请对比后重新打开最新修订再修改。</p></section>}
     </div><footer className="drawer-actions"><span className="muted">{dirty || decisionDirty ? '有未保存修改' : '当前版本'}</span>{canEdit && <button disabled={busy || !type || (!!current && !dirty)}>{busy ? '保存中…' : '保存对象'}</button>}</footer></form></Drawer>;

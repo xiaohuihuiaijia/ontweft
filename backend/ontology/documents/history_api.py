@@ -1,18 +1,18 @@
 """Reparse and immutable-history reads using the existing jobs and project lock."""
 
-import hashlib
 from typing import Literal
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
 from sqlalchemy import func, select
+from sqlalchemy.orm import defer
 
 from ontology.content_access.service import content_context, prepare_content_access, require_document
 from ontology.core.domain import exact_json_text, row_dict, scoped_record, wire_value
 from ontology.core.errors import DomainError, conflict, missing
 from ontology.core.schemas import StrictModel
-from ontology.documents import DocumentError, detect_format
+from ontology.documents import DocumentError, ParseLimits
 from ontology.documents.api import document_view
 from ontology.documents.history import (
     active_parse_job,
@@ -22,6 +22,8 @@ from ontology.documents.history import (
     snapshot_as_document,
 )
 from ontology.documents.history_models import DocumentParseVersion
+from ontology.documents.pages import file_digest
+from ontology.documents.parser import detect_format_path
 from ontology.documents.storage_models import Document
 from ontology.identity.security import audit, authenticated
 from ontology.jobs.models import Job
@@ -81,21 +83,15 @@ def reparse(document_id: str, data: ReparseInput, request: Request, user=Depends
         path = request.app.state.settings.data_dir / "assets" / doc.storage_key
         if not path.is_file():
             raise DomainError(409, "asset_missing", "原件缺失，请先恢复原件")
-        with path.open("rb") as source:
-            content = source.read(request.app.state.settings.max_upload_bytes + 1)
-        if len(content) != doc.size or hashlib.sha256(content).hexdigest() != doc.content_hash:
+        if path.stat().st_size != doc.size or file_digest(path) != doc.content_hash:
             conflict("原件校验失败，未创建解析任务")
         try:
-            file_format = detect_format(content, doc.filename)
+            file_format = detect_format_path(
+                path, doc.filename, ParseLimits(max_bytes=request.app.state.settings.max_upload_bytes)
+            )
         except DocumentError as exc:
             raise DomainError(422, exc.code, str(exc)) from None
-        engine = (
-            data.engine
-            if data.engine != "auto"
-            else "docling"
-            if file_format in {"docx", "xlsx", "pdf"}
-            else "basic"
-        )
+        engine = data.engine if data.engine != "auto" else "basic"
         if file_format == "feishu_docx" and engine != "basic":
             raise DomainError(422, "invalid_parser", "飞书原生快照仅支持块结构解析")
         capture_current_parse(session, doc)
@@ -135,10 +131,13 @@ def parses(
     user=Depends(authenticated),
 ):
     with read_transaction(request.app.state.db, user.tenant_id) as session:
-        doc = scoped_record(session, Document, document_id, user)
+        doc = session.scalar(select(Document).options(defer(Document.ir)).where(
+            Document.id == document_id, Document.tenant_id == user.tenant_id,
+        ))
+        if doc is None:
+            missing()
         ctx = content_context(session, request, user, doc.project_id)
         require_document(session, ctx, doc.id)
-        session.refresh(doc)
         conditions = (
             DocumentParseVersion.tenant_id == doc.tenant_id,
             DocumentParseVersion.project_id == doc.project_id,
@@ -146,6 +145,7 @@ def parses(
         )
         rows = session.scalars(
             select(DocumentParseVersion)
+            .options(defer(DocumentParseVersion.ir))
             .where(*conditions)
             .order_by(
                 DocumentParseVersion.source_revision.desc(),

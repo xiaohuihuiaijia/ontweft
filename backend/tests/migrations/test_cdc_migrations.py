@@ -21,6 +21,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 
 from tests.support.cdc import native_event
+from tests.support.cdc_evidence_migrations import historical_stream
 from tests.support.identity import bootstrap_historical as bootstrap
 
 
@@ -78,19 +79,9 @@ def test_existing_inbox_identity_backfill_preserves_raw_event_and_immutability(
             )
             session.add(source)
             session.flush()
-            stream = CdcStream(
-                tenant_id=owner["tenant_id"],
-                project_id=owner["project_id"],
-                source_id=source.id,
-                source_revision=1,
-                generation=str(uuid4()),
-                connector="postgresql",
-                owner_id=owner["user_id"],
-                token_hash="a" * 64,
-                received_sequence=2 if has_duplicate else 1,
+            stream = historical_stream(
+                session, owner, source.id, owner["project_id"], received_sequence=2 if has_duplicate else 1
             )
-            session.add(stream)
-            session.flush()
             raw = native_event(stream.generation)
             event_id = str(uuid4())
             old_table = Table("cdc_events", MetaData(), autoload_with=session.connection())

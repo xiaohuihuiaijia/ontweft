@@ -233,7 +233,8 @@ class SQLConnector(ConnectorBase):
                         collations = {
                             row["column_name"]: row
                             for row in self._metadata(
-                                "SELECT a.attname AS column_name,c.collname AS collation_name,c.collisdeterministic AS collation_deterministic "
+                                "SELECT a.attname AS column_name,c.collname AS collation_name,c.collisdeterministic AS collation_deterministic, "
+                                "col_description(t.oid,a.attnum) AS comment,obj_description(t.oid,'pg_class') AS table_comment "
                                 "FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class t ON t.oid=a.attrelid "
                                 "JOIN pg_catalog.pg_namespace n ON n.oid=t.relnamespace "
                                 "LEFT JOIN pg_catalog.pg_collation c ON c.oid=a.attcollation "
@@ -335,6 +336,7 @@ class SQLConnector(ConnectorBase):
                                             "collation_name",
                                             "collation_deterministic",
                                             "pad_attribute",
+                                            "comment",
                                         )
                                         if c.get(key) is not None
                                     },
@@ -345,7 +347,7 @@ class SQLConnector(ConnectorBase):
                             foreign_keys=fks,
                             metadata={"storage_engine": table["engine"]}
                             if self.config.driver == "mysql"
-                            else {},
+                            else {"comment": cols[0]["table_comment"]} if cols[0].get("table_comment") else {},
                         )
                     )
         self._resources = {r.resource_id: r for r in resources}

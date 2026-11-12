@@ -8,7 +8,7 @@ const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(__dirname, '..');
-const output = path.join(root, 'var', 'reports', 'open-source-readiness-20261109');
+const output = path.join(root, 'var', 'reports', 'model-starters');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function main() {
@@ -124,11 +124,11 @@ async function main() {
     await page.waitForFunction(() => { const button = document.querySelector('[aria-label="放大图谱"]'); return button && !button.disabled; });
     await page.locator('.node-chips').getByRole('button', { name: '核对模型约束', exact: true }).click();
     await page.locator('.graph-inspector').getByRole('heading', { name: '核对模型约束' }).waitFor();
-    await page.getByText('同一节点上的关系以环线显示，可逐条选择。').waitFor();
     const selfReference = page.getByRole('button', { name: '环形关系：核对模型约束 — 自引用测试 → 核对模型约束', exact: true });
     const selfReview = page.getByRole('button', { name: '环形关系：核对模型约束 — 自检记录 → 核对模型约束', exact: true });
     await selfReference.waitFor(); await selfReview.waitFor();
     const firstPath = await selfReference.locator('.loop-hit').getAttribute('d');
+    assert.ok(firstPath, 'The actual self-relation must have selectable geometry');
     assert.notEqual(firstPath, await selfReview.locator('.loop-hit').getAttribute('d'));
     const clickLoop = async (loop, touch = false) => {
       await loop.scrollIntoViewIfNeeded();
@@ -194,7 +194,7 @@ async function main() {
     log.end();
     // Delete only the unique test directory created above, after the child stops.
     const parent = fs.realpathSync(os.tmpdir());
-    if (server.exitCode !== null && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-starter-')) fs.rmSync(temp, { recursive: true, force: true });
+    if ((server.exitCode !== null || server.signalCode !== null) && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-starter-')) fs.rmSync(temp, { recursive: true, force: true });
     fs.writeFileSync(path.join(output, 'starter-browser-result.json'), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result));
   }

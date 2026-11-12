@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { OntologyEditor } from './OntologyPage';
-import type { ModelTemplate } from './ModelStarter';
+import { ModelWorkflow, type ModelTemplate } from './ModelStarter';
 
 const template: ModelTemplate = {
   id: 'project_delivery', version: 1, title: '项目与任务', description: '定义任务所属的项目。',
@@ -56,4 +56,11 @@ it('never offers template replacement for an existing definition or mapping', ()
   render(<OntologyEditor {...props} initialDefinition={template.definition} />);
   expect(screen.queryByRole('heading', { name: '先有一个能用的模型，再逐步细化。' })).toBeNull();
   expect(fetch.mock.calls.some(([url]) => String(url).includes('/ontology/templates'))).toBe(false);
+});
+
+
+it('shows an asynchronous validation in the validation step rather than the publication step', () => {
+  const { container } = render(<ModelWorkflow status="validating" dirty={false} />);
+  expect(container.querySelector('[aria-current="step"]')?.textContent).toContain('校验与修正');
+  expect(container.querySelector('[aria-current="step"]')?.textContent).not.toContain('发布');
 });

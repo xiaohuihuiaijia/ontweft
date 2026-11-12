@@ -12,16 +12,17 @@ function tableRows(element: Element): number[] {
   return Number.isInteger(count) && count > 0 && count <= 300 ? Array.from({ length: count }, (_, row) => row) : [];
 }
 
-export function DocumentPreview({ value }: { value: unknown }) {
-  const [selected, setSelected] = useState<Element>();
+export function DocumentPreview({ value, compact = false }: { value: unknown; compact?: boolean }) {
+  const [selection, setSelected] = useState<Element>();
   if (!value || typeof value !== 'object' || !Array.isArray((value as IR).elements)) return <p className="muted">尚无结构化解析结果，请查看任务状态。</p>;
   const ir = value as IR;
+  const selected = selection && ir.elements.includes(selection) ? selection : undefined;
   const native = ir.format === 'feishu_docx';
   return <>
-    <div className="inline-info"><span>{ir.parser} · {ir.parser_version}</span><Status value={ir.complete ? 'succeeded' : 'partial'} /></div>
+    {!compact && <div className="inline-info"><span>{ir.parser} · {ir.parser_version}</span><Status value={ir.complete ? 'succeeded' : 'partial'} /></div>}
     {native && <p className="notice">飞书原生块快照：按文档修订与块标识定位；图片、附件和关联文档仅保留引用，需分别接入后才能查看其内容。</p>}
     {ir.warnings?.map((warning, i) => <div className="notice warning" key={i}>{warning}</div>)}
-    {!native && <details><summary>逐页处理状态（{ir.pages?.length ?? 0} 页）</summary>{ir.pages?.map(page => <p key={page.page_number}>第 {page.page_number} 页 · {page.status} {page.reason}</p>)}</details>}
+    {!native && !compact && <details><summary>逐页处理状态（{ir.pages?.length ?? 0} 页）</summary>{ir.pages?.map(page => <p key={page.page_number}>第 {page.page_number} 页 · {page.status} {page.reason}</p>)}</details>}
     {ir.elements.length > 200 && <p className="notice warning">当前预览前 200 个结构元素；原件保留完整内容。</p>}
     <div className="document-preview">{ir.elements.slice(0, 200).map(element => <article className="document-element" key={element.element_id}>
       <button type="button" className="text-button element-anchor" onClick={() => setSelected(element)}>来源定位</button>

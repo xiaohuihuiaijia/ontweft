@@ -166,7 +166,7 @@ def test_inactive_objects_hidden_from_default_queries_graph_relations_but_detail
     assert [node["id"] for node in graph["nodes"]] == [source["id"]]
     assert graph["edges"] == [] and not graph["truncated"]
     relations = client.get("/api/relations", params={"project_id": a["project_id"]}).json()
-    assert relations == {"items": [], "total": 0}
+    assert relations == {"items": [], "total": 0, "limit": 200, "offset": 0}
     detail = client.get(f"/api/objects/{target['id']}")
     assert detail.status_code == 200 and detail.json()["data_status"] == status
     assert detail.json()["properties"] == {"status": "open"}

@@ -44,6 +44,8 @@ def safe_config(data):
 
 
 def connector_for(source, settings):
+    if source.kind not in settings.source_kinds:
+        raise DomainError(409, "extension_disabled", "当前部署未启用此连接器，请启用 integrations 扩展")
     if source.kind == "tabular":
         from ontology.sources.tabular_connector import UploadedTablesConnector
 
@@ -63,6 +65,10 @@ def connector_for(source, settings):
     )
     try:
         return create_connector(source.kind, config, network_policy=policy)
+    except ImportError as exc:
+        raise DomainError(
+            409, "connector_not_installed", "此连接器尚未安装，请安装 integrations 可选依赖"
+        ) from exc
     except (ValidationError, TypeError, ValueError) as exc:
         raise DomainError(
             422, "invalid_source_config", "连接配置格式不正确，请检查该连接器所需的字段"

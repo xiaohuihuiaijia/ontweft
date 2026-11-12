@@ -40,7 +40,7 @@ def test_contribution_migration_preserves_originals_without_fabricated_ledger(tm
             assert list(session.execute(select(records)).mappings()) == original_records
             assert list(session.execute(select(identities)).mappings()) == original_identities
             assert list(session.execute(select(history)).mappings()) == original_history
-            assert session.scalar(select(Entity)).data_status == "active"
+            assert session.scalar(select(Entity.data_status)) == "active"
             for name in ("source_contributions", "contribution_revisions"):
                 table = Table(name, MetaData(), autoload_with=session.connection())
                 assert list(session.execute(select(table))) == []

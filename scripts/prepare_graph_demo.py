@@ -11,6 +11,7 @@ from collections import Counter
 from pathlib import Path
 
 import httpx
+from ontology.modeling.schemas import Definition
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "var" / "graph-demo.json"
@@ -58,7 +59,7 @@ def definition():
         ("Project", "项目", [relation("uses", "使用", "System"), relation("depends_on", "依赖", "Project")]),
         ("System", "系统", [relation("integrates", "集成", "System")]),
     ]
-    return {
+    return Definition.model_validate({
         "types": [
             {
                 "key": key,
@@ -74,7 +75,7 @@ def definition():
             for key, label, relations in types
         ],
         "mappings": [],
-    }
+    }).model_dump(mode="json")
 
 
 NODES = [

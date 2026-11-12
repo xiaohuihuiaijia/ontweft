@@ -25,15 +25,57 @@ from ontology.identity.models import Project, User
 from ontology.identity.security import access, audit
 from ontology.jobs.models import Job
 from ontology.jobs.service import check_job_authority, fenced_job, finish
+from ontology.modeling.models import Release
 from ontology.objects.contributions.models import SourceContribution
 from ontology.objects.contributions.service import ensure_legacy_contributions, replace_contribution
 from ontology.objects.models import Entity
-from ontology.sources.ingestion import fingerprint, mapped_properties, mapping_errors, schema_fingerprint
+from ontology.sources.ingestion import (
+    bound_entity,
+    fingerprint,
+    mapped_properties,
+    mapping_errors,
+    schema_fingerprint,
+)
 from ontology.sources.models import Source, SourceIdentity, SourceRecordRevision
 from ontology.sources.service import connector_for
 
 MAX_EVENTS = 10_000
 MAX_BYTES = 64 * 1024 * 1024
+
+
+def binding_matches_model(session, project, binding):
+    if project.active_release_id == binding.release_id:
+        return True
+    old = session.get(Release, binding.release_id)
+    current = active_definition(session, project)
+
+    def contract(definition):
+        mappings = sorted(
+            (m for m in definition.get("mappings", []) if m["source_id"] == binding.source_id),
+            key=lambda m: m["key"],
+        )
+        keys = {m["type_key"] for m in mappings}
+        types = []
+        for definition_type in definition["types"]:
+            if definition_type["key"] not in keys:
+                continue
+            # Presentation-only renames do not invalidate source decoding.
+            semantic = {
+                key: value for key, value in definition_type.items() if key not in {"label", "description"}
+            }
+            semantic["key_semantics"] = definition_type.get("key_semantics", "legacy")
+            for section in ("properties", "relations"):
+                semantic[section] = sorted(
+                    (
+                        {key: value for key, value in item.items() if key != "label"}
+                        for item in definition_type.get(section, [])
+                    ),
+                    key=lambda item: item["key"],
+                )
+            types.append(semantic)
+        return mappings, sorted(types, key=lambda t: t["key"])
+
+    return old is not None and contract(old.definition) == contract(current)
 
 
 def enqueue_projection(session, stream, state, owner_id):
@@ -148,7 +190,7 @@ def context_for_run(session, run):
         or source.revision != binding.source_revision
         or stream.source_revision != binding.source_revision
         or stream.generation != binding.generation
-        or ctx.project.active_release_id != binding.release_id
+        or not binding_matches_model(session, ctx.project, binding)
     ):
         raise DomainError(409, "binding_changed", "模型或来源配置已改变，需要审核迁移和重建基线")
     if stream.state != "active":
@@ -245,7 +287,7 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
             ctx,
             identity,
             record,
-            binding.release_id,
+            ctx.project.active_release_id,
             mapping,
             type_def,
             None,
@@ -276,6 +318,9 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
         SimpleNamespace(id=record.id, values=values), mapping, type_def, allow_incomplete=True
     )
     if new_identity:
+        entity = bound_entity(session, ctx, mapping, type_def, mapped)
+    new_entity = entity is None
+    if new_entity:
         entity = Entity(
             id=uid(),
             tenant_id=ctx.user.tenant_id,
@@ -283,10 +328,11 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
             type_key=mapping["type_key"],
             properties={},
             evidence=[],
-            release_id=binding.release_id,
+            release_id=ctx.project.active_release_id,
         )
         session.add(entity)
         session.flush()
+    if new_identity:
         identity = SourceIdentity(
             tenant_id=ctx.user.tenant_id,
             project_id=ctx.project.id,
@@ -307,7 +353,7 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
         ctx,
         identity,
         record,
-        binding.release_id,
+        ctx.project.active_release_id,
         mapping,
         type_def,
         mapped,
@@ -315,7 +361,7 @@ def apply_data(session, ctx, stream, binding, event, change, mapping, type_def, 
         stream_id=stream.id,
         sequence=event.sequence,
         new_identity=new_identity,
-        new_entity=new_identity,
+        new_entity=new_entity,
     )
     return result, new_identity, False
 
@@ -339,7 +385,7 @@ def project_window(session, ctx, stream, state, binding, unit, events):
         ):
             raise DomainError(409, "baseline_required", "必须先完成带结束证明的原生初始快照")
     definition = active_definition(session, ctx.project)
-    errors = mapping_errors(session, ctx, definition)
+    errors = mapping_errors(session, ctx, definition, source_id=binding.source_id)
     if errors:
         raise DomainError(409, "mapping_invalid", "投影映射已失效，需要审核", errors)
     resources = {r["resource_id"]: r for r in binding.resources}
@@ -412,7 +458,7 @@ def project_window(session, ctx, stream, state, binding, unit, events):
                         ctx,
                         identity,
                         reference_record(session, ctx, completion),
-                        binding.release_id,
+                        ctx.project.active_release_id,
                         mapping,
                         types[mapping["type_key"]],
                         None,
@@ -433,7 +479,7 @@ def project_window(session, ctx, stream, state, binding, unit, events):
         kind=unit.kind,
         proof=asdict(unit.snapshot_proof) if unit.snapshot_proof else None,
         schema_fingerprints=unit.schema_fingerprints,
-        result=counts,
+        result={**counts, "release_id": ctx.project.active_release_id},
         entity_ids=sorted(touched),
         source_position=last_change.source_position,
     )

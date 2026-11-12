@@ -23,6 +23,8 @@ def test_local_demo_restarts_without_reset_and_ignores_external_config(tmp_path,
     monkeypatch.setattr(demo, "ROOT", tmp_path / "source")
     monkeypatch.setenv("ONTOLOGY_DATABASE_URL", "postgresql+pg8000://invalid.invalid/never-connect")
     monkeypatch.setenv("ONTOLOGY_LOGIN_TENANT_SLUG", "unrelated")
+    monkeypatch.setenv("ONTOLOGY_EXTENSIONS", '["knowledge","integrations","automation"]')
+    monkeypatch.setenv("ONTOLOGY_MODEL_APPROVAL", "separate")
     data = tmp_path / "isolated-demo"
     password = "Local-Test-Only-2026"
     with TestClient(demo.create_demo_app(data, password=password)) as client:
@@ -33,6 +35,8 @@ def test_local_demo_restarts_without_reset_and_ignores_external_config(tmp_path,
             == 200
         )
         session = client.get("/api/auth/me").json()
+        assert session["features"] == []
+        assert session["model_approval"] == "single"
         project = session["projects"][0]["id"]
         definition = client.get("/api/ontology/templates", params={"project_id": project}).json()["items"][0][
             "definition"
@@ -65,6 +69,29 @@ def test_local_demo_refuses_an_existing_unowned_directory(tmp_path):
     with pytest.raises(ValueError, match="已有其他文件"):
         demo.create_demo_app(data, password="Local-Test-Only-2026")
     assert existing.read_bytes() == b"must not be opened or replaced"
+
+
+def test_local_demo_accepts_documents_above_the_old_25_mib_limit(tmp_path, monkeypatch):
+    assets = tmp_path / "source/frontend/dist"
+    assets.mkdir(parents=True)
+    (assets / "index.html").write_text("<h1>local test</h1>", encoding="utf-8")
+    monkeypatch.setattr(demo, "ROOT", tmp_path / "source")
+    monkeypatch.setenv("ONTOLOGY_MAX_UPLOAD_BYTES", "1024")
+    path = tmp_path / "large.txt"
+    with path.open("wb") as stream:
+        for _ in range(26):
+            stream.write(b"x" * 1024 * 1024)
+    password = "Local-Test-Only-2026"
+    with TestClient(demo.create_demo_app(tmp_path / "demo", password=password)) as client:
+        client.post("/api/auth/login", json={"username": "owner", "password": password}).raise_for_status()
+        project = client.get("/api/auth/me").json()["projects"][0]["id"]
+        with path.open("rb") as stream:
+            response = client.post(
+                "/api/documents/upload",
+                data={"project_id": project},
+                files={"file": (path.name, stream, "text/plain")},
+            )
+        assert response.status_code == 201, response.text
 
 
 def test_source_network_requires_an_explicit_host_and_separate_private_opt_in(tmp_path, monkeypatch):
@@ -130,3 +157,40 @@ assert 'lark_oapi' not in sys.modules
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_local_demo_generation_upgrade_backs_up_and_preserves_history(tmp_path):
+    import json
+    import sqlite3
+
+    from tests.support.cdc_evidence_migrations import historical_stream, isolated_database, seed_old
+
+    with isolated_database(tmp_path, "sqlite") as (database, migrate, _):
+        seeded = seed_old(database)
+        migrate("ef311029a400")
+        with database.transaction(seeded["owner"]["tenant_id"]) as session:
+            old = historical_stream(
+                session, seeded["owner"], seeded["source_id"], seeded["owner"]["project_id"]
+            )
+        data = tmp_path / "demo"
+        data.mkdir()
+        (data / demo.MARKER).write_text(json.dumps(demo.PROFILE), encoding="utf-8")
+        with (
+            sqlite3.connect(database.engine.url.database) as source,
+            sqlite3.connect(data / "demo.db") as target,
+        ):
+            source.backup(target)
+        backup = demo.upgrade_demo_schema(data)
+        assert backup.is_file() and not demo.needs_schema_upgrade(data)
+        with sqlite3.connect(backup) as connection:
+            assert "previous_stream_id" not in {
+                row[1] for row in connection.execute("PRAGMA table_info(cdc_streams)")
+            }
+            assert connection.execute("SELECT id FROM cdc_streams").fetchone()[0] == old.id
+        with sqlite3.connect(data / "demo.db") as connection:
+            assert connection.execute("SELECT id,previous_stream_id FROM cdc_streams").fetchone() == (
+                old.id,
+                None,
+            )
+            assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+        assert demo.upgrade_demo_schema(data) is None

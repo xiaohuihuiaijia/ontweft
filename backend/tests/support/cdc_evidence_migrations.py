@@ -6,14 +6,14 @@ import subprocess
 import sys
 from contextlib import contextmanager
 from unittest.mock import patch
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from ontology.cdc.models import CdcEvent, CdcStream
+from ontology.cdc.models import CdcEvent
 from ontology.core.config import Settings
 from ontology.core.db import Database
 from ontology.core.models import now
-from ontology.identity.models import Project
 from ontology.modeling.models import ChangeSet, Release
 from ontology.sources.ingestion import fingerprint
 from ontology.sources.models import Source, SourceRecordRevision, SourceSnapshot
@@ -106,7 +106,13 @@ def seed_old(db, invalid=None):
         )
     scope = {"tenant_id": owner["tenant_id"], "project_id": owner["project_id"]}
     with db.transaction(owner["tenant_id"]) as session:
-        second = Project(tenant_id=owner["tenant_id"], name="Other synthetic project")
+        second_id = str(uuid4())
+        projects = Table("projects", MetaData(), autoload_with=session.connection())
+        session.execute(
+            projects.insert().values(
+                id=second_id, tenant_id=owner["tenant_id"], name="Other synthetic project", version=0
+            )
+        )
         source = Source(**scope, name="Synthetic old source", kind="postgres", config={})
         change = ChangeSet(
             **scope,
@@ -114,7 +120,7 @@ def seed_old(db, invalid=None):
             definition={"types": [], "mappings": []},
             author_id=owner["user_id"],
         )
-        session.add_all([second, source, change])
+        session.add_all([source, change])
         session.flush()
         release = Release(
             **scope,
@@ -170,7 +176,7 @@ def seed_old(db, invalid=None):
             "content_hash": "b" * 64,
         }
         if invalid == "record_scope":
-            raw["project_id"] = second.id
+            raw["project_id"] = second_id
         records = Table("source_record_revisions", MetaData(), autoload_with=session.connection())
         session.execute(records.insert().values(**raw))
         identity = {
@@ -187,7 +193,7 @@ def seed_old(db, invalid=None):
             "mapping_key": "items",
         }
         if invalid == "identity_scope":
-            identity["project_id"] = second.id
+            identity["project_id"] = second_id
         identities = Table("source_identities", MetaData(), autoload_with=session.connection())
         session.execute(identities.insert().values(**identity))
         result = {
@@ -197,10 +203,34 @@ def seed_old(db, invalid=None):
             "raw": raw,
             "identity": identity,
             "snapshot_id": snapshot.id,
-            "second_project": second.id,
+            "second_project": second_id,
             "source_id": source.id,
         }
     return result
+
+
+def historical_stream(session, owner, source_id, project_id, *, received_sequence=0):
+    values = dict(
+        id=str(uuid4()),
+        tenant_id=owner["tenant_id"],
+        project_id=project_id,
+        source_id=source_id,
+        source_revision=1,
+        generation=str(uuid4()),
+        connector="postgresql",
+        owner_id=owner["user_id"],
+        token_hash="a" * 64,
+        received_sequence=received_sequence,
+        projected_sequence=0,
+        indexed_sequence=0,
+        lease_until=0,
+        fencing_token=0,
+        state="active",
+        created_at=now(),
+    )
+    table = Table("cdc_streams", MetaData(), autoload_with=session.connection())
+    session.execute(table.insert().values(**values))
+    return SimpleNamespace(**values)
 
 
 def seed_event(db, owner, project_id=None):
@@ -209,18 +239,7 @@ def seed_event(db, owner, project_id=None):
         source = Source(**scope, name="Synthetic native evidence", kind="postgres", config={})
         session.add(source)
         session.flush()
-        stream = CdcStream(
-            **scope,
-            source_id=source.id,
-            source_revision=1,
-            generation=str(uuid4()),
-            connector="postgresql",
-            owner_id=owner["user_id"],
-            token_hash="a" * 64,
-            received_sequence=1,
-        )
-        session.add(stream)
-        session.flush()
+        stream = historical_stream(session, owner, source.id, scope["project_id"], received_sequence=1)
         raw = native_event(stream.generation)
         event = CdcEvent(
             **scope,

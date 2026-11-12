@@ -21,6 +21,7 @@ from sqlalchemy.exc import DBAPIError
 
 from tests.support.cdc_evidence_migrations import (
     constraint_rejection,
+    historical_stream,
     isolated_database,
     seed_event,
     seed_old,
@@ -47,16 +48,8 @@ def parents(db, owner, *, project_id=None):
         release = Release(
             **scope, version=1, definition={}, changeset_id=change.id, published_by=owner["user_id"]
         )
-        stream = CdcStream(
-            **scope,
-            source_id=source.id,
-            source_revision=1,
-            generation=str(uuid4()),
-            connector="postgresql",
-            owner_id=owner["user_id"],
-            token_hash=uuid4().hex * 2,
-        )
-        session.add_all([release, stream])
+        stream = historical_stream(session, owner, source.id, scope["project_id"])
+        session.add(release)
         session.flush()
         entity = Entity(**scope, type_key="Item", properties={"name": "中文项目"}, release_id=release.id)
         binding = CdcProjectionBinding(
@@ -168,7 +161,7 @@ def test_search_rows_are_mutable_derived_data_and_defaults_do_not_claim_success(
         assert session.scalar(select(SearchProjectState.error)) == "retryable synthetic fault"
         assert session.scalar(select(SearchCdcCheckpoint.sequence)) == 5
         # Completing full text must not imply any other projection finished.
-        assert session.get(CdcStream, parent["stream"]).indexed_sequence == 0
+        assert session.scalar(select(CdcStream.indexed_sequence).where(CdcStream.id == parent["stream"])) == 0
         for model in MODELS:
             session.execute(delete(model))
     with db.transaction(owner["tenant_id"]) as session:
@@ -304,7 +297,9 @@ def test_search_migration_preserves_objects_evidence_and_watermarks_and_leaves_i
                 table = Table(name, MetaData(), autoload_with=session.connection())
                 assert list(session.execute(select(table).order_by(table.c.id)).mappings()) == before[name]
             assert all(session.scalar(select(model.id)) is None for model in MODELS)
-            assert session.get(Entity, legacy["identity"]["entity_id"]).properties == {"name": "原对象"}
+            assert session.scalar(
+                select(Entity.properties).where(Entity.id == legacy["identity"]["entity_id"])
+            ) == {"name": "原对象"}
             if dialect == "sqlite":
                 assert "ix_object_search_fields_fts" not in {
                     index["name"]
