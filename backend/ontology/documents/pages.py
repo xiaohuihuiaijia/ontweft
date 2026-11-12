@@ -76,6 +76,22 @@ def _data_url(data: bytes) -> str:
     return "data:image/png;base64," + base64.b64encode(data).decode("ascii")
 
 
+def _image_members(elements):
+    return [
+        element["metadata"]["archive_member"]
+        for element in elements
+        if element.get("kind") == "image" and element.get("metadata", {}).get("archive_member")
+    ]
+
+
+def _embedded_png(archive, member, max_edge):
+    try:
+        return _png(archive.read(member), max_edge)
+    except DocumentError:
+        # Unsupported vector objects remain explicitly reviewable.
+        raise DocumentError("image_conversion_required", "An embedded image requires conversion") from None
+
+
 def _pdf_images(page, max_edge, *, detail_images=False):
     """Render context first, then overlapping native-resolution details of the same page."""
     width, height = page.get_size()
@@ -280,21 +296,11 @@ def iter_page_inputs(
                 if selected is not None and number not in selected:
                     continue
                 found.add(number)
-                members = [
-                    e["metadata"]["archive_member"]
-                    for e in elements
-                    if e.get("kind") == "image" and e.get("metadata", {}).get("archive_member")
-                ]
+                members = _image_members(elements)
                 urls = []
                 if archive and include_images:
                     for member in members:
-                        try:
-                            urls.append(_data_url(_png(archive.read(member), image_max_edge)))
-                        except DocumentError:
-                            # Unsupported vector objects remain explicitly reviewable.
-                            raise DocumentError(
-                                "image_conversion_required", "An embedded image requires conversion"
-                            ) from None
+                        urls.append(_data_url(_embedded_png(archive, member, image_max_edge)))
                 evidence = (
                     elements[0]["evidence"] if elements else {**common, "element_path": "document/empty"}
                 )
@@ -330,6 +336,8 @@ def page_image(
     verified_hash: str | None = None,
     limits: ParseLimits | None = None,
 ) -> bytes:
+    # The iterator validates the actual format; this only chooses lazy image loading.
+    office = Path(filename).suffix.lower() in {".docx", ".pptx", ".xlsx"}
     pages = iter_page_inputs(
         path,
         filename,
@@ -338,11 +346,18 @@ def page_image(
         ir=ir,
         page_numbers=[page_number],
         image_max_edge=max_edge,
+        include_images=not office,
         verified_hash=verified_hash,
         limits=limits,
     )
     try:
         page = next(pages)
+        if office:
+            members = _image_members(page["elements"])
+            if not 0 <= image_index < len(members):
+                raise DocumentError("page_has_no_image", "This logical page has no requested image")
+            with zipfile.ZipFile(path) as archive:
+                return _embedded_png(archive, members[image_index], max_edge)
         images = page["image_data_urls"]
         if not 0 <= image_index < len(images):
             raise DocumentError("page_has_no_image", "This logical page has no requested image")

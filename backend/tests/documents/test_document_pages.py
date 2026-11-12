@@ -94,6 +94,72 @@ def test_png_native_parse_and_preview_are_explicitly_visual(tmp_path):
     assert image.startswith(b"\x89PNG")
 
 
+@pytest.mark.parametrize("format_name", ["docx", "pptx"])
+def test_office_preview_decodes_only_the_requested_image_without_changing_page_order(tmp_path, monkeypatch, format_name):
+    from ontology.documents import pages as page_inputs
+
+    from tests.support.documents import word
+
+    colors = [(index * 7 % 256, index * 3 % 256, 100) for index in range(33)]
+    images = []
+    for color in colors:
+        output = io.BytesIO()
+        Image.new("RGB", (32, 32), color).save(output, "PNG")
+        images.append(output.getvalue())
+    if format_name == "docx":
+        runs = ''.join(f'<w:r><w:drawing><a:blip r:embed="image{index}"/></w:drawing></w:r>' for index in range(33))
+        relationships = ''.join(f'<Relationship Id="image{index}" Target="media/image{index}.png"/>' for index in range(33))
+        extras = {f"word/media/image{index}.png": data for index, data in enumerate(images)}
+        extras["word/_rels/document.xml.rels"] = f"<Relationships>{relationships}</Relationships>".encode()
+        data = word(f"<w:p>{runs}</w:p>", extras)
+    else:
+        with zipfile.ZipFile(io.BytesIO(presentation())) as source:
+            entries = {name: source.read(name) for name in source.namelist()}
+        picture = '<p:pic><p:blipFill><a:blip r:embed="image1"/></p:blipFill></p:pic>'
+        pictures = ''.join(f'<p:pic><p:blipFill><a:blip r:embed="image{index}"/></p:blipFill></p:pic>' for index in range(33))
+        entries["ppt/slides/slide1.xml"] = entries["ppt/slides/slide1.xml"].decode().replace(picture, pictures).encode()
+        relationships = ''.join(f'<Relationship Id="image{index}" Target="../media/image{index}.png"/>' for index in range(33))
+        entries["ppt/slides/_rels/slide1.xml.rels"] = f"<Relationships>{relationships}</Relationships>".encode()
+        entries.update({f"ppt/media/image{index}.png": data for index, data in enumerate(images)})
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w") as archive:
+            for name, content in entries.items():
+                archive.writestr(name, content)
+        data = output.getvalue()
+    path = tmp_path / f"multiple.{format_name}"
+    path.write_bytes(data)
+    ir = parse_document(data, path.name, source_id="doc", source_revision="1").model_dump(mode="json")
+    kwargs = {"source_id": "doc", "source_revision": "1", "ir": ir}
+    assert page_count(path, path.name, **kwargs) == 1
+    decodes = []
+    original = page_inputs._png
+
+    def counted(data, max_edge):
+        decodes.append(len(data))
+        return original(data, max_edge)
+
+    monkeypatch.setattr(page_inputs, "_png", counted)
+    for image_index in (0, 16, 32):
+        decodes.clear()
+        image = page_image(path, path.name, page_number=1, image_index=image_index, **kwargs)
+        with Image.open(io.BytesIO(image)) as preview:
+            assert preview.getpixel((0, 0)) == colors[image_index]
+        assert len(decodes) == 1
+    for image_index in (-1, 33):
+        decodes.clear()
+        with pytest.raises(DocumentError) as error:
+            page_image(path, path.name, page_number=1, image_index=image_index, **kwargs)
+        assert error.value.code == "page_has_no_image" and not decodes
+    with pytest.raises(DocumentError) as error:
+        page_image(path, path.name, page_number=2, **kwargs)
+    assert error.value.code == "invalid_page"
+    # Model inputs retain every image and the original logical page identity.
+    decodes.clear()
+    pages = list(iter_page_inputs(path, path.name, **kwargs))
+    assert len(pages) == 1 and pages[0]["page_number"] == 1
+    assert pages[0]["image_count"] == len(pages[0]["image_data_urls"]) == len(decodes) == 33
+
+
 def test_word_notes_and_workbook_embedded_picture_are_not_omitted(tmp_path):
     from openpyxl import Workbook
     from openpyxl.drawing.image import Image as SheetImage

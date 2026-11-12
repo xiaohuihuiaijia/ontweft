@@ -16,6 +16,8 @@
 | 可信函数与 Action | `automation` | 仍需配置实际 Action 适配器；空适配器注册表不显示动作入口 |
 | 既有 Docling 解析适配 | 文档解析任务显式选择 | 按目标平台安装和验证 `docling` 可选组；不作为 AI 主流程前置条件 |
 
+扩展支持需按具体来源核对：底层 File/HTTP/Neo4j 适配器尚未提供可用于业务映射的完整字段描述，Mongo 目前仅声明 `_id`；能够发现或抽样不代表可以直接完成本体映射。默认 CSV/XLSX、文档与 PostgreSQL 接入不受此限制。
+
 例如 `ONTOLOGY_EXTENSIONS=["knowledge","integrations"]`。配置在启动时读取，服务和 worker 必须一致。多个 `--extra` 可以并用；启用配置不能替代项目权限、字段权限和来源授权。停用飞书集成时不远程刷新授权，历史飞书材料不会因此获得公开访问权限。
 
 会话 `/api/auth/me` 返回 `features`、`actions_available` 和 `model_approval`。已有公开扩展 API 路径保持不变，关闭扩展时不开放；没有用一个万能接口替换原有授权语义。

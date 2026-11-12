@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { loadObjectEditSession, ObjectEditor } from './ObjectsPage';
 import { ObjectRelations } from './ObjectRelations';
@@ -99,4 +99,24 @@ it.each([
   await screen.findByText('暂无已保存关系。');
   expect(screen.queryByRole('button', { name: '新增关系' })).toBeNull();
   expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true);
+});
+
+it('closing a nested source page does not submit an unsaved object', async () => {
+  const object = { id: 'o', project_id: 'p', type_key: 'item', properties: { note: '原文' }, revision: 1, evidence: [{ document_id: 'doc', page: 1 }] };
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return new Response(JSON.stringify({ ...object, revision: 2 }));
+    if (String(url).includes('/documents/')) return new Response(JSON.stringify({ items: [{ page_number: 1, label: '合成来源', text: '合成原件', status: 'parsed', has_image: false, elements: [] }], total: 1, revision: 1, content_hash: 'hash' }));
+    return new Response(JSON.stringify({ items: [], total: 0 }));
+  });
+  const onSaved = vi.fn();
+  render(<ObjectEditor object={object} types={[{ key: 'item', label: '物料', properties: [{ key: 'note', label: '备注', data_type: 'string' }], relations: [] }]} modelReleaseId="r" projectId="p" canWrite onSaved={onSaved} onClose={() => {}} onDirty={() => {}} />);
+  fireEvent.change(screen.getByLabelText('备注'), { target: { value: '尚未确认的修改' } });
+  fireEvent.click(screen.getByText('来源证据'));
+  fireEvent.click(screen.getByRole('button', { name: '查看原文 · 第 1 页' }));
+  await screen.findByText('合成原件');
+  fireEvent.click(within(screen.getByRole('complementary', { name: '文档来源页' })).getByRole('button', { name: '关闭侧栏' }));
+  await waitFor(() => expect(screen.queryByRole('complementary', { name: '文档来源页' })).toBeNull());
+  expect(fetcher.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(0);
+  expect(onSaved).not.toHaveBeenCalled();
+  expect((screen.getByLabelText('备注') as HTMLInputElement).value).toBe('尚未确认的修改');
 });
