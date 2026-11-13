@@ -22,6 +22,7 @@ from ontology.intelligence.prompts import (
     FACT_SCHEMA,
     MODEL_INSTRUCTION,
     MODEL_SCHEMA,
+    MODEL_VERSION,
     PAGE_INSTRUCTION,
     PAGE_SCHEMA,
     VERSION,
@@ -29,6 +30,7 @@ from ontology.intelligence.prompts import (
 )
 from ontology.intelligence.proposal_models import AIPage, AIProposal
 from ontology.jobs.service import check_job_authority, fenced_job, finish
+from ontology.objects.relation_history import relation_values_equal
 from ontology.sources.ingestion import fingerprint, schema_fingerprint
 from ontology.sources.models import Source
 from ontology.sources.service import connector_for
@@ -70,6 +72,8 @@ class Run:
         with self.db.transaction(self.run["tenant_id"], write=True) as session:
             job, proposal = self.verify(session)
             job.checkpoint = {**job.checkpoint, **updates}
+            if "model_notes" in updates:
+                proposal.model_notes = updates["model_notes"]
             proposal.status = "running"
 
     def reserve(self, charge):
@@ -286,6 +290,8 @@ def materials(state, pages):
 
 
 def generate_model(state, pages):
+    from ontology.intelligence.model_notes import merge_notes, normalize_model_notes, target_definition
+
     cp = state.checkpoint()
     sources = cp.get("source_profiles")
     if sources is None:
@@ -312,6 +318,8 @@ def generate_model(state, pages):
         parts = [text[start : start + 12000] for start in range(0, len(text), 12000)] or [""]
         for part, content in enumerate(parts, 1):
             material = {
+                "material_id": f"page:{page.id}:{part}",
+                "page_id": page.id,
                 "document_id": page.document_id,
                 "page": page.page_number,
                 **page.result,
@@ -327,11 +335,13 @@ def generate_model(state, pages):
             length += size
     if batch:
         batches.append(batch)
-    batches.extend([[{"database": source}] for source in sources])
+    batches.extend([[{"material_id": "database:" + fingerprint([source["source_id"], source["resource"]["resource_id"]]),
+                     "database": source}] for source in sources])
     definition = cp.get("definition", state.proposal.definition)
     gaps = cp.get("gaps", [])
     mappings = cp.get("suggested_mappings", [])
-    state.save(stage="modeling", model_batches_total=len(batches))
+    notes = cp.get("model_notes", state.proposal.model_notes or [])
+    state.save(stage="modeling", model_batches_total=len(batches), model_prompt_version=MODEL_VERSION)
     for i, batch in enumerate(batches):
         if i < cp.get("model_batches_completed", 0):
             continue
@@ -349,13 +359,18 @@ def generate_model(state, pages):
             limit=18000,
         )
         definition = merge_model(definition, result.data)
-        gaps = list(dict.fromkeys(gaps + result.data["gaps"]))
+        incoming_notes, note_gaps = normalize_model_notes(
+            result.data.get("model_notes", []), batch, pages, state.proposal.definition, definition
+        )
+        notes = merge_notes(notes, incoming_notes)
+        gaps = list(dict.fromkeys(gaps + result.data["gaps"] + note_gaps))
         mappings.extend(result.data["mappings"])
         state.save(
             stage="modeling",
             definition=definition,
             gaps=gaps,
             suggested_mappings=mappings,
+            model_notes=notes,
             model_batches_completed=i + 1,
             model_batches_total=len(batches),
         )
@@ -402,7 +417,9 @@ def generate_model(state, pages):
                 },
             }
         )
-    state.save(definition=definition, gaps=list(dict.fromkeys(gaps)))
+    # Later batches may extend the same type; explanations describe the final generated model.
+    notes = [{**note, "definition_fingerprint": fingerprint(target_definition(definition, note))} for note in notes]
+    state.save(definition=definition, gaps=list(dict.fromkeys(gaps)), model_notes=notes)
     return definition
 
 
@@ -491,12 +508,25 @@ def normalize_facts(data, page, definition, context_pages=()):
         if not declared or declared["target_type"] != target_item["type_key"]:
             gaps.append(f"第 {page.page_number} 页有关系不符合本体端点定义，未采纳")
             continue
+        try:
+            kinds = {prop["key"]: prop["data_type"] for prop in declared.get("properties", [])}
+            raw_values = relation.get("values", [])
+            values = {value["key"]: json.loads(value["value_json"], parse_float=str)
+                      if kinds.get(value["key"]) == "number" else json.loads(value["value_json"])
+                      for value in raw_values}
+            if len(values) != len(raw_values):
+                raise ValueError("duplicate relation property")
+            values = wire_value(validate_source_properties(declared, values))
+        except (ValueError, TypeError, DomainError):
+            gaps.append(f"第 {page.page_number} 页有关系属性不符合定义，待复核")
+            continue
         relations.append(
             {
                 "id": fingerprint([source, target, relation["key"]]),
                 "source_candidate_id": source,
                 "target_candidate_id": target,
                 "key": relation["key"],
+                "properties": values,
                 "selected": source_item["selected"] and target_item["selected"],
                 "evidence": refs,
             }
@@ -649,7 +679,20 @@ def run_proposal(db, settings, run):
                     candidates[item["id"]] = item
             for relation in new_relations:
                 if relation["id"] in relations:
-                    existing = relations[relation["id"]]["evidence"]
+                    previous = relations[relation["id"]]
+                    source_type = next(item for item in definition["types"]
+                                       if item["key"] == candidates[relation["source_candidate_id"]]["type_key"])
+                    declared = next(item for item in source_type["relations"] if item["key"] == relation["key"])
+                    fields = {field["key"]: field for field in declared.get("properties", [])}
+                    clashes = [key for key, value in relation.get("properties", {}).items()
+                               if key in previous.get("properties", {})
+                               and not relation_values_equal(fields[key], previous["properties"][key], value)]
+                    if clashes:
+                        previous["selected"] = False
+                        gaps.append("同一关系存在不同属性值，已暂停该候选：" + ", ".join(clashes))
+                    else:
+                        previous["properties"] = {**previous.get("properties", {}), **relation.get("properties", {})}
+                    existing = previous["evidence"]
                     existing.extend(ref for ref in relation["evidence"] if ref not in existing)
                 else:
                     relations[relation["id"]] = relation

@@ -17,6 +17,7 @@ class AIProposal(ProjectRecord, Base):
     baseline_release_id: Mapped[str | None] = mapped_column(ForeignKey("releases.id"), nullable=True)
     inputs: Mapped[dict] = mapped_column(JSON)
     definition: Mapped[dict] = mapped_column(JSON, default=lambda: {"types": [], "mappings": []})
+    model_notes: Mapped[list] = mapped_column(JSON, default=list)
     candidates: Mapped[list] = mapped_column(JSON, default=list)
     relations: Mapped[list] = mapped_column(JSON, default=list)
     gaps: Mapped[list] = mapped_column(JSON, default=list)

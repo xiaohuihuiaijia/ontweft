@@ -10,7 +10,7 @@ from ontology.intelligence.projection import import_proposal, prepare_document_s
 from ontology.intelligence.proposal_models import AIProposal, DocumentRelationContribution
 from ontology.modeling.models import ChangeSet
 from ontology.modeling.schemas import Definition
-from ontology.objects.models import Entity, Relation
+from ontology.objects.models import Entity, Relation, RelationRevision
 from ontology.sources.ingestion import fingerprint
 from ontology.sources.models import Source, SourceRecordRevision, SourceSnapshot
 from sqlalchemy import func, select
@@ -175,9 +175,84 @@ def test_document_relation_coexists_with_manual_relation(document_case):
         assert session.get(Relation, relation_id).manual
         assert session.scalar(select(func.count()).select_from(Relation)) == 1
         assert session.scalar(select(DocumentRelationContribution)).relation_id == relation_id
-    result = client.request("DELETE", f"/api/relations/{relation_id}", json={"expected_revision": 1})
+        revision = session.get(Relation, relation_id).revision
+    result = client.request("DELETE", f"/api/relations/{relation_id}", json={"expected_revision": revision})
     assert result.status_code == 200, result.text
     assert result.json()["retained_by_document"]
     with app.state.db.transaction(ids["tenant_id"]) as session:
         assert session.get(Relation, relation_id) is not None
         assert not session.get(Relation, relation_id).manual
+
+
+def test_relation_conditions_preserve_conflicts_and_do_not_roll_back_objects(document_case):
+    _client, app, ids, *_ = document_case
+    definition = copy.deepcopy(document_case[-2])
+    definition["types"][0]["relations"][0]["properties"] = [
+        {"key": "limit", "label": "Voltage limit", "data_type": "number", "unit": "V"},
+        {"key": "condition", "label": "Condition", "data_type": "string"},
+    ]
+    candidates = copy.deepcopy(document_case[-1])
+    candidates.append({**copy.deepcopy(candidates[0]), "id": "b", "properties": {"code": "B"}, "business_key": {"code": "B"}})
+    relation = {"id": "r", "source_candidate_id": "b", "target_candidate_id": "a", "key": "parent",
+                "selected": True, "properties": {"limit": "12.50"}, "evidence": candidates[0]["evidence"]}
+    first_id, definition, _ = prepare(document_case, definition=definition, candidates=candidates, relations=[relation])
+    publish_prepared(document_case, first_id)
+    assert apply(document_case, first_id)["relations"] == 1
+    with app.state.db.transaction(ids["tenant_id"]) as session:
+        row = session.scalar(select(Relation))
+        relation_id, first_properties = row.id, row.properties
+        assert row.revision == 1
+        assert session.scalar(select(func.count()).select_from(RelationRevision)) == 1
+    # Decimal spellings are equivalent; do not create a conflict or a redundant revision.
+    same_id, _, _ = prepare(document_case, definition=definition, candidates=candidates,
+                            relations=[{**relation, "properties": {"limit": "12.500"}}])
+    assert apply(document_case, same_id)["relations_blocked"] == 0
+    fill_evidence = [{**relation["evidence"][0], "quote": "B belongs to A."}]
+    fill_id, _, _ = prepare(document_case, definition=definition, candidates=candidates,
+                            relations=[{**relation, "properties": {"condition": "dry installation"}, "evidence": fill_evidence}])
+    assert apply(document_case, fill_id)["relations"] == 1
+    with app.state.db.transaction(ids["tenant_id"]) as session:
+        row = session.get(Relation, relation_id)
+        assert row.properties == {**first_properties, "condition": "dry installation"}
+        assert row.revision == 2
+        assert session.scalar(select(func.count()).select_from(RelationRevision)) == 2
+        assert fill_evidence[0] in row.evidence
+        latest = session.scalar(select(RelationRevision).where(RelationRevision.revision == 2))
+        assert fill_evidence[0] in latest.evidence
+        contribution = session.scalar(select(DocumentRelationContribution))
+        assert fill_evidence[0] in contribution.evidence
+    # A valid new object still lands when a relation's proposed condition conflicts.
+    candidates.append({**copy.deepcopy(candidates[0]), "id": "c", "properties": {"code": "C"}, "business_key": {"code": "C"}})
+    conflict_id, _, _ = prepare(document_case, definition=definition, candidates=candidates,
+                                relations=[{**relation, "properties": {"limit": "24"}}])
+    result = apply(document_case, conflict_id)
+    assert result["counts"]["created"] == 1 and result["imported"] == 3
+    assert result["relations"] == 0 and result["relations_blocked"] == 1
+    assert result["issues"][-1]["code"] == "relation_property_conflict"
+    assert result["issues"][-1]["relation_id"] == relation_id
+    assert apply(document_case, conflict_id) == result
+    with app.state.db.transaction(ids["tenant_id"]) as session:
+        row = session.get(Relation, relation_id)
+        assert row.revision == 2 and row.properties["limit"] == first_properties["limit"]
+        proposal = session.get(AIProposal, conflict_id)
+        assert proposal.imported == result and proposal.relations[0]["properties"] == {"limit": "24"}
+        assert session.scalar(select(func.count()).select_from(Entity)) == 3
+
+
+def test_relation_cardinality_conflict_keeps_successful_object_import(document_case):
+    _client, app, ids, *_ = document_case
+    candidates = copy.deepcopy(document_case[-1])
+    for code in ("B", "C"):
+        candidates.append({**copy.deepcopy(candidates[0]), "id": code.lower(), "properties": {"code": code}, "business_key": {"code": code}})
+    relation = {"id": "r", "source_candidate_id": "b", "target_candidate_id": "a", "key": "parent",
+                "selected": True, "evidence": candidates[0]["evidence"]}
+    first_id, definition, _ = prepare(document_case, candidates=candidates, relations=[relation])
+    publish_prepared(document_case, first_id)
+    apply(document_case, first_id)
+    next_id, _, _ = prepare(document_case, definition=definition, candidates=candidates,
+                            relations=[{**relation, "target_candidate_id": "c"}])
+    result = apply(document_case, next_id)
+    assert result["imported"] == 3 and result["relations_blocked"] == 1
+    assert result["issues"][-1]["code"] == "relation_cardinality_conflict"
+    with app.state.db.transaction(ids["tenant_id"]) as session:
+        assert session.scalar(select(func.count()).select_from(Relation)) == 1

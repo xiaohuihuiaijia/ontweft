@@ -36,6 +36,13 @@ class RelationInput(ModelBaselineInput):
     evidence: list[dict] = Field(default_factory=list, max_length=100)
 
 
+class RelationUpdate(ModelRevisionInput):
+    properties: dict[str, Any] = Field(default_factory=dict)
+    remove_properties: list[str] = Field(default_factory=list, max_length=200)
+    evidence: list[dict] = Field(default_factory=list, max_length=100)
+    reason: str = Field(default="", max_length=2000)
+
+
 class Filter(StrictModel):
     field: str
     op: Literal["eq", "ne", "gt", "gte", "lt", "lte", "contains", "in", "is_null"] = "eq"

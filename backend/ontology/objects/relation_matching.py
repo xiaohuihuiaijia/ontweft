@@ -155,7 +155,8 @@ def matching_plan(session, ctx, rule, *, issue_offset=0, issue_limit=SAMPLE_SIZE
         candidate_count = len(matches) - int(excluded_self)
         target = (
             next((row for row in matches.values() if not excluded_self or row.id != source.id), None)
-            if candidate_count == 1 else None
+            if candidate_count == 1
+            else None
         )
         if key is None:
             status = "missing_value"
@@ -249,6 +250,17 @@ def apply_matches(data: ApplyMatch, request: Request, user=Depends(authenticated
             from ontology.objects.constraints import touch_entity
 
             touch_entity(session, source)
+            session.flush()
+            from ontology.objects.relation_history import record_relation_revision
+
+            record_relation_revision(
+                session,
+                row,
+                actor_id=user.id,
+                model_release_id=ctx.project.active_release_id,
+                reason="确认一次性匹配",
+                operation="created",
+            )
             created.append(
                 {
                     "relation_id": row.id,

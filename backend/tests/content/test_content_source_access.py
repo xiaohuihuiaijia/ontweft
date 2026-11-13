@@ -64,6 +64,45 @@ def expire(app, owner):
         session.execute(update(SourcePermission).values(valid_until=0))
 
 
+def test_object_and_history_excerpts_follow_current_source_permission(protected, definition):
+    from ontology.objects.models import Entity, EntityRevision
+
+    from tests.support.platform import publish
+
+    client, app, owner, doc, _, _, allowed = protected
+    publish(client, owner["project_id"], definition)
+    model = client.get("/api/ontology/definition", params={"project_id": owner["project_id"]}).json()
+    ref = {"document_id": doc["id"], "page": 1, "quote": "受控星河预算记录"}
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        obj = Entity(
+            tenant_id=owner["tenant_id"], project_id=owner["project_id"], type_key="Project",
+            release_id=model["release_id"], properties={"name": "合成项目"}, evidence=[ref],
+        )
+        session.add(obj)
+        session.flush()
+        object_id = obj.id
+        session.add(EntityRevision(
+            tenant_id=owner["tenant_id"], project_id=owner["project_id"], entity_id=obj.id,
+            revision=1, properties=obj.properties, evidence=[ref], actor_id=owner["user_id"],
+        ))
+    detail = f"/api/objects/{object_id}"
+    assert client.get(detail).json()["evidence"] == [ref]
+    assert client.get(detail + "/history").json()["items"][0]["evidence"] == [ref]
+    allowed["view"] = False
+    expire(app, owner)
+    for route, params in (
+        (detail, {}), (detail + "/history", {}),
+        ("/api/objects", {"project_id": owner["project_id"], "type_key": "Project"}),
+    ):
+        response = client.get(route, params=params)
+        assert response.status_code == 200, response.text
+        assert "受控星河" not in response.text
+        assert doc["id"] not in response.text
+    # Authorization affects returned evidence, not the immutable source record.
+    with app.state.db.transaction(owner["tenant_id"]) as session:
+        assert session.get(Entity, object_id).evidence == [ref]
+
+
 def test_revocation_filters_counts_search_graph_history_download_and_jobs(protected):
     client, app, owner, doc, page, _, allowed = protected
     response = search(client, owner, "受控星河预算")

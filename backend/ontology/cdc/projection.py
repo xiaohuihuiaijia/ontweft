@@ -25,6 +25,7 @@ from ontology.identity.models import Project, User
 from ontology.identity.security import access, audit
 from ontology.jobs.models import Job
 from ontology.jobs.service import check_job_authority, fenced_job, finish
+from ontology.modeling.diff import normalized_mapping
 from ontology.modeling.models import Release
 from ontology.objects.contributions.models import SourceContribution
 from ontology.objects.contributions.service import ensure_legacy_contributions, replace_contribution
@@ -51,7 +52,11 @@ def binding_matches_model(session, project, binding):
 
     def contract(definition):
         mappings = sorted(
-            (m for m in definition.get("mappings", []) if m["source_id"] == binding.source_id),
+            (
+                normalized_mapping(m)
+                for m in definition.get("mappings", [])
+                if m["source_id"] == binding.source_id
+            ),
             key=lambda m: m["key"],
         )
         keys = {m["type_key"] for m in mappings}
@@ -61,9 +66,12 @@ def binding_matches_model(session, project, binding):
                 continue
             # Presentation-only renames do not invalidate source decoding.
             semantic = {
-                key: value for key, value in definition_type.items() if key not in {"label", "description"}
+                key: value
+                for key, value in definition_type.items()
+                if key not in {"label", "description", "aliases"}
             }
-            semantic["key_semantics"] = definition_type.get("key_semantics", "legacy")
+            semantic.setdefault("key_semantics", "legacy")
+            semantic.setdefault("unique_keys", [])
             for section in ("properties", "relations"):
                 semantic[section] = sorted(
                     (
@@ -71,6 +79,25 @@ def binding_matches_model(session, project, binding):
                         for item in definition_type.get(section, [])
                     ),
                     key=lambda item: item["key"],
+                )
+
+            def field_contract(field):
+                return {
+                    "required": False,
+                    "enum": [],
+                    "unit": None,
+                    "read_roles": [],
+                    "write_roles": [],
+                    "source_owned": False,
+                    **{key: value for key, value in field.items() if key != "label"},
+                }
+
+            semantic["properties"] = [field_contract(field) for field in semantic["properties"]]
+            for relation in semantic["relations"]:
+                relation.setdefault("cardinality", "many")
+                relation["properties"] = sorted(
+                    (field_contract(field) for field in relation.get("properties", [])),
+                    key=lambda field: field["key"],
                 )
             types.append(semantic)
         return mappings, sorted(types, key=lambda t: t["key"])

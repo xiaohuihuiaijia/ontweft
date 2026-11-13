@@ -4,6 +4,7 @@ from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.orm import aliased
 
 from ontology.core.domain import (
+    active_definition,
     compare_and_swap,
     definition_errors,
     validate_properties,
@@ -15,6 +16,7 @@ from ontology.identity.models import User
 from ontology.identity.security import access
 from ontology.jobs.models import Job
 from ontology.jobs.service import check_job_authority, fenced_job
+from ontology.modeling.diff import definition_diff
 from ontology.modeling.models import ChangeSet
 from ontology.objects.constraints import key_rows
 from ontology.objects.models import Entity, EntityKey, Relation
@@ -33,7 +35,7 @@ def add_errors(report, errors):
     report["valid"] = report["error_count"] == 0
 
 
-def validate_batch(session, ctx, definition, rows, report):
+def validate_batch(session, ctx, definition, rows, report, *, count_impact=False):
     types = {t["key"]: t for t in definition["types"]}
     ids = [obj.id for obj in rows]
     if not ids:
@@ -50,6 +52,8 @@ def validate_batch(session, ctx, definition, rows, report):
     for obj in rows:
         if obj.deleted:
             continue
+        if count_impact and obj.type_key in report["impact"]["affected_type_keys"]:
+            report["impact"]["objects"] += 1
         type_def = types.get(obj.type_key)
         if not type_def:
             add_errors(report, [{"object_id": obj.id, "message": "删除类型会使现有对象失去定义"}])
@@ -110,6 +114,8 @@ def validate_batch(session, ctx, definition, rows, report):
             Relation.source_id.in_(ids),
         )
     ):
+        if count_impact and source_types.get(rel.source_id) in report["impact"]["affected_type_keys"]:
+            report["impact"]["relations"] += 1
         expected = next(
             (
                 r
@@ -125,6 +131,11 @@ def validate_batch(session, ctx, definition, rows, report):
             counts[key] = counts.get(key, 0) + 1
             if counts[key] > 1:
                 add_errors(report, [{"relation_id": rel.id, "message": "现有关系不满足一个目标的基数"}])
+        if expected:
+            try:
+                validate_properties(expected, rel.properties)
+            except DomainError:
+                add_errors(report, [{"relation_id": rel.id, "message": "已有关系属性与新定义不兼容"}])
 
 
 def discard_validation(session, change):
@@ -161,6 +172,15 @@ def start_validation(session, ctx, change):
         "generation": uid(),
         "watermark": ctx.project.data_revision,
         "scope": "all_current_objects",
+        "impact": {
+            "objects": None,
+            "relations": None,
+            "complete": False,
+            "scope": "validation_scan",
+            "affected_type_keys": definition_diff(active_definition(session, ctx.project), change.definition)[
+                "affected_type_keys"
+            ],
+        },
     }
     if document_resources:
         report["document_resources_fingerprint"] = document_resources_fingerprint(document_resources)
@@ -171,9 +191,11 @@ def start_validation(session, ctx, change):
     )
     if errors or total <= SYNC_LIMIT:
         if not errors:
+            report["impact"].update(objects=0, relations=0)
             rows = session.scalars(entity_query(ctx).order_by(Entity.id)).all()
-            validate_batch(session, ctx, change.definition, rows, report)
+            validate_batch(session, ctx, change.definition, rows, report, count_impact=True)
             report["objects_checked"] = len(rows)
+            report["impact"]["complete"] = True
         return report, None
     job = Job(
         tenant_id=ctx.user.tenant_id,
@@ -184,6 +206,7 @@ def start_validation(session, ctx, change):
         checkpoint={"cursor": "", "phase": "scan", "report": report},
     )
     session.add(job)
+    report["impact"].update(objects=0, relations=0)
     session.flush()
     return {**report, "valid": False, "job_id": job.id}, job
 
@@ -230,12 +253,16 @@ def run_validation(db, run):
             rows = session.scalars(
                 entity_query(ctx).where(Entity.id > checkpoint["cursor"]).order_by(Entity.id).limit(BATCH)
             ).all()
-            validate_batch(session, ctx, change.definition, rows, report)
+            # Older persisted validation jobs have no impact section; keep their
+            # validation usable and report counts as unknown until revalidation.
+            validate_batch(session, ctx, change.definition, rows, report, count_impact="impact" in report)
             report["objects_checked"] += len(rows)
             if rows:
                 checkpoint["cursor"] = rows[-1].id
             if len(rows) < BATCH:
                 checkpoint["phase"] = "delta"
+                if "impact" in report:
+                    report["impact"]["complete"] = True
         else:
             rows = session.scalars(
                 entity_query(ctx)

@@ -203,7 +203,7 @@ def changed_entity(session, entity):
         enqueue_rule(session, rule)
 
 
-def remove_contribution(session, contribution):
+def remove_contribution(session, contribution, ctx):
     relation = session.get(Relation, contribution.relation_id)
     session.delete(contribution)
     session.flush()
@@ -214,9 +214,29 @@ def remove_contribution(session, contribution):
 
     supported = supported or session.scalar(
         select(DocumentRelationContribution.id)
-        .where(DocumentRelationContribution.relation_id == relation.id).limit(1)
+        .where(DocumentRelationContribution.relation_id == relation.id)
+        .limit(1)
     )
     if not relation.manual and not supported:
+        from ontology.objects.relation_history import record_relation_revision
+
+        record_relation_revision(
+            session,
+            relation,
+            actor_id=ctx.user.id,
+            model_release_id=ctx.project.active_release_id,
+            reason="撤回前状态",
+            operation="baseline",
+        )
+        relation.revision += 1
+        record_relation_revision(
+            session,
+            relation,
+            actor_id=ctx.user.id,
+            model_release_id=ctx.project.active_release_id,
+            reason="最后一份持续规则支持已撤回",
+            operation="deleted",
+        )
         touch_entity(session, session.get(Entity, relation.source_id))
         session.delete(relation)
 
@@ -294,11 +314,12 @@ def recompute(session, ctx, rule, work, definition):
 
             other_support = other_support or session.scalar(
                 select(DocumentRelationContribution.id)
-                .where(DocumentRelationContribution.relation_id == old_relation.id).limit(1)
+                .where(DocumentRelationContribution.relation_id == old_relation.id)
+                .limit(1)
             )
             if old_relation.manual or other_support:
                 return "原关系仍有人工作用或其他来源贡献，不能覆盖唯一目标"
-        remove_contribution(session, existing)
+        remove_contribution(session, existing, ctx)
         session.flush()
     if targets:
         relation = session.scalar(
@@ -324,6 +345,16 @@ def recompute(session, ctx, rule, work, definition):
             session.add(relation)
             touch_entity(session, source)
             session.flush()
+            from ontology.objects.relation_history import record_relation_revision
+
+            record_relation_revision(
+                session,
+                relation,
+                actor_id=ctx.user.id,
+                model_release_id=ctx.project.active_release_id,
+                reason="持续规则建立关系",
+                operation="created",
+            )
         session.add(
             RelationContribution(
                 tenant_id=rule.tenant_id,

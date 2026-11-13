@@ -93,11 +93,16 @@ def test_legacy_key_default_and_field_order_are_not_capture_contract_changes(mon
     from ontology.cdc import projection
 
     previous = {
-        "mappings": [{"key": "m", "source_id": "source", "type_key": "Item"}],
+        "mappings": [{"key": "m", "source_id": "source", "type_key": "Item", "fields": {"a": {"source_field": "original_a"}}}],
         "types": [{"key": "Item", "properties": [{"key": "a"}, {"key": "b"}]}],
     }
     current = copy.deepcopy(previous)
-    current["types"][0].update(key_semantics="legacy", label="Display rename")
+    current["mappings"][0]["identity_fields"] = []
+    current["mappings"][0]["fields"]["a"]["transform"] = "identity"
+    current["types"][0].update(key_semantics="legacy", label="Display rename", aliases=["Business alias"])
+    current["types"][0]["properties"][0].update(
+        required=False, enum=[], unit=None, read_roles=[], write_roles=[], source_owned=False
+    )
     current["types"][0]["properties"].reverse()
     monkeypatch.setattr(projection, "active_definition", lambda *_: current)
     session = SimpleNamespace(get=lambda *_: SimpleNamespace(definition=previous))

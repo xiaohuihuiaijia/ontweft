@@ -72,6 +72,26 @@ class Relation(ProjectRecord, Base):
     manual: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
 
 
+class RelationRevision(ProjectRecord, Base):
+    """Immutable relation snapshots survive removal of the current edge."""
+
+    __tablename__ = "relation_revisions"
+    __table_args__ = (UniqueConstraint("relation_id", "revision", name="uq_relation_revision"),)
+    relation_id: Mapped[str] = mapped_column(String(36), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    type_key: Mapped[str] = mapped_column(String(120))
+    source_type_key: Mapped[str] = mapped_column(String(120))
+    source_id: Mapped[str] = mapped_column(String(36))
+    target_id: Mapped[str] = mapped_column(String(36))
+    properties: Mapped[dict] = mapped_column(JSON, default=dict)
+    evidence: Mapped[list] = mapped_column(JSON, default=list)
+    manual: Mapped[bool] = mapped_column(Boolean)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    model_release_id: Mapped[str | None] = mapped_column(ForeignKey("releases.id"), nullable=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    operation: Mapped[str] = mapped_column(String(20))
+
+
 class EntityKey(ProjectRecord, Base):
     """Unique business keys for the live release or one in-progress validation."""
 

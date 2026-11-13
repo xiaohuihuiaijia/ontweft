@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import Numeric, cast, func, or_, select
 
 from ontology.audit.models import Audit
+from ontology.content_access.evidence import filter_evidence
+from ontology.content_access.service import content_context, prepare_content_access
 from ontology.core.domain import (
     active_definition,
     coerce_value,
@@ -22,8 +24,21 @@ from ontology.core.domain import (
 from ontology.core.errors import DomainError, conflict, forbidden, missing
 from ontology.core.models import now
 from ontology.identity.security import access, allowed_field, audit, authenticated
-from ontology.objects.models import Entity, EntityRevision, Relation
-from ontology.objects.schemas import ModelRevisionInput, ObjectInput, ObjectQuery, ObjectUpdate, RelationInput
+from ontology.objects.models import Entity, EntityRevision, Relation, RelationRevision
+from ontology.objects.relation_history import (
+    prepare_relation_properties,
+    record_relation_revision,
+    relation_values_equal,
+    relation_views,
+)
+from ontology.objects.schemas import (
+    ModelRevisionInput,
+    ObjectInput,
+    ObjectQuery,
+    ObjectUpdate,
+    RelationInput,
+    RelationUpdate,
+)
 from ontology.objects.status import require_active_entity
 
 router = APIRouter()
@@ -129,6 +144,7 @@ def query_objects(session, ctx, query: ObjectQuery):
         .offset(query.offset)
         .limit(query.limit)
     ).all()
+    filter_evidence(session, ctx, [ref for obj in objects for ref in obj.evidence])
     return {
         "items": [entity_view(session, obj, ctx, definition=type_def) for obj in objects],
         "total": total,
@@ -137,14 +153,14 @@ def query_objects(session, ctx, query: ObjectQuery):
     }
 
 
-@router.post("/query")
+@router.post("/query", dependencies=[Depends(prepare_content_access)])
 def query(data: ObjectQuery, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id) as session:
-        ctx = access(session, user, data.project_id)
+        ctx = content_context(session, request, user, data.project_id)
         return query_objects(session, ctx, data)
 
 
-@router.get("/objects")
+@router.get("/objects", dependencies=[Depends(prepare_content_access)])
 def objects(
     request: Request,
     project_id: str,
@@ -163,6 +179,7 @@ def objects(
         )
         if data_status != "active":
             access(session, user, project_id, "objects:read")
+        ctx = content_context(session, request, user, project_id)
         if type_key and not q and data_status == "active":
             return query_objects(
                 session,
@@ -204,6 +221,7 @@ def objects(
             .limit(limit)
         ).all()
         by_type = {definition["key"]: definition for definition in definitions}
+        filter_evidence(session, ctx, [ref for row in rows for ref in row.evidence])
         return {
             "items": [entity_view(session, x, ctx, definition=by_type.get(x.type_key)) for x in rows],
             "total": total,
@@ -211,11 +229,12 @@ def objects(
         }
 
 
-@router.post("/objects", status_code=201)
+@router.post("/objects", status_code=201, dependencies=[Depends(prepare_content_access)])
 def create_object(data: ObjectInput, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id) as session:
         ctx = access(session, user, data.project_id, "objects:write")
         ensure_model_baseline(session, ctx, data)
+        ctx = content_context(session, request, user, data.project_id)
         definition = type_definition(session, ctx.project, data.type_key)
         ensure_writable(definition, data.properties, ctx.role)
         values = validate_properties(definition, data.properties)
@@ -239,22 +258,23 @@ def create_object(data: ObjectInput, request: Request, user=Depends(authenticate
         return entity_view(session, obj, ctx)
 
 
-@router.get("/objects/{object_id}")
+@router.get("/objects/{object_id}", dependencies=[Depends(prepare_content_access)])
 def get_object(object_id: str, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id) as session:
         obj = scoped_record(session, Entity, object_id, user)
-        ctx = access(session, user, obj.project_id)
+        ctx = content_context(session, request, user, obj.project_id)
         if obj.deleted:
             missing()
         return entity_view(session, obj, ctx)
 
 
-@router.patch("/objects/{object_id}")
+@router.patch("/objects/{object_id}", dependencies=[Depends(prepare_content_access)])
 def update_object(object_id: str, data: ObjectUpdate, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id) as session:
         obj = scoped_record(session, Entity, object_id, user)
         ctx = access(session, user, obj.project_id, "objects:write")
         ensure_model_baseline(session, ctx, data)
+        ctx = content_context(session, request, user, obj.project_id)
         session.refresh(obj)
         if obj.deleted:
             missing()
@@ -273,11 +293,11 @@ def update_object(object_id: str, data: ObjectUpdate, request: Request, user=Dep
         return entity_view(session, obj, ctx)
 
 
-@router.get("/objects/{object_id}/history")
+@router.get("/objects/{object_id}/history", dependencies=[Depends(prepare_content_access)])
 def object_history(object_id: str, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id) as session:
         obj = scoped_record(session, Entity, object_id, user)
-        ctx = access(session, user, obj.project_id)
+        ctx = content_context(session, request, user, obj.project_id)
         if obj.deleted:
             missing()
         visible = {
@@ -290,12 +310,13 @@ def object_history(object_id: str, request: Request, user=Depends(authenticated)
             .where(EntityRevision.entity_id == object_id, EntityRevision.tenant_id == user.tenant_id)
             .order_by(EntityRevision.revision.desc())
         ).all()
+        filter_evidence(session, ctx, [ref for row in rows for ref in row.evidence])
         return {
             "items": [
                 {
                     **row_dict(x),
                     "properties": wire_value({k: v for k, v in x.properties.items() if k in visible}),
-                    "evidence": visible_evidence(x.evidence, visible),
+                    "evidence": filter_evidence(session, ctx, visible_evidence(x.evidence, visible)),
                 }
                 for x in rows
             ],
@@ -303,7 +324,7 @@ def object_history(object_id: str, request: Request, user=Depends(authenticated)
         }
 
 
-@router.get("/relations")
+@router.get("/relations", dependencies=[Depends(prepare_content_access)])
 def relations(
     request: Request,
     project_id: str,
@@ -313,7 +334,7 @@ def relations(
     user=Depends(authenticated),
 ):
     with request.app.state.db.transaction(user.tenant_id) as session:
-        access(session, user, project_id)
+        ctx = content_context(session, request, user, project_id)
         active_ids = select(Entity.id).where(
             Entity.tenant_id == user.tenant_id,
             Entity.project_id == project_id,
@@ -332,18 +353,19 @@ def relations(
             select(Relation).where(*conditions).order_by(Relation.id).offset(offset).limit(limit)
         ).all()
         return {
-            "items": [row_dict(x) for x in rows],
+            "items": relation_views(session, ctx, rows),
             "total": session.scalar(select(func.count()).select_from(Relation).where(*conditions)),
             "limit": limit,
             "offset": offset,
         }
 
 
-@router.post("/relations", status_code=201)
+@router.post("/relations", status_code=201, dependencies=[Depends(prepare_content_access)])
 def create_relation(data: RelationInput, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id, write=True) as session:
         ctx = access(session, user, data.project_id, "objects:write")
         ensure_model_baseline(session, ctx, data)
+        ctx = content_context(session, request, user, data.project_id)
         source = scoped_record(session, Entity, data.source_id, user)
         target = scoped_record(session, Entity, data.target_id, user)
         if (
@@ -359,13 +381,8 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
         relation = next((r for r in definition.get("relations", []) if r["key"] == data.type_key), None)
         if not relation or relation["target_type"] != target.type_key:
             raise DomainError(422, "invalid_relation", "关系谓词或目标类型不匹配")
-        if data.properties:
-            raise DomainError(422, "undefined_relation_properties", "请先定义关系属性；当前关系没有可写属性")
-        evidence = []
-        if data.evidence:
-            from ontology.knowledge.references import validate_references
-
-            evidence = validate_references(session, ctx, data.evidence)
+        values = prepare_relation_properties(relation, data.properties, ctx)
+        evidence = validate_relation_evidence(session, ctx, data.evidence)
         existing = session.scalar(
             select(Relation).where(
                 Relation.tenant_id == user.tenant_id,
@@ -375,11 +392,41 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
                 Relation.type_key == data.type_key,
             )
         )
-        if existing and not existing.manual:
-            existing.manual = True
-            existing.revision += 1
-            audit(session, user, data.project_id, "relation.manual.retained", existing.id)
-            return row_dict(existing)
+        if existing:
+            fields = {prop["key"]: prop for prop in relation.get("properties", [])}
+            if any(
+                key in existing.properties
+                and not relation_values_equal(fields[key], existing.properties[key], value)
+                for key, value in values.items()
+            ):
+                conflict("关系已有不同属性，请打开关系详情核对后修改")
+            updated = {**values, **existing.properties}
+            refs = existing.evidence + [ref for ref in evidence if ref not in existing.evidence]
+            if not existing.manual or updated != existing.properties or refs != existing.evidence:
+                record_relation_revision(
+                    session,
+                    existing,
+                    actor_id=user.id,
+                    model_release_id=ctx.project.active_release_id,
+                    reason="修改前状态",
+                    operation="baseline",
+                )
+                existing.manual = True
+                existing.properties, existing.evidence = updated, refs
+                existing.revision += 1
+                from ontology.objects.constraints import touch_entity
+
+                touch_entity(session, source)
+                record_relation_revision(
+                    session,
+                    existing,
+                    actor_id=user.id,
+                    model_release_id=ctx.project.active_release_id,
+                    reason="确认人工支持",
+                    operation="updated",
+                )
+                audit(session, user, data.project_id, "relation.manual.retained", existing.id)
+            return relation_views(session, ctx, [existing])[0]
         if relation["cardinality"] == "one" and session.scalar(
             select(Relation.id).where(
                 Relation.project_id == data.project_id,
@@ -394,7 +441,7 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
             type_key=data.type_key,
             source_id=source.id,
             target_id=target.id,
-            properties={},
+            properties=values,
             evidence=evidence,
         )
         session.add(row)
@@ -402,8 +449,145 @@ def create_relation(data: RelationInput, request: Request, user=Depends(authenti
 
         touch_entity(session, source)
         session.flush()
+        record_relation_revision(
+            session,
+            row,
+            actor_id=user.id,
+            model_release_id=ctx.project.active_release_id,
+            reason="人工创建关系",
+            operation="created",
+        )
         audit(session, user, data.project_id, "relation.created", row.id)
-        return row_dict(row)
+        return relation_views(session, ctx, [row])[0]
+
+
+@router.get("/relations/{relation_id}", dependencies=[Depends(prepare_content_access)])
+def relation_detail(relation_id: str, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        row = scoped_record(session, Relation, relation_id, user)
+        ctx = content_context(session, request, user, row.project_id)
+        for identifier in (row.source_id, row.target_id):
+            endpoint = scoped_record(session, Entity, identifier, user)
+            if endpoint.project_id != row.project_id or endpoint.deleted:
+                missing()
+            require_active_entity(endpoint)
+        return relation_views(session, ctx, [row])[0]
+
+
+@router.patch("/relations/{relation_id}", dependencies=[Depends(prepare_content_access)])
+def update_relation(relation_id: str, data: RelationUpdate, request: Request, user=Depends(authenticated)):
+    with request.app.state.db.transaction(user.tenant_id, write=True) as session:
+        row = scoped_record(session, Relation, relation_id, user)
+        ctx = access(session, user, row.project_id, "objects:write")
+        ensure_model_baseline(session, ctx, data)
+        ctx = content_context(session, request, user, row.project_id)
+        session.refresh(row)
+        if row.revision != data.expected_revision:
+            conflict()
+        source = scoped_record(session, Entity, row.source_id, user)
+        target = scoped_record(session, Entity, row.target_id, user)
+        for endpoint in (source, target):
+            if endpoint.project_id != row.project_id or endpoint.deleted:
+                missing()
+            require_active_entity(endpoint)
+        definition = type_definition(session, ctx.project, source.type_key)
+        relation = next(
+            (item for item in definition.get("relations", []) if item["key"] == row.type_key), None
+        )
+        if not relation or relation["target_type"] != target.type_key:
+            conflict("关系定义已改变，请先核对当前模型")
+        values = prepare_relation_properties(
+            relation, data.properties, ctx, existing=row.properties, remove_properties=data.remove_properties
+        )
+        evidence = validate_relation_evidence(session, ctx, data.evidence)
+        refs = row.evidence + [ref for ref in evidence if ref not in row.evidence]
+        if values == row.properties and refs == row.evidence:
+            return relation_views(session, ctx, [row])[0]
+        record_relation_revision(
+            session,
+            row,
+            actor_id=user.id,
+            model_release_id=ctx.project.active_release_id,
+            reason="修改前状态",
+            operation="baseline",
+        )
+        compare_and_swap(session, row, data.expected_revision, {"properties": values, "evidence": refs})
+        from ontology.objects.constraints import touch_entity
+
+        touch_entity(session, source)
+        record_relation_revision(
+            session,
+            row,
+            actor_id=user.id,
+            model_release_id=ctx.project.active_release_id,
+            reason=data.reason,
+            operation="updated",
+        )
+        audit(session, user, row.project_id, "relation.edited", row.id, {"revision": row.revision})
+        return relation_views(session, ctx, [row])[0]
+
+
+def validate_relation_evidence(session, ctx, references):
+    from ontology.knowledge.references import validate_references
+
+    pages = [ref for ref in references if "page" in ref]
+    canonical = [ref for ref in references if ref not in pages]
+    result = validate_references(session, ctx, canonical) if canonical else []
+    if pages:
+        from ontology.intelligence.proposal_evidence import validate_page_evidence
+
+        result.extend(validate_page_evidence(session, ctx, pages))
+    return result
+
+
+@router.get("/relations/{relation_id}/history")
+async def relation_history(
+    relation_id: str,
+    request: Request,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    user=Depends(authenticated),
+):
+    from ontology.content_access.service import refresh_project
+
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        project_id = session.scalar(
+            select(Relation.project_id).where(
+                Relation.id == relation_id,
+                Relation.tenant_id == user.tenant_id,
+            )
+        ) or session.scalar(
+            select(RelationRevision.project_id)
+            .where(
+                RelationRevision.relation_id == relation_id,
+                RelationRevision.tenant_id == user.tenant_id,
+            )
+            .limit(1)
+        )
+        if not project_id:
+            missing()
+        access(session, user, project_id)
+    await refresh_project(request, user, project_id)
+    with request.app.state.db.transaction(user.tenant_id) as session:
+        ctx = content_context(session, request, user, project_id)
+        conditions = (
+            RelationRevision.relation_id == relation_id,
+            RelationRevision.tenant_id == user.tenant_id,
+            RelationRevision.project_id == project_id,
+        )
+        rows = session.scalars(
+            select(RelationRevision)
+            .where(*conditions)
+            .order_by(RelationRevision.revision.desc())
+            .offset(offset)
+            .limit(limit)
+        ).all()
+        return {
+            "items": relation_views(session, ctx, rows, history=True),
+            "total": session.scalar(select(func.count()).select_from(RelationRevision).where(*conditions)),
+            "limit": limit,
+            "offset": offset,
+        }
 
 
 @router.delete("/relations/{relation_id}")
@@ -432,19 +616,60 @@ def delete_relation(
 
         document_supported = session.scalar(
             select(DocumentRelationContribution.id)
-            .where(DocumentRelationContribution.relation_id == row.id).limit(1)
+            .where(DocumentRelationContribution.relation_id == row.id)
+            .limit(1)
         )
         if supported or document_supported:
             if not row.manual:
                 conflict("关系仍有来源或持续规则贡献，请先处理对应来源")
+            record_relation_revision(
+                session,
+                row,
+                actor_id=user.id,
+                model_release_id=ctx.project.active_release_id,
+                reason="撤回人工支持前",
+                operation="baseline",
+            )
             row.manual = False
             row.revision += 1
+            from ontology.objects.constraints import touch_entity
+
+            touch_entity(session, session.get(Entity, row.source_id))
+            record_relation_revision(
+                session,
+                row,
+                actor_id=user.id,
+                model_release_id=ctx.project.active_release_id,
+                reason="撤回人工支持，保留来源关系",
+                operation="updated",
+            )
             audit(session, user, row.project_id, "relation.manual.removed", row.id)
-            return {"ok": True, "retained_by_rules": bool(supported), "retained_by_document": bool(document_supported)}
+            return {
+                "ok": True,
+                "retained_by_rules": bool(supported),
+                "retained_by_document": bool(document_supported),
+            }
         from ontology.objects.constraints import touch_entity
 
         touch_entity(session, session.get(Entity, row.source_id))
         source = session.get(Entity, row.source_id)
+        record_relation_revision(
+            session,
+            row,
+            actor_id=user.id,
+            model_release_id=ctx.project.active_release_id,
+            reason="删除前状态",
+            operation="baseline",
+        )
+        row.revision += 1
+        record_relation_revision(
+            session,
+            row,
+            actor_id=user.id,
+            model_release_id=ctx.project.active_release_id,
+            reason="删除无其他支持的人工关系",
+            operation="deleted",
+        )
         session.delete(row)
         session.flush()
         from ontology.objects.relation_rules import changed_entity
