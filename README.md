@@ -124,7 +124,7 @@ PDF 在本地分页渲染并提取原生文字，表格结构与复杂页面交�
 
 **Python / FastAPI / SQLAlchemy / PostgreSQL · React / TypeScript / Sigma / Graphology。** 保持模块化单体，优先解决具体场景，不建设额外的平台层。
 
-如果这个方向对你有用，欢迎 **Star** 关注版本更新。也请[提交试用反馈](https://github.com/xiaohuihuiaijia/ontweft/issues/new?template=first-experience.yml)：你想解决什么问题、运行到哪一步、是否成功看到对象、关系与证据。实际试用与具体反馈，比一个数字更能帮助我们改进。[首批使用者计划](docs/first-users.md)
+如果这个方向对你有用，欢迎 **Star** 收藏或表示支持；希望收到版本更新，请选择 **Watch → Custom → Releases**。也请[提交试用反馈](https://github.com/xiaohuihuiaijia/ontweft/issues/new?template=first-experience.yml)：你想解决什么问题、运行到哪一步、是否成功看到对象、关系与证据。实际试用与具体反馈，比一个数字更能帮助我们改进。[首批使用者计划](docs/first-users.md)
 
 反馈请使用脱敏或合成示例；安全问题按[安全说明](SECURITY.md)私下报告。当前为 **Enterprise Beta**，界面以中文为主，适合用具体业务场景评估。
 

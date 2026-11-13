@@ -12,6 +12,18 @@
 
 当前证据支持优先检查三个环节：目标人群是否看见、是否理解具体用途、能否完成第一次有价值的操作。不能凭这组小样本断言产品没有需求，也不能把 README 改漂亮等同于解决曝光。
 
+## 当前交付与待验证状态
+
+截至 2026-11-13，固定预发布 [v0.1.0-beta.1](https://github.com/xiaohuihuiaijia/ontweft/releases/tag/v0.1.0-beta.1) 已公开，提供无 Key 体验镜像、实操视频及匿名拉取和容器验证记录；对应 `main` 的 [Source checks](https://github.com/xiaohuihuiaijia/ontweft/actions/runs/43415634478) 已通过。这些是维护者完成的工程验证，**外部用户能否独立完成、是否带自己的数据及一周复用仍待记录**。
+
+本轮修正英文操作与中文界面标签的对应、反馈表单的双语提示，以及 Star 与发行订阅的混淆。Star 用于收藏或表示支持；订阅发行通知使用 Watch → Custom → Releases。简介自然说明 ontology、knowledge graph、knowledge management 与可选 knowledge base management；保留准确 Topics，不通过堆词或增加无关标签追求曝光。
+
+GitHub 默认仓库搜索匹配名称、简介和 Topics；README 内容须用 `in:readme` 指定。真实 Stars 会影响部分排名和 Explore 展示，新手任务标签可能帮助真实贡献任务被发现，但没有已验证的 Trending 阈值或排名保证。依据：[仓库搜索](https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories)、[Star](https://docs.github.com/en/get-started/exploring-projects-on-github/saving-repositories-with-stars)、[发行通知](https://docs.github.com/en/subscriptions-and-notifications/get-started/configuring-notifications)、[新手任务](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/encouraging-helpful-contributions-to-your-project-with-labels)。
+
+搜索核对使用 `repo:xiaohuihuiaijia/ontweft` 限定本仓库，分别记录中文业务词、英文词组和 Topic 的命中状态；2026-11-13 更新简介后，`"knowledge base"` 从未命中变为命中，`知识图谱` 也能命中，均为完整搜索结果。这验证的是可检索性，不是全站排名。索引可能延迟，未刷新时留待核验，不反复改写简介。
+
+贡献入口仅收录真实任务：现有样例的英文阅读说明和视频字幕。具体范围与验收见 [新手任务 #6](https://github.com/xiaohuihuiaijia/ontweft/issues/6)。发布任务不等于已有外部贡献，也不计为试用。
+
 ## 一个具体任务与一套事实资料
 
 面向需要把产品规格、库存与适用条件连接起来的数据／AI 开发者。首屏、演示和试用邀请使用同一个三步任务：**查看产品与库存 → 查看关系条件 → 回查证据、修改条件并查看历史**。

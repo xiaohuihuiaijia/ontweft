@@ -20,13 +20,15 @@ Requires Docker using Linux containers. The preview release is **[v0.1.0-beta.1]
 docker run --rm -it -p 127.0.0.1:8020:8020 -v ontweft-experience:/data ghcr.io/xiaohuihuiaijia/ontweft:0.1.0-beta.1-demo
 ```
 
-Set a local password when prompted and sign in as `owner` at the URL printed in the terminal (default **http://127.0.0.1:8020**). The launcher prints a direct link to the example graph. You can also select the product example in the project selector at the top.
+Set a local password when prompted and sign in as `owner` at the URL printed in the terminal (default **http://127.0.0.1:8020**). The launcher prints a direct link to the example graph. You can also select **产品与库存 · 合成样例** (Product and inventory · synthetic example) in the **项目** project selector at the top.
 
 The experience includes a separate synthetic example project and an empty project. **No model API key is needed.** The example is not a live AI generation, and ordinary new projects are not populated with demonstration data.
 
-1. **Products and inventory:** filter product fields in **Objects**, then inspect their inventory relationships.
-2. **Relationship conditions:** open **Graph** and select an applicability relationship to inspect its conditions. Drag and pin nodes to arrange the view.
-3. **Evidence and edits:** open the source evidence, edit and save an allowed condition, then inspect its revision history.
+The interface currently uses Chinese labels; the labels below match what you will see. All quantities and conditions in this example are synthetic.
+
+1. **Products and inventory:** open **Graph（图谱）**, whose page title is **图谱探索**. In **节点列表（键盘可操作）** (node list), select **SYN-04 · 4 芯** (4-pin product). In its details, follow **华东仓 · A01** (East China warehouse A01) to see **40** units, then select **SYN-04 · 4 芯** to return to the product.
+2. **Relationship conditions:** in the product details, click **适用场景** (applicability relationship) beside **室内传感采集** (indoor sensor acquisition). Check the **24 V** limit and indoor dry-environment condition in **关系条件与证据** (relationship conditions and evidence). These conditions belong to this relationship, not to every use of the product.
+3. **Evidence and edits:** choose **查看固定来源版本** (open the fixed source version), read the supporting statement, then **关闭侧栏** (close the source panel). Choose **编辑条件与证据** (edit conditions and evidence), update **适用条件** (condition), add **修改说明** (change note), and click **保存关系条件** (save). Expand **关系修订历史** (revision history) to compare the saved condition with its previous value.
 
 Stop with `Ctrl+C`. Data remains in the `ontweft-experience` volume and is reused on the next run. This image is for local evaluation and publishes only to the loopback address. See the [deployment guide](docs/deployment.md) for team deployment, backup and upgrades. The UI and detailed guides are primarily Chinese.
 
@@ -36,9 +38,9 @@ Switch to the empty project, then choose a starting point. Keep real business da
 
 | Your input | Where to start | Result |
 | --- | --- | --- |
-| CSV / XLSX tables | Data → upload → confirm fields and business keys → publish the model → import | Searchable objects, source records and a versioned update path; no AI key required |
-| PostgreSQL | Configure allowed source hosts first, then Data → register a read-only connection → discover resources → review mappings → publish and ingest | Deterministic object ingestion with explicit identity and update rules; no model call per row |
-| PDF, Office, images or text | Settings → model connection; then Data → documents or Ontology → AI drafting | Evidence-linked type, property, relationship and instance candidates for review before publishing and importing |
+| CSV / XLSX tables | Data（数据）→ 数据源 tab → 上传并查看数据 (upload and inspect) → confirm fields and business keys → publish the model → import | Searchable objects, source records and a versioned update path; no AI key required |
+| PostgreSQL | Configure allowed source hosts first, then Data（数据）→ 数据源 tab → 登记数据源 (register a read-only connection) → discover resources → review mappings → publish and ingest | Deterministic object ingestion with explicit identity and update rules; no model call per row |
+| PDF, Office, images or text | Settings（设置）→ 模型连接 (model connections); then Data（数据）→ 文档资料 (documents), or Ontology（本体）→ AI 起草本体 → 起草新模型 (draft a model) | Evidence-linked type, property, relationship and instance candidates for review before publishing and importing |
 
 Start with one table and one question: which products meet these requirements, where are they stocked, and what supports their applicability? See [data-to-ontology](docs/data-to-ontology.md) and [getting started](docs/getting-started.md).
 
@@ -57,7 +59,7 @@ The experience image does not allow external database hosts by default. Configur
 
 The product example is a starting point; the same model can describe customers, orders and other business objects. Knowledge management preserves concepts, versions and sources. The optional knowledge base extension provides pages, full-text search and evidence links, rather than a turnkey Q&A chatbot.
 
-Five main destinations: **Data, Ontology, Objects, Graph, Settings**. One PostgreSQL database, one API service and the existing worker. No separate graph or vector service required. Manual modeling and deterministic ingestion work without an AI key; additional connectors, knowledge and automation remain optional.
+Five main destinations: **Data（数据）, Ontology（本体）, Objects（对象）, Graph（图谱）, Settings（设置）**. One PostgreSQL database, one API service and the existing worker. No separate graph or vector service required. Manual modeling and deterministic ingestion work without an AI key; additional connectors, knowledge and automation remain optional.
 
 ## Source development
 
@@ -77,9 +79,9 @@ uv run --locked --no-dev python scripts/start_local_demo.py
 
 Choose a password of at least 12 characters at the hidden prompt. Open **http://127.0.0.1:8020** and sign in as `owner`.
 
-- **Explore the graph:** create a change set from a template in Ontology, edit and publish it, add records in Objects, then drag and edit them in Graph.
-- **Use your own tables:** start the worker below in another terminal, upload CSV/XLSX in Data, choose business keys and generate editable model suggestions.
-- **Try AI drafting:** configure a compatible service under Settings → Model connections, then select sources, scope and an optional business goal from Data or Ontology.
+- **Explore the graph:** create a change set from a template in Ontology（本体）, edit and publish it, add records in Objects（对象）, then drag and edit them in Graph（图谱）.
+- **Use your own tables:** start the worker below in another terminal, upload CSV/XLSX in Data（数据）, choose business keys and generate editable model suggestions.
+- **Try AI drafting:** configure a compatible service under Settings（设置）→ 模型连接, then select sources, scope and an optional business goal from Data（数据）→ 文档资料 or Ontology（本体）→ AI 起草本体 → 起草新模型.
 
 ```sh
 uv run --locked --no-dev python scripts/start_local_demo.py worker
@@ -124,7 +126,7 @@ A synthetic benchmark covers **100,000 objects / 1,000,000 relationships / 50 us
 
 **Python / FastAPI / SQLAlchemy / PostgreSQL · React / TypeScript / Sigma / Graphology.** A modular monolith shaped by concrete use cases.
 
-If this direction is useful to you, **Star** the project to follow releases. [Share trial feedback](https://github.com/xiaohuihuiaijia/ontweft/issues/new?template=first-experience.yml): your business question, the last step you reached, and whether you could inspect objects, relationships and evidence. Actual trials and specific feedback help us improve more than a number. [First-user plan](docs/first-users.md)
+If this direction is useful to you, **Star** the project to bookmark it or show support. To receive release notifications, choose **Watch → Custom → Releases**. [Share trial feedback](https://github.com/xiaohuihuiaijia/ontweft/issues/new?template=first-experience.yml): your business question, the last step you reached, and whether you could inspect objects, relationships and evidence. Actual trials and specific feedback help us improve more than a number. [First-user plan](docs/first-users.md)
 
 Use sanitized or synthetic examples. Report security issues privately under the [security policy](SECURITY.md). This is **Enterprise Beta**, with a primarily Chinese UI, intended for evaluating a specific business use case.
 

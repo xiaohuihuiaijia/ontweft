@@ -2,6 +2,10 @@
 
 欢迎报告可复现问题、改进文档和提交小范围 PR。先说明业务问题、实际行为、预期行为与版本；示例仅使用合成数据。
 
+第一次贡献可以从 [good first issue](https://github.com/xiaohuihuiaijia/ontweft/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22) 中选择一个范围明确的任务。文档修改请注明对应版本、核对实际按钮和样例事实，并检查链接与渲染；只改文案无需本机运行整套后端或规模测试，PR 仍执行仓库既有检查。
+
+New contributors: start with an open **good first issue** above. For documentation PRs, identify the version, retain the actual Chinese UI labels alongside their English explanations, and check example facts, links and rendering. Documentation-only changes do not require running the full backend or scale suite locally; existing PR checks still apply.
+
 提交贡献前，请确保有权按本项目 Apache-2.0 许可证提交相关代码。引入第三方文件时保留其原许可证、来源、固定版本及修改说明；不把研究参考自动当作可复制代码。
 
 ## 本机开发体验
@@ -93,6 +97,14 @@ PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/
 PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_ai_workbench.cjs
 PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/verify_table_intake.cjs
 ```
+
+### 复现首次体验视频
+
+沿用上面的 Playwright 环境及已构建前端，运行 `node scripts/record_first_experience.cjs`。它在独立合成项目中执行产品、库存、条件编辑、证据与历史流程，视频和报告写入忽略目录 `var/reports/first-experience/`；本机生成不会替换公开发行附件。
+
+需要自行安装支持 H.264 的 FFmpeg，并让 `ffmpeg`、`ffprobe` 在 PATH 中可用。也可通过 `FFMPEG_BIN`、`FFPROBE_BIN` 分别指定可执行文件的完整路径；脚本不自动下载依赖，不要求特定安装目录。
+
+To reproduce the walkthrough, use the Playwright setup above and the built frontend, then run `node scripts/record_first_experience.cjs`. Install FFmpeg with H.264 support; expose `ffmpeg` and `ffprobe` through PATH, or set `FFMPEG_BIN` and `FFPROBE_BIN` to their executable paths. The recorder uses isolated synthetic data and leaves the published release unchanged.
 
 ## 维护边界
 

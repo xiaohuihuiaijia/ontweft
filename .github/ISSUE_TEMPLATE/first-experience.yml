@@ -14,14 +14,14 @@ body:
     attributes:
       label: 想解决的问题 / Your goal
       description: 手头是什么资料，希望回答什么业务问题？What data do you have and what question should it answer?
-      placeholder: 例如：把产品规格和库存表关联起来，筛选符合参数的有货产品。
+      placeholder: 例如：关联产品规格和库存，筛选符合参数的有货产品。For example, connect specifications with inventory to find matching products in stock.
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: 版本与运行方式 / Version and setup
-      description: Release 标签或提交、Docker/源码、操作系统与 CPU 架构；无需粘贴完整配置。
+      description: Release 标签或提交、Docker/源码、操作系统与 CPU 架构；无需粘贴完整配置。Release tag or commit, Docker/source, OS and CPU architecture; no full configuration needed.
       placeholder: v0.1.0-beta.1 / Docker / Windows + Linux containers / amd64
     validations:
       required: true
@@ -42,7 +42,7 @@ body:
     id: outcome
     attributes:
       label: 实际结果与卡点 / Outcome and friction
-      description: 期待什么、实际看到什么？成功完成也请说明。附截图或错误时请先脱敏。
+      description: 期待什么、实际看到什么？成功完成也请说明。附截图或错误时请先脱敏。What did you expect and what happened? Successful completion is useful too. Remove sensitive details from screenshots and errors.
     validations:
       required: true
   - type: textarea
