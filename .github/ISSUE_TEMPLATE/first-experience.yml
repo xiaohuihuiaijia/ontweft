@@ -1,0 +1,52 @@
+name: 试用反馈 / Trial feedback
+description: 告诉我们想解决什么问题、实际走到了哪一步。Share your goal and where you got stuck.
+title: "[试用] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢试用 Ontweft。成功完成也欢迎反馈，不需要先判断是 Bug 还是使用方式问题。
+        Please share successful trials too; you do not need to diagnose the cause first.
+        不要上传密钥、客户资料或生产日志。安全问题请按 SECURITY.md 私下报告。
+        Do not include credentials, customer data or production logs. Report security issues privately through SECURITY.md.
+  - type: textarea
+    id: goal
+    attributes:
+      label: 想解决的问题 / Your goal
+      description: 手头是什么资料，希望回答什么业务问题？What data do you have and what question should it answer?
+      placeholder: 例如：把产品规格和库存表关联起来，筛选符合参数的有货产品。
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本与运行方式 / Version and setup
+      description: Release 标签或提交、Docker/源码、操作系统与 CPU 架构；无需粘贴完整配置。
+      placeholder: v0.1.0-beta.1 / Docker / Windows + Linux containers / amd64
+    validations:
+      required: true
+  - type: dropdown
+    id: reached
+    attributes:
+      label: 实际走到哪一步 / Last step reached
+      options:
+        - 还没有成功启动 / Not running yet
+        - 已登录，尚未看到样例 / Signed in, no example yet
+        - 已查看对象和关系 / Viewed objects and relationships
+        - 已修改条件并回查证据 / Edited conditions and opened evidence
+        - 已尝试自己的数据 / Tried my own data
+        - 一周后再次使用 / Returned after a week
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 实际结果与卡点 / Outcome and friction
+      description: 期待什么、实际看到什么？成功完成也请说明。附截图或错误时请先脱敏。
+    validations:
+      required: true
+  - type: textarea
+    id: next-use
+    attributes:
+      label: 下一次会用它做什么 / What would you use it for next?
+      description: 可留空。也欢迎直接说明现阶段不适合你的原因。Optional; saying why it is not useful is helpful too.

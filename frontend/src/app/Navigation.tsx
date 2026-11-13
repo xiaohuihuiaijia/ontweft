@@ -8,6 +8,12 @@ export const navigation = [
 ] as const;
 export type View = typeof navigation[number][0];
 
+export function graphProjectFromHash(hash: string, projects: { id: string }[]): string | undefined {
+  if (!hash.startsWith('#graph?')) return undefined;
+  const id = new URLSearchParams(hash.slice('#graph?'.length)).get('project');
+  return projects.find(project => project.id === id)?.id;
+}
+
 export function sectionViews(view: View, knowledge: boolean, actions: boolean): (typeof navigation[number])[] {
   const ids: View[] = ['settings', 'jobs', 'audit'].includes(view) ? ['settings', 'jobs', 'audit']
     : ['sources', 'documents'].includes(view) ? ['sources', 'documents']

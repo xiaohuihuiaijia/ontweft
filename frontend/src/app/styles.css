@@ -72,6 +72,7 @@ tbody tr:hover{background:var(--color-sidebar)}
 .empty>span{font-size:30px;color:var(--color-muted)}
 .empty h3{font-weight:500;color:var(--color-muted);margin:var(--space-3) 0 var(--space-2)}
 .empty p{color:var(--color-muted);font-size:12px;margin-bottom:0}
+.empty-actions{justify-content:center;margin-top:var(--space-5)}
 .loading{padding:var(--space-11);display:flex;justify-content:center;align-items:center;gap:var(--space-3);color:var(--muted);font-size:13px}
 .spinner{width:17px;height:17px;border:2px solid var(--color-mint);border-top-color:var(--color-muted);border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}

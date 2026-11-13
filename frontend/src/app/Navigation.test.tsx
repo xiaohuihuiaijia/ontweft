@@ -1,6 +1,16 @@
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import { WorkspaceNavigation, sectionViews } from './Navigation';
+import { WorkspaceNavigation, graphProjectFromHash, sectionViews } from './Navigation';
+
+it('opens a graph deep link only for a project in the current session', () => {
+  const projects = [{ id: 'empty' }, { id: 'sample' }];
+  expect(graphProjectFromHash('#graph?project=sample', projects)).toBe('sample');
+  expect(graphProjectFromHash('#graph?project=private', projects)).toBeUndefined();
+  expect(graphProjectFromHash('#graph?project=sample', [])).toBeUndefined();
+  expect(graphProjectFromHash('#graph', projects)).toBeUndefined();
+  expect(graphProjectFromHash('#sources', projects)).toBeUndefined();
+  expect(graphProjectFromHash('#ontology?project=sample', projects)).toBeUndefined();
+});
 
 it('keeps five core entry points and moves jobs into settings', () => {
   const navigate = vi.fn();

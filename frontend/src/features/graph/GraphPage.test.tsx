@@ -26,6 +26,26 @@ beforeEach(() => {
   vi.stubGlobal('Worker', class { postMessage() {} terminate() {} });
 });
 
+it('guides an unpublished workspace to its model without creating anything', async () => {
+  const navigate = vi.fn();
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/graph?') ? { nodes: [], edges: [], truncated: false, release_id: null, version: 0 } : { items: [], total: 0, release_id: null, version: 0 })));
+  render(<GraphPage projectId="p" can={() => false} onDirty={() => {}} onNavigate={navigate} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看本体与待发布草稿' }));
+  expect(navigate).toHaveBeenCalledWith('ontology');
+  expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true);
+});
+
+it('keeps an empty authorized graph distinct from an unpublished model', async () => {
+  const navigate = vi.fn();
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/graph?') ? { nodes: [], edges: [], truncated: false, release_id: 'r1', version: 1 } : { items: [], total: 0, release_id: 'r1', version: 1 })));
+  render(<GraphPage projectId="p" can={() => false} onDirty={() => {}} onNavigate={navigate} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看业务对象' }));
+  expect(navigate).toHaveBeenCalledWith('objects');
+  expect(screen.queryByRole('button', { name: '查看本体与待发布草稿' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '查看数据接入与导入' })).toBeNull();
+  expect(screen.getByText(/空画布不表示整个项目没有数据/)).toBeTruthy();
+});
+
 it('requests the selected bounded node budget and explains truncated results', async () => {
   const reads: string[] = [];
   vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {

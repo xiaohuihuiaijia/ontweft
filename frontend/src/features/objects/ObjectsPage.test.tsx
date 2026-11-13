@@ -1,8 +1,22 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import { loadObjectEditSession, ObjectEditor } from './ObjectsPage';
+import { loadObjectEditSession, ObjectEditor, ObjectsPage } from './ObjectsPage';
 import { ObjectRelations } from './ObjectRelations';
 import type { TypeDef } from '../../shared/model/types';
+
+it('distinguishes initial setup from an empty filtered result and resets filters without writes', async () => {
+  const navigate = vi.fn();
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ items: [], total: 0, release_id: null, version: 0 })));
+  render(<ObjectsPage projectId="p" canWrite onDirty={() => {}} onNavigate={navigate} />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看本体与待发布草稿' }));
+  expect(navigate).toHaveBeenCalledWith('ontology');
+  fireEvent.change(screen.getByLabelText('搜索对象'), { target: { value: '没有这个产品' } });
+  fireEvent.click(screen.getByRole('button', { name: /^查询$/ }));
+  fireEvent.click(await screen.findByRole('button', { name: '清除筛选' }));
+  await screen.findByText('先发布模型，再创建业务对象');
+  expect((screen.getByLabelText('搜索对象') as HTMLInputElement).value).toBe('');
+  expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true);
+});
 
 it('sends the read revision, retains the draft on conflict and never sends source-owned properties', async () => {
   const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation((_url, options) => Promise.resolve(options?.method === 'PATCH'

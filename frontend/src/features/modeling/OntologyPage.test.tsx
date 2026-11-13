@@ -3,6 +3,23 @@ import { expect, it, vi } from 'vitest';
 import { OntologyEditor, OntologyPage } from './OntologyPage';
 import type { ChangeSet, Definition } from '../../shared/model/types';
 
+it('resumes an existing unpublished model instead of suggesting another empty start', async () => {
+  const draft = { id: 'waiting', project_id: 'p', title: '待发布产品模型', revision: 2, status: 'draft', definition: { types: [], mappings: [] }, baseline_release_id: null, model_diff: { items: [], counts: { added: 0, modified: 0, removed: 0 }, affected_type_keys: [], affected_mapping_keys: [] } };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/changesets') ? { items: [draft], total: 1 } : String(url).includes('/ontology/definition') ? { definition: draft.definition, release_id: null, version: 0 } : { items: [], total: 0, release_id: null, version: 0 })));
+  render(<OntologyPage projectId="p" can={() => true} onDirty={() => {}} onNavigate={vi.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: '继续查看模型草稿' }));
+  expect((screen.getByLabelText('变更名称') as HTMLInputElement).value).toBe('待发布产品模型');
+  expect(screen.queryByRole('button', { name: '接入表格并生成模型建议' })).toBeNull();
+});
+
+it('does not describe permission-filtered types as a missing model', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ items: [], total: 0, release_id: 'r1', version: 1 })));
+  render(<OntologyPage projectId="p" can={() => false} onDirty={() => {}} onNavigate={vi.fn()} />);
+  await screen.findByText('当前没有可见的已发布类型');
+  expect(screen.queryByRole('button', { name: '接入表格并生成模型建议' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '新建变更集' })).toBeNull();
+});
+
 it('lets an editor amend an approved unpublished revision and requires approval again after saving', async () => {
   const definition = { types: [], mappings: [] };
   let current: ChangeSet = { id: 'change', project_id: 'p', title: '已批准草稿', revision: 3, status: 'approved', definition, author_id: 'previous-author', approved_by: 'reviewer', validation: { valid: true, errors: [] } };

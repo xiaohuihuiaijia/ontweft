@@ -167,8 +167,11 @@ it('merges decision dirty state with ObjectEditor and refreshes the detail and b
   await screen.findByText(/字段裁决已保存，对象修订 8/);
   expect((screen.getByRole('textbox', { name: /^库存/ }) as HTMLInputElement).value).toBe('9223372036854775807');
   expect((screen.getByLabelText('人工备注') as HTMLInputElement).value).toBe('人工说明');
-  await waitFor(() => expect((screen.getByLabelText('人工备注') as HTMLInputElement).disabled).toBe(false));
-  expect(onSaved).toHaveBeenCalledTimes(1); expect(onDirty).toHaveBeenLastCalledWith(false);
+  await waitFor(() => {
+    expect((screen.getByLabelText('人工备注') as HTMLInputElement).disabled).toBe(false);
+    expect(onDirty).toHaveBeenLastCalledWith(false);
+  });
+  expect(onSaved).toHaveBeenCalledTimes(1);
   expect(fetcher.mock.calls.some(([, options]) => options?.method === 'PATCH')).toBe(false);
 });
 

@@ -2,7 +2,19 @@
 
 部署保持 PostgreSQL、一个 API（同时提供前端静态文件）和现有 worker；迁移容器一次性执行，不是常驻服务。核心镜像包含 PDFium、Pillow 和原生 Office 文档处理依赖，用于本地分页、图像和结构读取；不默认安装 MySQL、MongoDB、Neo4j、飞书 SDK、独立 OCR 引擎或本地模型服务。
 
-## 首次启动
+## 先运行本机产品样例
+
+无需模型 Key 的单用户体验见 [README](../README.md#运行产品样例)。固定体验镜像使用 SQLite、API 与现有 worker，样例由正常接口写入独立项目。首次设置密码，后续重启保留账号和修改，不重新填充完成的样例。它不代替下方 PostgreSQL 团队部署。
+
+体验数据保存在命名卷 `ontweft-experience`。旧体验卷升级时，先停止正在运行的容器，再用目标版本执行迁移；命令会在同一卷中保留 SQLite 备份，不要求删除旧数据库：
+
+```sh
+docker run --rm -v ontweft-experience:/data ghcr.io/xiaohuihuiaijia/ontweft:0.1.0-beta.1-demo python scripts/start_local_demo.py migrate --data-dir /data
+```
+
+体验镜像没有预先放行数据库主机。需要测试自己的 PostgreSQL 时，在原运行命令的镜像名后追加 `python scripts/start_local_demo.py experience --container --data-dir /data --source-host <数据库主机>`；内网地址再追加 `--allow-private-sources`。容器中的 `127.0.0.1` 指向容器自身，不能直接当作宿主数据库地址。文件体验不需要这项配置。
+
+## PostgreSQL 团队部署
 
 1. 从 `deploy/compose.env.example` 复制一份配置到版本控制之外。填写不同的、URL 安全的随机数据库所有者密码和运行账户密码，生成 Fernet 密钥，设置实际 HTTPS Origin。数据库所有者仅供迁移／初始化使用，服务和 worker 使用 NOBYPASSRLS 运行账户。
 2. 准备自己的 HTTPS 反向代理，将它转发到 `127.0.0.1:8000`。默认 Cookie 为 Secure，HTTP 浏览器登录不适用于这个 production 配置。
@@ -38,7 +50,7 @@ Office／文本的新提案固定其逻辑分页所用的解析版本，原文�
 
 AI 文档迁移 `ef311111a100` 增加模型连接、提案、不可变页面结果和文档关系事实。当前迁移入口、开发初始化、测试与压测共用同一授权策略，重新执行时会撤销运行角色的过时表权限；历史解析及 AI 页面结果只允许读取与追加。此轮授权收敛不新增迁移，不删除已保存记录。
 
-本机 SQLite 体验目录升级：先停止体验 API 和 worker，执行 `uv run --locked --no-dev python scripts/start_local_demo.py migrate --data-dir <原目录>`，再照常启动。该命令先生成可打开的 SQLite 备份，再升级历史采集代与查询索引；未升级时入口给出明确提示，不自动改写旧库。数据库备份文件需要按自己的保留策略管理。
+本机 SQLite 体验目录升级：先停止体验 API 和 worker，执行 `uv run --locked --no-dev python scripts/start_local_demo.py migrate --data-dir <原目录>`，再照常启动。该命令先生成可打开的 SQLite 备份，再补齐历史采集代、查询索引及 AI 提案建模说明 `model_notes`；旧提案默认空说明，重复迁移不重复修改。关系修订等新增表仍由既有初始化入口建立。未升级时入口给出明确提示，不自动改写旧库。数据库备份文件需要按自己的保留策略管理。
 
 ## 文件存储维护
 
