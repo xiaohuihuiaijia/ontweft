@@ -1,0 +1,500 @@
+{
+  "id": "product-inventory",
+  "version": 1,
+  "project_name": "产品与库存 · 合成样例",
+  "title": "合成产品 · 库存与选型场景",
+  "source": "source.md",
+  "definition": {
+    "types": [
+      {
+        "key": "series",
+        "label": "产品系列",
+        "properties": [
+          {
+            "key": "name",
+            "label": "名称",
+            "data_type": "string"
+          }
+        ],
+        "relations": [
+          {
+            "key": "contains",
+            "label": "包含型号",
+            "target_type": "product",
+            "cardinality": "many",
+            "properties": []
+          }
+        ]
+      },
+      {
+        "key": "product",
+        "label": "产品型号",
+        "properties": [
+          {
+            "key": "name",
+            "label": "名称",
+            "data_type": "string"
+          },
+          {
+            "key": "code",
+            "label": "型号",
+            "data_type": "string"
+          },
+          {
+            "key": "pins",
+            "label": "芯数",
+            "data_type": "integer"
+          }
+        ],
+        "relations": [
+          {
+            "key": "suits",
+            "label": "适用场景",
+            "target_type": "scenario",
+            "cardinality": "many",
+            "properties": [
+              {
+                "key": "condition",
+                "label": "适用条件",
+                "data_type": "string"
+              },
+              {
+                "key": "voltage",
+                "label": "电压上限",
+                "data_type": "number",
+                "unit": "V"
+              },
+              {
+                "key": "verification",
+                "label": "确认方式",
+                "data_type": "string"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "stock",
+        "label": "库存批次",
+        "properties": [
+          {
+            "key": "name",
+            "label": "名称",
+            "data_type": "string"
+          },
+          {
+            "key": "quantity",
+            "label": "可用库存",
+            "data_type": "integer",
+            "unit": "件"
+          }
+        ],
+        "relations": [
+          {
+            "key": "holds",
+            "label": "库存产品",
+            "target_type": "product",
+            "cardinality": "many",
+            "properties": []
+          }
+        ]
+      },
+      {
+        "key": "scenario",
+        "label": "业务场景",
+        "properties": [
+          {
+            "key": "name",
+            "label": "名称",
+            "data_type": "string"
+          },
+          {
+            "key": "description",
+            "label": "业务要求",
+            "data_type": "string"
+          }
+        ],
+        "relations": []
+      }
+    ],
+    "mappings": []
+  },
+  "objects": [
+    {
+      "id": "series-0",
+      "type_key": "series",
+      "properties": {
+        "name": "传感连接系列"
+      },
+      "evidence": true
+    },
+    {
+      "id": "series-1",
+      "type_key": "series",
+      "properties": {
+        "name": "控制连接系列"
+      },
+      "evidence": true
+    },
+    {
+      "id": "series-2",
+      "type_key": "series",
+      "properties": {
+        "name": "电源连接系列"
+      },
+      "evidence": true
+    },
+    {
+      "id": "product-0",
+      "type_key": "product",
+      "properties": {
+        "name": "SYN-04 · 4 芯",
+        "code": "SYN-04",
+        "pins": 4
+      },
+      "evidence": true
+    },
+    {
+      "id": "product-1",
+      "type_key": "product",
+      "properties": {
+        "name": "SYN-05 · 5 芯",
+        "code": "SYN-05",
+        "pins": 5
+      },
+      "evidence": true
+    },
+    {
+      "id": "product-2",
+      "type_key": "product",
+      "properties": {
+        "name": "SYN-08 · 8 芯",
+        "code": "SYN-08",
+        "pins": 8
+      },
+      "evidence": true
+    },
+    {
+      "id": "product-3",
+      "type_key": "product",
+      "properties": {
+        "name": "SYN-C4 · 控制",
+        "code": "SYN-C4",
+        "pins": 4
+      },
+      "evidence": true
+    },
+    {
+      "id": "product-4",
+      "type_key": "product",
+      "properties": {
+        "name": "SYN-C8 · 控制",
+        "code": "SYN-C8",
+        "pins": 8
+      },
+      "evidence": true
+    },
+    {
+      "id": "product-5",
+      "type_key": "product",
+      "properties": {
+        "name": "SYN-P3 · 电源",
+        "code": "SYN-P3",
+        "pins": 3
+      },
+      "evidence": true
+    },
+    {
+      "id": "stock-0",
+      "type_key": "stock",
+      "properties": {
+        "name": "华东仓 · A01",
+        "quantity": 40
+      },
+      "evidence": true
+    },
+    {
+      "id": "stock-1",
+      "type_key": "stock",
+      "properties": {
+        "name": "华南仓 · B02",
+        "quantity": 80
+      },
+      "evidence": true
+    },
+    {
+      "id": "stock-2",
+      "type_key": "stock",
+      "properties": {
+        "name": "华北仓 · C03",
+        "quantity": 120
+      },
+      "evidence": true
+    },
+    {
+      "id": "stock-3",
+      "type_key": "stock",
+      "properties": {
+        "name": "控制库存 · D04",
+        "quantity": 160
+      },
+      "evidence": true
+    },
+    {
+      "id": "stock-4",
+      "type_key": "stock",
+      "properties": {
+        "name": "备件库存 · E05",
+        "quantity": 200
+      },
+      "evidence": true
+    },
+    {
+      "id": "stock-5",
+      "type_key": "stock",
+      "properties": {
+        "name": "电源库存 · F06",
+        "quantity": 240
+      },
+      "evidence": true
+    },
+    {
+      "id": "scenario-0",
+      "type_key": "scenario",
+      "properties": {
+        "name": "室内传感采集"
+      },
+      "evidence": true
+    },
+    {
+      "id": "scenario-1",
+      "type_key": "scenario",
+      "properties": {
+        "name": "设备状态监测"
+      },
+      "evidence": true
+    },
+    {
+      "id": "scenario-2",
+      "type_key": "scenario",
+      "properties": {
+        "name": "控制柜布线"
+      },
+      "evidence": true
+    },
+    {
+      "id": "scenario-3",
+      "type_key": "scenario",
+      "properties": {
+        "name": "现场信号传输"
+      },
+      "evidence": true
+    },
+    {
+      "id": "scenario-4",
+      "type_key": "scenario",
+      "properties": {
+        "name": "低压电源接入"
+      },
+      "evidence": true
+    }
+  ],
+  "relations": [
+    {
+      "id": "contains:series-0:product-0",
+      "type_key": "contains",
+      "source": "series-0",
+      "target": "product-0",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "holds:stock-0:product-0",
+      "type_key": "holds",
+      "source": "stock-0",
+      "target": "product-0",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-0:scenario-0",
+      "type_key": "suits",
+      "source": "product-0",
+      "target": "scenario-0",
+      "properties": {
+        "condition": "室内干燥环境 · 合成演示",
+        "voltage": 24,
+        "verification": "已核对合成选型资料"
+      },
+      "evidence": true
+    },
+    {
+      "id": "suits:product-0:scenario-1",
+      "type_key": "suits",
+      "source": "product-0",
+      "target": "scenario-1",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "contains:series-0:product-1",
+      "type_key": "contains",
+      "source": "series-0",
+      "target": "product-1",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "holds:stock-1:product-1",
+      "type_key": "holds",
+      "source": "stock-1",
+      "target": "product-1",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-1:scenario-1",
+      "type_key": "suits",
+      "source": "product-1",
+      "target": "scenario-1",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-1:scenario-2",
+      "type_key": "suits",
+      "source": "product-1",
+      "target": "scenario-2",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "contains:series-1:product-2",
+      "type_key": "contains",
+      "source": "series-1",
+      "target": "product-2",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "holds:stock-2:product-2",
+      "type_key": "holds",
+      "source": "stock-2",
+      "target": "product-2",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-2:scenario-2",
+      "type_key": "suits",
+      "source": "product-2",
+      "target": "scenario-2",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-2:scenario-3",
+      "type_key": "suits",
+      "source": "product-2",
+      "target": "scenario-3",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "contains:series-1:product-3",
+      "type_key": "contains",
+      "source": "series-1",
+      "target": "product-3",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "holds:stock-3:product-3",
+      "type_key": "holds",
+      "source": "stock-3",
+      "target": "product-3",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-3:scenario-3",
+      "type_key": "suits",
+      "source": "product-3",
+      "target": "scenario-3",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-3:scenario-4",
+      "type_key": "suits",
+      "source": "product-3",
+      "target": "scenario-4",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "contains:series-2:product-4",
+      "type_key": "contains",
+      "source": "series-2",
+      "target": "product-4",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "holds:stock-4:product-4",
+      "type_key": "holds",
+      "source": "stock-4",
+      "target": "product-4",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-4:scenario-4",
+      "type_key": "suits",
+      "source": "product-4",
+      "target": "scenario-4",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-4:scenario-0",
+      "type_key": "suits",
+      "source": "product-4",
+      "target": "scenario-0",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "contains:series-2:product-5",
+      "type_key": "contains",
+      "source": "series-2",
+      "target": "product-5",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "holds:stock-5:product-5",
+      "type_key": "holds",
+      "source": "stock-5",
+      "target": "product-5",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-5:scenario-0",
+      "type_key": "suits",
+      "source": "product-5",
+      "target": "scenario-0",
+      "properties": {},
+      "evidence": true
+    },
+    {
+      "id": "suits:product-5:scenario-1",
+      "type_key": "suits",
+      "source": "product-5",
+      "target": "scenario-1",
+      "properties": {},
+      "evidence": true
+    }
+  ]
+}

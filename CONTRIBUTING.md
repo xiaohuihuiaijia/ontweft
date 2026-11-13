@@ -4,6 +4,18 @@
 
 提交贡献前，请确保有权按本项目 Apache-2.0 许可证提交相关代码。引入第三方文件时保留其原许可证、来源、固定版本及修改说明；不把研究参考自动当作可复制代码。
 
+## 本机开发体验
+
+按照 README 安装核心依赖并构建前端后，可在独立目录启动同一份合成产品样例：
+
+```sh
+uv run --locked --no-dev python scripts/start_local_demo.py experience --data-dir var/experience
+```
+
+`experience` 统一启动 API 和现有 worker，通过实际接口加载样例；首次设置 `owner` 密码，初始化完成后输出可直接进入样例图谱的链接。重复启动不再索取密码、不重建或覆盖已完成样例中的修改。初始化中断后会保留进度，再次运行时输入当前密码继续；Ctrl+C 只停止本次启动的子进程，数据继续保留。端口被占用时用 `--port 8021` 指定另一端口。
+
+普通 `serve` 仍创建空白工作空间，`worker`、`migrate` 保持原用途。需要升级旧体验目录时，停止服务后对该目录执行 `migrate --data-dir <原目录>`；它保留 SQLite 备份并补齐已知的历史列，不会重新调用模型。`--container` 仅供体验容器内部监听，宿主发布端口仍须限定回环地址。正式镜像和生产部署不自动加载样例。
+
 ## 验证
 
 按照 README 安装依赖，然后运行：
@@ -24,6 +36,21 @@ uv run --locked --extra dev python scripts/verify_model_starters_postgres.py --i
 
 企业 Beta 的核心安装、Linux/PostgreSQL、持续关系、文件版本、异人审批和恢复证据见 [验证记录](docs/beta-verification.md)。`scripts/beta_benchmark.py` 只使用显式测试数据库环境，创建独立随机数据库，默认测试 10 万对象、100 万关系和 50 个用户；结束后清理自己的数据库。它使用合成预建索引，不能代表首次导入或全量索引构建速度。部署与备份恢复命令见 [部署说明](docs/deployment.md)。
 
+本机启动、样例或 SQLite 升级发生变化时，选择相关领域测试：
+
+```sh
+uv run --locked --extra dev python scripts/test_backend.py backend/tests/platform/test_local_demo.py backend/tests/platform/test_local_experience.py backend/tests/platform/test_experience_sample.py -q
+```
+
+镜像构建或体验入口变化时，在 Docker 已启动的环境验证实际容器：
+
+```sh
+docker build --target demo -t ontweft-experience:beta-test .
+uv run --locked --extra dev python scripts/verify_experience_container.py --image ontweft-experience:beta-test
+```
+
+可用 `--report <路径>` 指定本地报告位置。容器烟测与浏览器操作、首次用户试用分别记录，不把其中一种通过当作其他验证也通过。
+
 浏览器检查在独立临时数据目录运行，不使用开发账号。下面把测试工具安装到忽略目录，不修改应用锁文件：
 
 ```sh
@@ -31,10 +58,13 @@ npm install --prefix var/browser-tools --no-save playwright@1.60.0
 node var/browser-tools/node_modules/playwright/cli.js install chromium
 ```
 
-按改动选择浏览器回归，不把以下脚本当作每次修改都要依次执行的清单。它们的独有覆盖不同，不因都能打开图谱就互相替代；公共鉴权、发布或来源契约变化时，再运行涉及的多个流程。
+按改动选择回归，不把以下工具当作每次修改都要依次执行的清单。它们的独有覆盖不同，不因都能打开图谱就互相替代；公共鉴权、发布或来源契约变化时，再运行涉及的多个流程。
 
 | 改动范围 | 选择脚本 | 独有覆盖 |
 | --- | --- | --- |
+| 本机启动与 SQLite 升级 | `test_local_demo.py`、`test_local_experience.py` | 旧提案说明列升级与备份、完成后免密重启、端口冲突、初始化失败和本次子进程退出 |
+| 合成产品样例 | `test_experience_sample.py` | 实际 API 的单一样例加载、中断续跑、重启不覆盖用户修改；不调用外部模型 |
+| 体验镜像与发行 | `verify_experience_container.py` | 实际容器中的 API/worker、样例初始化、停止与重启；需要已构建的 demo 镜像 |
 | 模型编辑、关系定义与图谱命中 | `verify_model_starters.cjs` | 建模起步、关系属性定义发布、自环关系、缩放及模型/实例切换 |
 | 文件接入和持续更新 | `verify_table_intake.cjs` | 真实上传、业务键、映射发布、worker导入、未匹配分页、文件版本与持续规则 |
 | 图谱交互 | `verify_graph_workbench.cjs` | 拖动、固定/恢复、键盘/触摸、对象及人工关系管理、关系条件/修订历史与手机编辑 |

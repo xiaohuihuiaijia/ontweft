@@ -12,6 +12,8 @@
 
 图谱捕获还实际保存一次关系条件，并打开其固定来源版本。独立浏览器回归覆盖拖动、固定／恢复、自环、键盘／触摸、320／375px关系编辑、模型字段发布，以及AI候选和图谱原文回跳。它们证明功能路径，不能替代复杂材料准确率或规模验收。
 
-先按[贡献指南](../../CONTRIBUTING.md)构建前端并准备 Playwright，设置 `PLAYWRIGHT_MODULE` 后执行既有脚本。临时数据库、日志和截图元数据保留在忽略的 `var/reports/`，只复制选定PNG到本目录。社交预览文件还需在仓库 Settings → Social preview 上传；生成文件并不意味着设置已更新。
+先按[贡献指南](../../CONTRIBUTING.md)构建前端并准备 Playwright，设置 `PLAYWRIGHT_MODULE` 后执行既有脚本。临时数据库、日志和截图元数据保留在忽略的 `var/reports/`，只复制选定PNG到本目录。社交预览文件已于 2026-11-13 上传到仓库 Settings → Social preview，刷新设置页后确认保留；后续替换文件仍需同步上传。
+
+本轮把图谱样例提取到 [examples/product-inventory](../../examples/product-inventory/README.md)，由体验启动和截图脚本共同使用。既有主图继续保留；实际操作视频由 `scripts/record_first_experience.cjs` 在全新合成工作空间录制，通过真实界面查看库存、关系条件、固定原文与修订历史。视频、字幕和对应来源记录随固定预发布提供，不把预置样例描述成现场 AI 生成。
 
 `workbench.png`、`table-intake.png`、`data-graph.png` 保留既有文档引用，不代表当前主视觉。

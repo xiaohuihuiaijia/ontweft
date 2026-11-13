@@ -1,20 +1,50 @@
 <p align="center"><img src="frontend/public/brand/ontweft-favicon.svg" width="64" height="64" alt="Ontweft mark" /></p>
 <h1 align="center">Ontweft · 序枢</h1>
-<p align="center"><strong>Connect knowledge to business.</strong><br />Turn documents and databases into editable business ontologies with traceable evidence.</p>
-<p align="center"><strong>Enterprise ontology · Knowledge graphs · Knowledge management</strong><br />AI-assisted modeling · Self-hosted · Apache-2.0</p>
-<p align="center"><a href="README.md">简体中文</a> · English · <a href="#get-started">Get started</a> · <a href="docs/deployment.md">Deployment</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/issues">Share a use case</a></p>
+<p align="center"><strong>Turn product documents and business tables into a traceable knowledge graph.</strong><br />Filter products, inspect inventory and applicability, then open the source behind each conclusion.</p>
+<p align="center">Self-hosted · AI-assisted ontology modeling · Apache-2.0<br /><a href="README.md">简体中文</a> · English</p>
+<p align="center"><a href="#run-the-product-example">Run the product example</a> · <a href="https://github.com/xiaohuihuiaijia/ontweft/releases/download/v0.1.0-beta.1/ontweft-first-experience.mp4">Watch the walkthrough</a> · <a href="#bring-your-own-data">Bring your own data</a></p>
 
 ![Ontweft product knowledge graph: products, inventory and use cases with relationship conditions and source evidence](docs/images/graph-workbench.png)
 
 <p align="center"><sub>Real application and API with synthetic products, inventory and conditions. Drag to arrange the view; open objects or relationships to inspect properties and evidence. No customer data.</sub></p>
 
-> **Current version: Enterprise Beta.** The default `main` branch includes the Beta application. Clone it and follow the steps below. The UI and detailed guides are primarily Chinese; document accuracy and production deployment still need acceptance testing for your own use case.
+Specifications describe a product. Inventory tells you where it is available. A manual explains when it can be used. Ontweft connects these into editable business objects and relationships, so an answer can be inspected rather than just accepted.
 
-## From source material to traceable knowledge graphs
+An **ontology** defines their shared types, fields and relationships. A **knowledge graph** contains the actual products, stock records and connections. You can try the example before learning all the terminology.
 
-A product manual, a spreadsheet and a database often describe different parts of the same business. Ontweft helps you define their types, properties and relationships, then map records into objects you can search, trace and edit.
+## Run the product example
 
-**Choose sources → describe the business goal → review model and fact candidates → publish and import → keep relationships current.**
+Requires Docker using Linux containers. The preview release is **[v0.1.0-beta.1](https://github.com/xiaohuihuiaijia/ontweft/releases/tag/v0.1.0-beta.1)**. Initial release validation covers `linux/amd64`; other architectures have not been verified.
+
+```sh
+docker run --rm -it -p 127.0.0.1:8020:8020 -v ontweft-experience:/data ghcr.io/xiaohuihuiaijia/ontweft:0.1.0-beta.1-demo
+```
+
+Set a local password when prompted and sign in as `owner` at the URL printed in the terminal (default **http://127.0.0.1:8020**). The launcher prints a direct link to the example graph. You can also select the product example in the project selector at the top.
+
+The experience includes a separate synthetic example project and an empty project. **No model API key is needed.** The example is not a live AI generation, and ordinary new projects are not populated with demonstration data.
+
+1. **Products and inventory:** filter product fields in **Objects**, then inspect their inventory relationships.
+2. **Relationship conditions:** open **Graph** and select an applicability relationship to inspect its conditions. Drag and pin nodes to arrange the view.
+3. **Evidence and edits:** open the source evidence, edit and save an allowed condition, then inspect its revision history.
+
+Stop with `Ctrl+C`. Data remains in the `ontweft-experience` volume and is reused on the next run. This image is for local evaluation and publishes only to the loopback address. See the [deployment guide](docs/deployment.md) for team deployment, backup and upgrades. The UI and detailed guides are primarily Chinese.
+
+## Bring your own data
+
+Switch to the empty project, then choose a starting point. Keep real business data out of screenshots you intend to share.
+
+| Your input | Where to start | Result |
+| --- | --- | --- |
+| CSV / XLSX tables | Data → upload → confirm fields and business keys → publish the model → import | Searchable objects, source records and a versioned update path; no AI key required |
+| PostgreSQL | Configure allowed source hosts first, then Data → register a read-only connection → discover resources → review mappings → publish and ingest | Deterministic object ingestion with explicit identity and update rules; no model call per row |
+| PDF, Office, images or text | Settings → model connection; then Data → documents or Ontology → AI drafting | Evidence-linked type, property, relationship and instance candidates for review before publishing and importing |
+
+Start with one table and one question: which products meet these requirements, where are they stocked, and what supports their applicability? See [data-to-ontology](docs/data-to-ontology.md) and [getting started](docs/getting-started.md).
+
+The experience image does not allow external database hosts by default. Configure the allowed source hosts as described in the [deployment guide](docs/deployment.md) before connecting PostgreSQL. Uploading local tables does not need this configuration.
+
+## From suggestions to verifiable business facts
 
 | Workflow | What you can do |
 | --- | --- |
@@ -25,20 +55,14 @@ A product manual, a spreadsheet and a database often describe different parts of
 | **Work in the graph** | Authorized global search, paginated neighbors, drag and pin, saved personal views; edit objects or relationships and trace their source evidence |
 | **Collaborate** | Project and field permissions, model revisions, versioned evidence and audit records; separate model author and approver in enterprise mode |
 
-## Where Ontweft fits
-
-| Your use case | What you build |
-| --- | --- |
-| **Product specifications** scattered across manuals and spreadsheets | Review evidence-linked candidates, define a product ontology, then search attributes and explore relationships |
-| **Business knowledge graphs** spanning customers, orders and products | Bind deterministic records with business keys and navigate named relationships |
-| **Knowledge management** with inconsistent concepts or untraceable conclusions | Find and reuse concepts through type aliases while retaining stable identifiers, versions and sources |
-| **Knowledge base management** for documents and team knowledge | Enable the optional knowledge extension for pages, full-text search and evidence links; a turnkey Q&A chatbot is not included |
-
-An **ontology** defines the kinds of things, their properties and allowed relationships. A **knowledge graph** connects actual objects under those definitions. A **knowledge base** retains documents and knowledge pages. Ontweft connects these layers; uploading a file alone does not make its content governed knowledge.
+The product example is a starting point; the same model can describe customers, orders and other business objects. Knowledge management preserves concepts, versions and sources. The optional knowledge base extension provides pages, full-text search and evidence links, rather than a turnkey Q&A chatbot.
 
 Five main destinations: **Data, Ontology, Objects, Graph, Settings**. One PostgreSQL database, one API service and the existing worker. No separate graph or vector service required. Manual modeling and deterministic ingestion work without an AI key; additional connectors, knowledge and automation remain optional.
 
-## Get started
+## Source development
+
+<details>
+<summary>Run an empty workspace from source (developer path)</summary>
 
 Install **Python 3.12, uv and Node.js 22.12+**, then run:
 
@@ -62,6 +86,10 @@ uv run --locked --no-dev python scripts/start_local_demo.py worker
 ```
 
 The local demo uses persistent SQLite in `var/local-demo/` and binds only to loopback. Team deployments use PostgreSQL and HTTPS. See the [deployment guide](docs/deployment.md).
+
+This source path keeps the project empty; it does not automatically load the product example above.
+
+</details>
 
 ## AI proposes. You decide what becomes a fact.
 
@@ -96,6 +124,8 @@ A synthetic benchmark covers **100,000 objects / 1,000,000 relationships / 50 us
 
 **Python / FastAPI / SQLAlchemy / PostgreSQL · React / TypeScript / Sigma / Graphology.** A modular monolith shaped by concrete use cases.
 
-Looking for a self-hosted ontology, knowledge graph or evidence-linked knowledge management tool? **Star** the repository to follow progress. [Share a use case or report an issue](https://github.com/xiaohuihuiaijia/ontweft/issues): what data are you connecting, what question should it answer, and where did you get stuck? Use sanitized examples. Report security concerns privately under the [security policy](SECURITY.md).
+If this direction is useful to you, **Star** the project to follow releases. [Share trial feedback](https://github.com/xiaohuihuiaijia/ontweft/issues/new?template=first-experience.yml): your business question, the last step you reached, and whether you could inspect objects, relationships and evidence. Actual trials and specific feedback help us improve more than a number. [First-user plan](docs/first-users.md)
+
+Use sanitized or synthetic examples. Report security issues privately under the [security policy](SECURITY.md). This is **Enterprise Beta**, with a primarily Chinese UI, intended for evaluating a specific business use case.
 
 Project-owned code is [Apache-2.0](LICENSE). Third-party components retain their licenses and [notices](frontend/public/THIRD_PARTY_NOTICES.txt); see [screenshot provenance](docs/images/README.md) and [NOTICE](NOTICE). No claim of production readiness, a complete security audit, trademark clearance or complete binary/model redistribution clearance is made.

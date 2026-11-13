@@ -194,3 +194,69 @@ def test_local_demo_generation_upgrade_backs_up_and_preserves_history(tmp_path):
             )
             assert not connection.execute("PRAGMA foreign_key_check").fetchall()
         assert demo.upgrade_demo_schema(data) is None
+
+
+def test_local_demo_adds_model_notes_to_existing_proposal_rows(tmp_path):
+    import json
+    import sqlite3
+
+    from ontology.cli import bootstrap
+    from ontology.core.db import Database
+    from ontology.intelligence.models import ModelConnection
+    from ontology.intelligence.proposal_models import AIProposal
+
+    data = tmp_path / "existing-demo"
+    db = Database(demo.demo_settings(data, 8020))
+    try:
+        owner = bootstrap(
+            db,
+            tenant_slug="local-demo",
+            tenant_name="Synthetic upgrade",
+            email="owner@example.test",
+            username="owner",
+            password="Local-Test-Only-2026",
+        )
+        with db.transaction() as session:
+            connection = ModelConnection(
+                tenant_id=owner["tenant_id"],
+                name="Unused synthetic connection",
+                base_url="https://not-used.example/v1",
+                enabled=False,
+            )
+            session.add(connection)
+            session.flush()
+            proposal = AIProposal(
+                tenant_id=owner["tenant_id"],
+                project_id=owner["project_id"],
+                owner_id=owner["user_id"],
+                connection_id=connection.id,
+                connection_revision=1,
+                inputs={"requirement": "保留旧提案内容"},
+                status="ready",
+            )
+            session.add(proposal)
+            session.flush()
+            proposal_id = proposal.id
+        with db.engine.begin() as connection:
+            connection.exec_driver_sql("ALTER TABLE ai_proposals DROP COLUMN model_notes")
+        db.engine.dispose()
+        (data / demo.MARKER).write_text(json.dumps(demo.PROFILE), encoding="utf-8")
+        assert demo.needs_schema_upgrade(data)
+        with pytest.raises(ValueError, match="migrate"):
+            demo.create_demo_app(data)
+
+        backup = demo.upgrade_demo_schema(data)
+        assert backup.is_file() and not demo.needs_schema_upgrade(data)
+        with sqlite3.connect(backup) as connection:
+            assert "model_notes" not in {
+                row[1] for row in connection.execute("PRAGMA table_info(ai_proposals)")
+            }
+            assert connection.execute("SELECT id FROM ai_proposals").fetchone() == (proposal_id,)
+        with db.transaction() as session:
+            restored = session.get(AIProposal, proposal_id)
+            assert restored.inputs == {"requirement": "保留旧提案内容"}
+            assert restored.model_notes == [] and restored.status == "ready"
+        assert demo.upgrade_demo_schema(data) is None
+        assert len(list(data.glob("demo-before-upgrade-*.db"))) == 1
+    finally:
+        db.engine.dispose()

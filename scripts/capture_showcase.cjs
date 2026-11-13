@@ -11,7 +11,7 @@ const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'var/reports/showcase');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function main() {
+async function main({ record = false } = {}) {
   fs.mkdirSync(output, { recursive: true });
   const data = fs.mkdtempSync(path.join(output, 'synthetic-'));
   const reservation = net.createServer();
@@ -63,64 +63,29 @@ async function main() {
     await page.getByLabel('密码', { exact: true }).fill(password);
     await page.getByRole('button', { name: '登录', exact: true }).click();
     await page.getByRole('button', { name: '新建变更集', exact: true }).waitFor();
-    const request = async (method, route, payload) => {
-      const response = await context.request[method](base + '/api' + route, payload === undefined ? {} : { data: payload });
-      assert.ok(response.ok(), `${method} ${route}: ${response.status()}`);
-      return response.json();
-    };
-    const session = await request('get', '/auth/me');
-    const project = session.projects[0].id;
-    const property = (key, label, data_type = 'string', unit) => ({ key, label, data_type, ...(unit ? { unit } : {}) });
-    const relation = (key, label, target_type, properties = []) => ({ key, label, target_type, cardinality: 'many', properties });
-    const type = (key, label, properties, relations) => ({ key, label, properties: [property('name', '名称'), ...properties], relations });
-    let draft = await request('post', '/changesets', {
-      project_id: project, title: '合成产品 · 库存与选型场景', expected_baseline_release_id: null,
-      definition: { types: [
-        type('series', '产品系列', [], [relation('contains', '包含型号', 'product')]),
-        type('product', '产品型号', [property('code', '型号'), property('pins', '芯数', 'integer')], [relation('suits', '适用场景', 'scenario', [property('condition', '适用条件'), property('voltage', '电压上限', 'number', 'V'), property('verification', '确认方式')])]),
-        type('stock', '库存批次', [property('quantity', '可用库存', 'integer', '件')], [relation('holds', '库存产品', 'product')]),
-        type('scenario', '业务场景', [property('description', '业务要求')], []),
-      ], mappings: [] },
+    // The launcher, screenshots and published sample use the same API loader and data.
+    const sample = JSON.parse(fs.readFileSync(path.join(root, 'examples/product-inventory/sample.json'), 'utf8'));
+    const seed = spawnSync(python, ['-c', `import json, sys
+from pathlib import Path
+import httpx
+sys.path.insert(0, 'scripts')
+from experience_sample import ensure_sample
+config = json.load(sys.stdin)
+with httpx.Client(base_url=config['base'] + '/api/', timeout=30) as client:
+    client.post('auth/login', json={'username': 'owner', 'password': config['password']}).raise_for_status()
+    print(json.dumps(ensure_sample(client, Path(config['data']))))`], {
+      cwd: root, windowsHide: true, encoding: 'utf8', env: { ...env, PYTHONUTF8: '1' },
+      input: JSON.stringify({ base, data, password }), timeout: 180000,
     });
-    for (const action of ['validate', 'approve', 'publish']) draft = await request('post', `/changesets/${draft.id}/${action}`, { expected_revision: draft.revision });
-    const model = await request('get', `/ontology/definition?project_id=${project}`);
-    const documentResponse = await context.request.post(base + '/api/documents/upload', { multipart: { project_id: project, file: { name: 'synthetic-selection.md', mimeType: 'text/markdown', buffer: Buffer.from('# 合成选型资料\n\nSYN-04 用于室内传感采集，电压不超过 24 V。此处全部为功能演示数据，不构成真实产品建议。\n') } } });
-    assert.equal(documentResponse.status(), 201, await documentResponse.text());
-    let document = (await documentResponse.json()).document;
-    for (let i = 0; i < 120; i++) { document = await request('get', `/documents/${document.id}`); if (document.state === 'ready' || document.state === 'failed') break; await pause(250); }
-    assert.equal(document.state, 'ready', JSON.stringify(document.error));
-    const evidence = [{ document_id: document.id, revision: document.revision, parse_id: document.current_parse_id, parse_revision: document.parse_revision, ir_fingerprint: document.ir_fingerprint, content_hash: document.content_hash }];
-    const labels = {
-      series: ['传感连接系列', '控制连接系列', '电源连接系列'],
-      product: ['SYN-04 · 4 芯', 'SYN-05 · 5 芯', 'SYN-08 · 8 芯', 'SYN-C4 · 控制', 'SYN-C8 · 控制', 'SYN-P3 · 电源'],
-      stock: ['华东仓 · A01', '华南仓 · B02', '华北仓 · C03', '控制库存 · D04', '备件库存 · E05', '电源库存 · F06'],
-      scenario: ['室内传感采集', '设备状态监测', '控制柜布线', '现场信号传输', '低压电源接入'],
-    };
-    const records = {};
-    for (const [type_key, names] of Object.entries(labels)) {
-      records[type_key] = [];
-      for (let i = 0; i < names.length; i++) records[type_key].push(await request('post', '/objects', {
-        project_id: project, expected_model_release_id: model.release_id, type_key,
-        properties: { name: names[i], ...(type_key === 'product' ? { code: names[i].split(' · ')[0], pins: [4, 5, 8, 4, 8, 3][i] } : type_key === 'stock' ? { quantity: (i + 1) * 40 } : {}) }, evidence: type_key === 'product' && i === 0 ? evidence : [],
-      }));
-    }
-    let edgeCount = 0;
-    const connect = async (kind, source, target, properties = {}, refs = []) => {
-      const edge = await request('post', '/relations', { project_id: project, expected_model_release_id: model.release_id, type_key: kind, source_id: source.id, target_id: target.id, properties, evidence: refs });
-      edgeCount++; return edge;
-    };
-    const { series, product: products, stock, scenario: scenarios } = records;
-    for (let i = 0; i < products.length; i++) {
-      await connect('contains', series[Math.min(2, Math.floor(i / 2))], products[i]);
-      await connect('holds', stock[i], products[i]);
-      await connect('suits', products[i], scenarios[i % scenarios.length]);
-      await connect('suits', products[i], scenarios[(i + 1) % scenarios.length]);
-    }
-    const allRelations = await request('get', `/relations?project_id=${project}&object_id=${products[0].id}`);
-    const featured = allRelations.items.find(edge => edge.type_key === 'suits' && edge.target_id === scenarios[0].id);
-    await request('patch', `/relations/${featured.id}`, { expected_revision: featured.revision, expected_model_release_id: model.release_id, properties: { condition: '室内干燥环境 · 合成演示', voltage: 24, verification: '已核对合成选型资料' }, evidence, reason: '为合成展示确认关系条件' });
-    const count = Object.values(records).flat().length;
+    assert.equal(seed.status, 0, seed.stderr || String(seed.error || 'Sample initialization failed'));
+    const initialized = JSON.parse(seed.stdout);
+    const project = initialized.project_id;
+    const labels = Object.fromEntries(sample.definition.types.map(type => [type.key,
+      sample.objects.filter(item => item.type_key === type.key).map(item => item.properties.name)]));
+    const count = initialized.objects;
+    const edgeCount = initialized.relations;
     await page.reload();
+    await page.getByLabel('当前项目', { exact: true }).selectOption(project);
     await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('button', { name: '图谱探索', exact: true }).click();
     await page.waitForFunction(expected => !document.querySelector('[aria-label="放大图谱"]')?.disabled && document.querySelector('.graph-caption')?.textContent.includes(`${expected} 个节点`), count);
     const settle = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -174,6 +139,9 @@ async function main() {
     await share.close();
     assert.ok(fs.statSync(path.join(output, 'social-preview.png')).size < 1000000, 'Social preview exceeds 1 MB');
 
+    if (record) {
+      await require('./record_first_experience.cjs').recordExperience({ browser, context, base, project, initialized });
+    } else {
     // Exercise the real partial relation PATCH, then reopen its authorized source.
     await page.getByRole('button', { name: '编辑条件与证据', exact: true }).click();
     await page.getByLabel('适用条件', { exact: true }).fill('室内干燥环境 · 已人工复核');
@@ -182,6 +150,7 @@ async function main() {
     await page.getByRole('button', { name: '查看固定来源版本', exact: true }).click();
     await page.getByRole('complementary', { name: '固定历史解析版本', exact: true }).waitFor();
     assert.deepEqual(errors, []);
+    }
     fs.writeFileSync(path.join(output, 'capture.json'), JSON.stringify({ source: 'Actual built frontend and authenticated local API', synthetic: true, objects: count, relations: edgeCount, viewport: { width: 1600, height: 1200 }, relationEditSaved: true, fixedSourceOpened: true, sourceCommit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(), workingTree: 'capture includes current branch changes', pageErrors: errors }, null, 2) + '\n');
     console.log(`Captured ${count} synthetic objects / ${edgeCount} relationships to var/reports/showcase; no UI or response substitution.`);
   } finally {
@@ -195,4 +164,5 @@ async function main() {
     // Keep this run's isolated synthetic database with its ignored report for reproducibility.
   }
 }
-main().catch(error => { console.error(String(error)); process.exitCode = 1; });
+module.exports = { captureShowcase: main };
+if (require.main === module) main().catch(error => { console.error(String(error)); process.exitCode = 1; });
