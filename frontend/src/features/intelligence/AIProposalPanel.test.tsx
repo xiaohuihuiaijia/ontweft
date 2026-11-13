@@ -5,10 +5,68 @@ import type { Proposal } from './types';
 
 vi.mock('../graph/GraphCanvas', () => ({ GraphCanvas: () => <div>候选模型图</div> }));
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
-const definition = { types: [{ key: 'product', label: '产品', properties: [{ key: 'name', label: '名称', data_type: 'string' }], relations: [] }], mappings: [] };
+const definition = { types: [{ key: 'product', label: '产品', properties: [{ key: 'name', label: '名称', data_type: 'string', source_owned: true }, { key: 'code', label: '型号', data_type: 'string', source_owned: true }], relations: [] }], mappings: [] };
 const evidence = [{ document_id: 'd1', page: 2, quote: '合成产品 A', parse_id: 'page-2' }];
-const ready = { id: 'p1', revision: 4, status: 'ready', definition, baseline_release_id: 'r1', candidates: [{ id: 'c1', type_key: 'product', properties: { name: '合成产品 A' }, business_key: { code: 'A' }, evidence, selected: true }], relations: [], inputs: { instructions: '产品规格' } } as Proposal;
+const ready = { id: 'p1', revision: 4, status: 'ready', definition, baseline_release_id: 'r1', candidates: [{ id: 'c1', type_key: 'product', properties: { name: '合成产品 A', code: 'A' }, business_key: { code: 'A' }, evidence, selected: true }], relations: [], inputs: { instructions: '产品规格' } } as Proposal;
 const connection = { id: 'm1', enabled: true, name: '本地合成服务', roles: { extraction: 'synthetic', synthesis: 'synthetic' }, models: [] };
+
+it('shows grounded modeling reasons, stale notices and persisted partial-import issues after reopening', async () => {
+  mocks(path => path === '/api/ai/proposals/p1' ? json({ ...ready, status: 'imported',
+    definition: { ...definition, types: [{ ...definition.types[0], relations: [{ key: 'fits', label: '适用于', target_type: 'product', cardinality: 'many', properties: [{ key: 'condition', label: '安装条件', data_type: 'string' }] }] }] },
+    relations: [{ id: 'r1', source_candidate_id: 'c1', target_candidate_id: 'c1', key: 'fits', properties: { condition: '仅干燥环境' }, evidence }],
+    model_notes: [{ target_kind: 'type', type_key: 'product', key: '', question: '哪些产品符合要求？', reason: '用已有产品类型承载规格', change: 'reused', stale: true, evidence }],
+    imported: { imported: 1, counts: { created: 1, updated: 0, unchanged: 0, blocked: 0 }, relations: 0, relations_blocked: 1, issues: [{ candidate_id: 'r1', message: '保留已有关系条件' }] },
+  }) : undefined);
+  render(<AIProposalPanel projectId="project" can={() => true} onDirty={() => {}} />);
+  await screen.findByRole('option', { name: '产品规格 · ready' });
+  fireEvent.change(screen.getByLabelText('生成记录'), { target: { value: 'p1' } });
+  fireEvent.click(await screen.findByText('为什么这样建模 · 1 条说明'));
+  expect(screen.getByText('哪些产品符合要求？')).toBeTruthy();
+  expect(screen.getByText(/当前定义已修改或移除/)).toBeTruthy();
+  expect(screen.getByText('部分导入完成')).toBeTruthy();
+  expect(screen.getByText(/保留已有关系条件/)).toBeTruthy();
+  expect((screen.getByRole('button', { name: '导入所选实例' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: '关系 1' }));
+  expect(screen.getByText('安装条件')).toBeTruthy();
+  expect(screen.getByText('仅干燥环境')).toBeTruthy();
+  expect((screen.getByRole('button', { name: '编辑关系候选' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('opens the shared relation detail from a persisted conflict for read-only review', async () => {
+  const fetch = mocks(path => path === '/api/ai/proposals/p1' ? json({ ...ready, status: 'imported', imported: {
+    imported: 1, relations_blocked: 1, issues: [{ relation_id: 'saved-edge', candidate_id: 'r1', message: '候选条件不同，原值保留' }],
+  } }) : path === '/api/relations/saved-edge' ? json({ id: 'saved-edge', revision: 1, source_id: 'a', target_id: 'b', label: '适用于', properties: { condition: '干燥环境' }, evidence: [], model_release_id: 'r1', definition: { key: 'fits', label: '适用于', target_type: 'product', cardinality: 'many', properties: [{ key: 'condition', label: '适用条件', data_type: 'string' }] } }) : undefined);
+  render(<AIProposalPanel projectId="project" role="viewer" can={permission => permission !== 'objects:write'} onDirty={() => {}} />);
+  await screen.findByRole('option', { name: '产品规格 · ready' });
+  fireEvent.change(screen.getByLabelText('生成记录'), { target: { value: 'p1' } });
+  fireEvent.click(await screen.findByRole('button', { name: '查看关系' }));
+  const drawer = await screen.findByRole('complementary', { name: '关系详情' });
+  await within(drawer).findByText('干燥环境');
+  expect(within(drawer).queryByRole('button', { name: '编辑条件与证据' })).toBeNull();
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'POST' || options?.method === 'PATCH')).toHaveLength(0);
+});
+
+it('pages relationships by 20 and applies selection to the visible relationship id', async () => {
+  let submitted: Record<string, unknown> | undefined;
+  const relations = Array.from({ length: 21 }, (_, i) => ({ id: `r${i}`, key: 'fits', source_candidate_id: 'c1', target_candidate_id: 'c2', selected: true, evidence }));
+  mocks((path, options) => {
+    if (path !== '/api/ai/proposals/p1') return;
+    if (options?.method === 'PATCH') { submitted = JSON.parse(String(options.body)); return json({ ...ready, ...submitted, revision: 5 }); }
+    return json({ ...ready, relations });
+  });
+  render(<AIProposalPanel projectId="project" can={() => true} onDirty={() => {}} />);
+  await screen.findByRole('option', { name: '产品规格 · ready' });
+  fireEvent.change(screen.getByLabelText('生成记录'), { target: { value: 'p1' } });
+  fireEvent.click(await screen.findByRole('button', { name: '关系 21' }));
+  expect(screen.getAllByRole('button', { name: '编辑关系候选' })).toHaveLength(20);
+  fireEvent.click(screen.getByRole('button', { name: '下一批关系' }));
+  expect(screen.getAllByRole('button', { name: '编辑关系候选' })).toHaveLength(1);
+  fireEvent.click(screen.getByLabelText('采纳关系 r20'));
+  await waitFor(() => expect(submitted).toBeTruthy());
+  const updated = submitted!.relations as Array<{ id: string; selected: boolean }>;
+  expect(updated[0].selected).toBe(true);
+  expect(updated[20].selected).toBe(false);
+});
 
 it('resets the candidate batch when starting another proposal after viewing a later batch', async () => {
   const old = { ...ready, candidates: Array.from({ length: 21 }, (_, i) => ({ ...ready.candidates[0], id: `old-${i}`, properties: { name: `合成旧记录${i}` } })) };
@@ -84,11 +142,11 @@ it('edits candidate values and business keys using its current revision, preserv
   fireEvent.change(screen.getByLabelText('生成记录'), { target: { value: 'p1' } });
   fireEvent.click(await screen.findByRole('button', { name: '实例 1' }));
   fireEvent.click(screen.getByRole('button', { name: '编辑此候选' }));
-  fireEvent.change(screen.getByLabelText('属性值（JSON）'), { target: { value: '{"name":"修正的产品名称"}' } });
-  fireEvent.change(screen.getByLabelText('稳定业务键（JSON）'), { target: { value: '{"code":"A-01"}' } });
+  fireEvent.change(screen.getByRole('textbox', { name: '名称' }), { target: { value: '修正的产品名称' } });
+  fireEvent.change(screen.getByRole('textbox', { name: '型号' }), { target: { value: 'A-01' } });
   fireEvent.click(screen.getByRole('button', { name: '保存候选' }));
   await waitFor(() => expect(submitted?.expected_revision).toBe(4));
-  expect(submitted?.candidates).toEqual([{ ...ready.candidates[0], properties: { name: '修正的产品名称' }, business_key: { code: 'A-01' }, evidence }]);
+  expect(submitted?.candidates).toEqual([{ ...ready.candidates[0], properties: { name: '修正的产品名称', code: 'A-01' }, business_key: { code: 'A-01' }, evidence }]);
 });
 
 it('does not request candidate data for a read-only user and clears it after access is revoked', async () => {
@@ -159,13 +217,13 @@ it.each(['ready', 'adopted'])('binds edits to the opened %s revision even after 
   fireEvent.change(screen.getByLabelText('生成记录'), { target: { value: 'p1' } });
   fireEvent.click(await screen.findByRole('button', { name: '实例 1' }));
   fireEvent.click(screen.getByRole('button', { name: '编辑此候选' }));
-  fireEvent.change(screen.getByLabelText('属性值（JSON）'), { target: { value: '{"name":"未覆盖的本地编辑"}' } });
+  fireEvent.change(screen.getByRole('textbox', { name: '名称' }), { target: { value: '未覆盖的本地编辑' } });
   current = { ...current, revision: 5 };
   fireEvent.click(screen.getByRole('button', { name: '刷新' }));
   await screen.findByText('修订 5');
   fireEvent.click(screen.getByRole('button', { name: '保存候选' }));
   await waitFor(() => expect(submitted?.expected_revision).toBe(4));
-  expect((screen.getByLabelText('属性值（JSON）') as HTMLTextAreaElement).value).toContain('未覆盖的本地编辑');
+  expect((screen.getByRole('textbox', { name: '名称' }) as HTMLTextAreaElement).value).toContain('未覆盖的本地编辑');
 });
 
 it('uses the adopted review model and freezes its separate changeset revision', async () => {
@@ -198,11 +256,11 @@ it('clears an open candidate and evidence when a protected refresh is denied', a
   fireEvent.change(screen.getByLabelText('生成记录'), { target: { value: 'p1' } });
   fireEvent.click(await screen.findByRole('button', { name: '实例 1' }));
   fireEvent.click(screen.getByRole('button', { name: '编辑此候选' }));
-  expect(screen.getByLabelText('属性值（JSON）')).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: '名称' })).toBeTruthy();
   denied = true;
   fireEvent.click(screen.getByRole('button', { name: '刷新' }));
   await screen.findByText('提案访问已撤销');
-  expect(screen.queryByLabelText('属性值（JSON）')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: '名称' })).toBeNull();
   expect(screen.queryByText('合成产品 A')).toBeNull();
 });
 
@@ -216,7 +274,7 @@ it('clears cached candidate editors when permissions are removed and does not re
   fireEvent.click(screen.getByRole('button', { name: '编辑此候选' }));
   view.rerender(<AIProposalPanel {...props} can={() => false} />);
   view.rerender(<AIProposalPanel {...props} can={() => true} />);
-  expect(screen.queryByLabelText('属性值（JSON）')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: '名称' })).toBeNull();
   expect(screen.queryByText('合成产品 A')).toBeNull();
 });
 
@@ -229,12 +287,12 @@ it('prevents candidate changes or dismissal while the captured revision is savin
   fireEvent.click(await screen.findByRole('button', { name: '实例 1' }));
   fireEvent.click(screen.getByRole('button', { name: '编辑此候选' }));
   fireEvent.click(screen.getByRole('button', { name: '保存候选' }));
-  expect((screen.getByLabelText('属性值（JSON）') as HTMLTextAreaElement).disabled).toBe(true);
-  expect((screen.getByLabelText('稳定业务键（JSON）') as HTMLTextAreaElement).disabled).toBe(true);
+  expect((screen.getByRole('textbox', { name: '名称' }) as HTMLTextAreaElement).disabled).toBe(true);
+  expect((screen.getByRole('textbox', { name: '型号' }) as HTMLTextAreaElement).disabled).toBe(true);
   expect((screen.getByRole('button', { name: '取消编辑' }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole('button', { name: '关闭侧栏' }) as HTMLButtonElement).disabled).toBe(true);
   finish(json({ ...ready, revision: 5 }));
-  await waitFor(() => expect(screen.queryByLabelText('属性值（JSON）')).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('textbox', { name: '名称' })).toBeNull());
 });
 
 

@@ -120,3 +120,37 @@ it('closing a nested source page does not submit an unsaved object', async () =>
   expect(onSaved).not.toHaveBeenCalled();
   expect((screen.getByLabelText('备注') as HTMLInputElement).value).toBe('尚未确认的修改');
 });
+
+it('keeps a relation condition draft mounted when paging or closing the enclosing object', async () => {
+  const object = { id: 'o', project_id: 'p', type_key: 'item', properties: {}, revision: 1, evidence: [] };
+  const relationDefinition = { key: 'fits', label: '适用于', target_type: 'item', cardinality: 'many' as const, properties: [{ key: 'condition', label: '适用条件', data_type: 'string' as const }] };
+  const relation = { id: 'edge', revision: 1, source_id: 'o', target_id: 'target', label: '适用于', type_key: 'fits', model_release_id: 'r', properties: { condition: '室内' }, evidence: [], definition: relationDefinition };
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+    const url = new URL(String(input), 'http://test');
+    const data = url.pathname === '/api/relations'
+      ? { items: Number(url.searchParams.get('offset')) === 25 ? [{ ...relation, id: 'edge26', target_id: '目标26' }] : [relation], total: 26 }
+      : url.pathname === '/api/relations/edge' ? relation
+      : url.pathname === '/api/objects/o' || url.pathname === '/api/objects/target' ? object
+      : { items: [], total: 0 };
+    return new Response(JSON.stringify(data));
+  });
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const close = vi.fn();
+  render(<ObjectEditor object={object} types={[{ key: 'item', label: '物料', properties: [], relations: [relationDefinition] }]} modelReleaseId="r" projectId="p" canWrite role="owner" initialRelationKey="fits" onSaved={vi.fn()} onClose={close} onDirty={vi.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: '条件与证据' }));
+  fireEvent.click(await screen.findByRole('button', { name: '编辑条件与证据' }));
+  await waitFor(() => expect((screen.getByLabelText('适用条件') as HTMLInputElement).disabled).toBe(false));
+  fireEvent.change(screen.getByLabelText('适用条件'), { target: { value: '待核对的室外条件' } });
+  const next = within(screen.getByRole('group', { name: '对象关系分页' })).getByRole('button', { name: '下一页' }) as HTMLButtonElement;
+  expect(next.disabled).toBe(true);
+  fireEvent.click(next);
+  expect(fetcher.mock.calls.some(([url]) => String(url).includes('offset=25'))).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: '关闭侧栏' }));
+  expect(confirm).toHaveBeenCalledOnce();
+  expect(close).not.toHaveBeenCalled();
+  expect((screen.getByLabelText('适用条件') as HTMLInputElement).value).toBe('待核对的室外条件');
+  fireEvent.click(screen.getByRole('button', { name: '取消修改' }));
+  await waitFor(() => expect(next.disabled).toBe(false));
+  fireEvent.click(next);
+  await screen.findByText('→ fits · 目标26');
+});

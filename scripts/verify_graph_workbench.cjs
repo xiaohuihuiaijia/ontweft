@@ -82,13 +82,13 @@ async function main() {
     };
     const session = await request('get', '/auth/me'); const project = session.projects[0].id;
     const property = (key, label) => ({ key, label, data_type: 'string' });
-    const relation = (key, label, target_type) => ({ key, label, target_type, cardinality: 'many' });
+    const relation = (key, label, target_type, properties = []) => ({ key, label, target_type, cardinality: 'many', properties });
     const type = (key, label, relations) => ({ key, label, properties: [property('name', '名称'), property('status', '状态')], relations });
     let draft = await request('post', '/changesets', { project_id: project, title: '合成验证 · 企业数据协作', expected_baseline_release_id: null, definition: { types: [
       type('department', '业务团队', [relation('members', '团队成员', 'person')]),
       type('person', '负责人', [relation('maintains', '负责系统', 'system')]),
       type('system', '业务系统', [relation('datasets', '提供数据', 'asset'), relation('supports', '支撑系统', 'system')]),
-      type('asset', '数据资产', [relation('depends', '依赖资产', 'asset')]),
+      type('asset', '数据资产', [relation('depends', '依赖资产', 'asset', [property('condition', '适用条件'), { key: 'interval', label: '更新间隔', data_type: 'number', unit: '分钟' }])]),
     ], mappings: [] } });
     for (const action of ['validate', 'approve', 'publish']) draft = await request('post', `/changesets/${draft.id}/${action}`, { expected_revision: draft.revision });
     const definition = await request('get', `/ontology/definition?project_id=${project}`);
@@ -164,12 +164,47 @@ async function main() {
     const edges = page.locator('details.node-list').nth(1);
     await edges.locator('summary').click();
     await edges.getByRole('button', { name: '客户档案 · 已核对 — 依赖资产 → 订单明细', exact: true }).click();
+    const relationsBefore = await request('get', `/relations?project_id=${project}&object_id=${asset.id}`);
+    const originalRelation = relationsBefore.items.find(item => item.source_id === asset.id && item.type_key === 'depends' && item.target_id === objects.asset[1].id);
+    assert.ok(originalRelation, 'The original target must exist before editing or adding a relation');
+    const relationDetails = page.getByRole('region', { name: '关系条件与证据', exact: true });
+    await relationDetails.getByRole('button', { name: '编辑条件与证据', exact: true }).waitFor();
+    const loadedRelation = await request('get', `/relations/${originalRelation.id}`);
+    assert.deepEqual(loadedRelation.definition.properties.map(field => field.key), ['condition', 'interval']);
+    assert.equal(loadedRelation.revision, originalRelation.revision, 'Reading relation details must not change the revision');
+    await relationDetails.getByRole('button', { name: '编辑条件与证据', exact: true }).click();
+    await relationDetails.getByLabel('适用条件', { exact: true }).fill('仅用于合成测试的已确认依赖条件');
+    await relationDetails.getByLabel('更新间隔（分钟）', { exact: true }).fill('2.5');
+    await relationDetails.getByLabel('修改说明', { exact: true }).fill('按合成业务规则核对关系属性');
+    await capture('relation-editor', 1440);
+    for (const width of [375, 320]) {
+      await capture('relation-editor', width);
+      const field = await relationDetails.getByLabel('适用条件', { exact: true }).boundingBox();
+      assert.ok(field && field.x >= 0 && field.x + field.width <= width, `Relation editor fits ${width}px`);
+    }
+    const relationSaved = page.waitForResponse(response => response.url().endsWith(`/api/relations/${originalRelation.id}`) && response.request().method() === 'PATCH');
+    await relationDetails.getByRole('button', { name: '保存关系条件', exact: true }).click();
+    const savedResponse = await relationSaved;
+    assert.ok(savedResponse.ok(), `Relation attribute save: ${savedResponse.status()} ${await savedResponse.text()}`);
+    await relationDetails.getByText('关系条件已保存；关系的来源支持保持原有规则。', { exact: true }).waitFor();
+    const savedRelation = await request('get', `/relations/${originalRelation.id}`);
+    assert.deepEqual(savedRelation.properties, { condition: '仅用于合成测试的已确认依赖条件', interval: '2.5' });
+    assert.equal(savedRelation.revision, originalRelation.revision + 1);
+    assert.equal(savedRelation.source_id, originalRelation.source_id);
+    assert.equal(savedRelation.target_id, originalRelation.target_id);
+    assert.equal(savedRelation.manual, originalRelation.manual);
+    await relationDetails.getByText('关系修订历史', { exact: true }).click();
+    await relationDetails.getByText('按合成业务规则核对关系属性', { exact: true }).waitFor();
+    const history = await request('get', `/relations/${originalRelation.id}/history`);
+    assert.equal(history.total, 2);
+    assert.equal(history.items[0].revision, savedRelation.revision);
+    assert.deepEqual(history.items[1].properties, {});
+    await capture('relation-confirmed', 375);
+    result.relationshipAttributes = { revision: savedRelation.revision, history: history.total, editedOnMobile: true };
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('button', { name: '管理来源对象的关系', exact: true }).click();
     await editor.getByRole('combobox', { name: /^业务角色 \/ 方向/ }).waitFor();
     assert.equal(await editor.getByRole('combobox', { name: /^业务角色 \/ 方向/ }).inputValue(), 'depends');
-    const relationsBefore = await request('get', `/relations?project_id=${project}&object_id=${asset.id}`);
-    const originalRelation = relationsBefore.items.find(item => item.source_id === asset.id && item.type_key === 'depends' && item.target_id === objects.asset[1].id);
-    assert.ok(originalRelation, 'The original target must exist before adding a second target');
     await editor.getByRole('heading', { name: '新增平台关系', exact: true }).waitFor();
     await editor.getByRole('combobox', { name: /^目标对象/ }).selectOption(objects.asset[2].id);
     const relationRefreshed = page.waitForResponse(response => response.url().includes('/graph/nodes') && response.ok());

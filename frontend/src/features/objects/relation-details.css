@@ -1,0 +1,13 @@
+.relation-details { min-width: 0; width: 100%; border-top: 1px solid var(--color-line); margin-top: var(--space-3); padding-top: var(--space-3); }
+.relation-details h3 { font-size: var(--text-base); margin: var(--space-4) 0 var(--space-2); }
+.relation-details .section-heading h3 { margin: 0; }
+.relation-details .graph-properties { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin: var(--space-3) 0; }
+.relation-details .graph-properties > div { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(0, 1.5fr); gap: var(--space-2); }
+.relation-details dt { color: var(--color-muted); }
+.relation-details dd { margin: 0; overflow-wrap: anywhere; }
+.relation-evidence { margin: var(--space-3) 0; padding: var(--space-3); background: var(--color-soft); border: 1px solid var(--color-line); border-radius: var(--radius-control); }
+.relation-evidence p { margin: 0 0 var(--space-2); line-height: 1.7; overflow-wrap: anywhere; }
+.relation-revision { padding: var(--space-3) 0; border-bottom: 1px solid var(--color-line); }
+.evidence-option { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) 0; overflow-wrap: anywhere; }
+.evidence-option input { flex: 0 0 auto; width: auto; }
+.relationship-list > li:has(.relation-details) { flex-wrap: wrap; }

@@ -60,7 +60,14 @@ async function main() {
         const contents = JSON.stringify(input.messages);
         data = { token: contents.match(/Token: ([0-9a-f]+)/)[1], colour: probeColour(input.messages) };
       } else if (schema.text) data = { title: '合成产品规格', text: factText, issues: [], needs_review: false, continued_table: false };
-      else if (schema.types) data = modelDefinition;
+      else if (schema.types) {
+        const contents = input.messages.findLast(message => message.role === 'user').content;
+        const payload = JSON.parse(Array.isArray(contents) ? contents.find(part => part.type === 'text').text : contents);
+        const material = payload.materials[0];
+        data = { ...modelDefinition, model_notes: [{ target_kind: 'type', type_key: 'SyntheticProduct', key: '',
+          question: payload.goal, reason: '围绕型号与额定电压筛选产品；复用产品概念，不为每份资料增加独立类型。',
+          references: [{ material_id: material.material_id, quote: factText, fields: [] }] }] };
+      }
       else if (schema.candidates) data = { candidates: [{ id: 'product-1', type_key: 'SyntheticProduct', values: [{ key: 'code', value_json: '"SYN-001"' }, { key: 'name', value_json: '"合成连接器"' }, { key: 'voltage', value_json: '12' }], business_key_fields: ['code'], quotes: [factText] }], relations: [], gaps: [] };
       else throw new Error('Unexpected synthetic-model schema');
       modelCalls++;
@@ -134,10 +141,26 @@ async function main() {
     let proposal;
     for (let i = 0; i < 120; i++) { proposal = await (await context.request.get(`${base}/api/ai/proposals/${proposalId}`)).json(); if (['ready', 'failed', 'partial'].includes(proposal.status)) break; await pause(500); }
     assert.equal(proposal.status, 'ready', JSON.stringify(proposal.job));
+    assert.equal(proposal.model_notes.length, 1);
+    assert.equal(proposal.model_notes[0].evidence[0].document_id, document.id);
+    assert.equal(proposal.model_notes[0].evidence[0].page, 2);
+    assert.equal(proposal.model_notes[0].stale, false);
     await page.getByRole('button', { name: '刷新', exact: true }).click();
+    await page.getByText('为什么这样建模 · 1 条说明', { exact: true }).click();
+    await page.locator('.ai-model-notes p').filter({ hasText: '围绕型号与额定电压筛选产品；复用产品概念，不为每份资料增加独立类型。' }).waitFor();
+    await page.locator('.ai-model-notes').getByRole('button', { name: /^来源 · 第 2 页/ }).click();
+    assert.equal(await page.locator('.document-evidence').textContent(), factText);
+    await page.setViewportSize({ width: 1536, height: 1100 });
+    await page.locator('.ai-model-notes').evaluate(element => window.scrollTo(0, Math.max(0, window.scrollY + element.getBoundingClientRect().top - 580)));
+    await pause(200);
+    const reasonsShot = 'synthetic-model-reasons.png';
+    await page.screenshot({ path: path.join(output, reasonsShot) });
+    result.screenshots.push(reasonsShot);
+    await page.setViewportSize({ width: 1536, height: 1000 });
     await page.getByRole('button', { name: '实例 1', exact: true }).click();
     await page.getByRole('button', { name: '编辑此候选', exact: true }).click();
-    await page.getByLabel('属性值（JSON）', { exact: true }).fill(JSON.stringify({ code: 'SYN-001', name: '审阅后的合成连接器', voltage: 12 }));
+    await page.getByRole('textbox', { name: '名称', exact: true }).fill('审阅后的合成连接器');
+    assert.equal(await page.getByRole('checkbox', { name: '业务键 型号', exact: true }).isChecked(), true);
     await page.getByRole('button', { name: '保存候选', exact: true }).click();
     await page.getByText('审阅后的合成连接器', { exact: true }).first().waitFor();
     await page.getByRole('button', { name: /^来源 · 第 2 页/ }).click();
@@ -209,7 +232,7 @@ async function main() {
     result.ontologyCandidateDocumentPage = 2;
     assert.deepEqual(result.pageErrors, []);
     result.passed = true; result.modelCalls = modelCalls; result.imported = importResult.imported;
-    result.steps = ['settings-save', 'model-probe', 'upload', 'page-selection', 'custom-goal', 'real-worker', 'candidate-edit', 'source-jump', 'model-edit', 'adopt', 'validate', 'approve', 'publish', 'import', 'desktop-mobile-layout', 'imported-graph-document-evidence', 'ontology-candidate-document-evidence'];
+    result.steps = ['settings-save', 'model-probe', 'upload', 'page-selection', 'custom-goal', 'real-worker', 'grounded-model-reasons', 'typed-candidate-edit', 'business-key-selection', 'source-jump', 'model-edit', 'adopt', 'validate', 'approve', 'publish', 'import', 'desktop-mobile-layout', 'imported-graph-document-evidence', 'ontology-candidate-document-evidence'];
   } catch (error) {
     result.failedPhase = phase; result.error = error.stack;
     if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); result.visibleText = await page.locator('body').innerText().catch(() => ''); }

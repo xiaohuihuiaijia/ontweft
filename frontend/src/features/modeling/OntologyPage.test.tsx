@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { OntologyEditor, OntologyPage } from './OntologyPage';
-import type { ChangeSet } from '../../shared/model/types';
+import type { ChangeSet, Definition } from '../../shared/model/types';
 
 it('lets an editor amend an approved unpublished revision and requires approval again after saving', async () => {
   const definition = { types: [], mappings: [] };
@@ -172,4 +172,25 @@ it('explains separate approval for the current revision author while preserving 
   expect(button.disabled).toBe(false);
   view.rerender(<OntologyEditor {...props} {...{ modelApproval: { userId: 'reviewer', mode: 'separate' as const } }} />);
   expect(button.disabled).toBe(false);
+});
+
+it('saves type aliases and optional relationship fields without changing existing object fields', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ items: [], total: 0 })));
+  const existingProperty = { key: 'code', label: '产品编号', data_type: 'string' as const, required: true, source_owned: true, read_roles: ['owner'] };
+  const definition: Definition = { types: [{ key: 'product', label: '连接器', properties: [existingProperty], relations: [{ key: 'fits', label: '适用于', target_type: 'product', cardinality: 'many' }] }], mappings: [] };
+  const save = vi.fn().mockResolvedValue(undefined);
+  render(<OntologyEditor projectId="p" can={() => true} onDirty={() => {}} onClose={() => {}} onUpdated={() => {}} initialDefinition={definition} initialBaselineReleaseId={null} initialTitle="补充适用条件" onSaveDefinition={save} />);
+  fireEvent.change(screen.getByLabelText(/类型别名（每行一个）/), { target: { value: '插接件\nConnector' } });
+  fireEvent.click(screen.getByRole('button', { name: '添加关系属性' }));
+  fireEvent.change(screen.getByLabelText('关系字段标识'), { target: { value: 'condition' } });
+  fireEvent.change(screen.getByLabelText('关系字段名称'), { target: { value: '适用条件' } });
+  // Only the original object field offers required/source-owned controls.
+  expect(screen.getAllByLabelText('必填')).toHaveLength(1);
+  expect(screen.getAllByLabelText('字段由来源系统管理（平台对象表单只读）')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+  await waitFor(() => expect(save).toHaveBeenCalledOnce());
+  const saved = save.mock.calls[0][0] as Definition;
+  expect(saved.types[0].aliases).toEqual(['插接件', 'Connector']);
+  expect(saved.types[0].properties).toEqual([existingProperty]);
+  expect(saved.types[0].relations[0].properties).toEqual([{ key: 'condition', label: '适用条件', data_type: 'string' }]);
 });
