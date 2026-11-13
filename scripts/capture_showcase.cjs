@@ -29,7 +29,7 @@ async function main() {
   const log = fs.createWriteStream(path.join(output, 'server.log'));
   server.stdout.pipe(log, { end: false }); server.stderr.pipe(log, { end: false });
   let spawnError; server.on('error', error => { spawnError = error; });
-  let browser;
+  let browser, worker;
   const errors = [];
   try {
     let ready = false;
@@ -41,6 +41,8 @@ async function main() {
       await pause(250);
     }
     assert.ok(ready, 'Isolated preview did not start');
+    worker = spawn(python, ['scripts/start_local_demo.py', 'worker', '--data-dir', data, '--port', String(port)], { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...env, PYTHONUTF8: '1' } });
+    worker.stdout.pipe(log, { end: false }); worker.stderr.pipe(log, { end: false });
     browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
     const context = await browser.newContext({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
     const page = await context.newPage();
@@ -68,51 +70,55 @@ async function main() {
     };
     const session = await request('get', '/auth/me');
     const project = session.projects[0].id;
-    const property = (key, label) => ({ key, label, data_type: 'string' });
-    const relation = (key, label, target_type) => ({ key, label, target_type, cardinality: 'many' });
+    const property = (key, label, data_type = 'string', unit) => ({ key, label, data_type, ...(unit ? { unit } : {}) });
+    const relation = (key, label, target_type, properties = []) => ({ key, label, target_type, cardinality: 'many', properties });
     const type = (key, label, properties, relations) => ({ key, label, properties: [property('name', '名称'), ...properties], relations });
     let draft = await request('post', '/changesets', {
-      project_id: project, title: '演示模型 · 客户与业务数据', expected_baseline_release_id: null,
+      project_id: project, title: '合成产品 · 库存与选型场景', expected_baseline_release_id: null,
       definition: { types: [
-        type('department', '业务团队', [], [relation('members', '团队成员', 'person')]),
-        type('person', '负责人', [], [relation('maintains', '负责系统', 'system'), relation('owns', '数据负责人', 'asset')]),
-        type('system', '业务系统', [], [relation('datasets', '提供数据', 'asset')]),
-        type('asset', '数据资产', [property('description', '业务定义'), property('status', '治理状态'), property('business_key', '业务键'), property('source', '来源')], [relation('depends', '依赖资产', 'asset')]),
+        type('series', '产品系列', [], [relation('contains', '包含型号', 'product')]),
+        type('product', '产品型号', [property('code', '型号'), property('pins', '芯数', 'integer')], [relation('suits', '适用场景', 'scenario', [property('condition', '适用条件'), property('voltage', '电压上限', 'number', 'V'), property('verification', '确认方式')])]),
+        type('stock', '库存批次', [property('quantity', '可用库存', 'integer', '件')], [relation('holds', '库存产品', 'product')]),
+        type('scenario', '业务场景', [property('description', '业务要求')], []),
       ], mappings: [] },
     });
     for (const action of ['validate', 'approve', 'publish']) draft = await request('post', `/changesets/${draft.id}/${action}`, { expected_revision: draft.revision });
     const model = await request('get', `/ontology/definition?project_id=${project}`);
+    const documentResponse = await context.request.post(base + '/api/documents/upload', { multipart: { project_id: project, file: { name: 'synthetic-selection.md', mimeType: 'text/markdown', buffer: Buffer.from('# 合成选型资料\n\nSYN-04 用于室内传感采集，电压不超过 24 V。此处全部为功能演示数据，不构成真实产品建议。\n') } } });
+    assert.equal(documentResponse.status(), 201, await documentResponse.text());
+    let document = (await documentResponse.json()).document;
+    for (let i = 0; i < 120; i++) { document = await request('get', `/documents/${document.id}`); if (document.state === 'ready' || document.state === 'failed') break; await pause(250); }
+    assert.equal(document.state, 'ready', JSON.stringify(document.error));
+    const evidence = [{ document_id: document.id, revision: document.revision, parse_id: document.current_parse_id, parse_revision: document.parse_revision, ir_fingerprint: document.ir_fingerprint, content_hash: document.content_hash }];
     const labels = {
-      department: ['客户运营', '数据治理', '供应链团队'],
-      person: ['客户负责人', '订单负责人', '数据管理员', '供应链负责人'],
-      system: ['客户管理系统', '订单管理系统', '主数据平台', '仓储管理系统'],
-      asset: ['客户全景', '客户档案', '订单明细', '合同台账', '产品目录', '服务记录', '地区维表', '交付记录', '库存台账', '业务指标', '供应商档案'],
+      series: ['传感连接系列', '控制连接系列', '电源连接系列'],
+      product: ['SYN-04 · 4 芯', 'SYN-05 · 5 芯', 'SYN-08 · 8 芯', 'SYN-C4 · 控制', 'SYN-C8 · 控制', 'SYN-P3 · 电源'],
+      stock: ['华东仓 · A01', '华南仓 · B02', '华北仓 · C03', '控制库存 · D04', '备件库存 · E05', '电源库存 · F06'],
+      scenario: ['室内传感采集', '设备状态监测', '控制柜布线', '现场信号传输', '低压电源接入'],
     };
     const records = {};
     for (const [type_key, names] of Object.entries(labels)) {
       records[type_key] = [];
-      for (const name of names) records[type_key].push(await request('post', '/objects', {
+      for (let i = 0; i < names.length; i++) records[type_key].push(await request('post', '/objects', {
         project_id: project, expected_model_release_id: model.release_id, type_key,
-        properties: name === '客户全景' ? { name, description: '连接客户、订单与服务记录，建立统一业务视图', status: '已核对 · 演示数据', business_key: 'customer_id', source: '客户主数据 / 订单明细' } : { name },
-        evidence: [],
+        properties: { name: names[i], ...(type_key === 'product' ? { code: names[i].split(' · ')[0], pins: [4, 5, 8, 4, 8, 3][i] } : type_key === 'stock' ? { quantity: (i + 1) * 40 } : {}) }, evidence: type_key === 'product' && i === 0 ? evidence : [],
       }));
     }
     let edgeCount = 0;
-    const connect = async (kind, source, target) => {
-      await request('post', '/relations', { project_id: project, expected_model_release_id: model.release_id, type_key: kind, source_id: source.id, target_id: target.id, properties: {}, evidence: [] });
-      edgeCount++;
+    const connect = async (kind, source, target, properties = {}, refs = []) => {
+      const edge = await request('post', '/relations', { project_id: project, expected_model_release_id: model.release_id, type_key: kind, source_id: source.id, target_id: target.id, properties, evidence: refs });
+      edgeCount++; return edge;
     };
-    const { department: teams, person: people, system: systems, asset: assets } = records;
-    for (let i = 0; i < people.length; i++) {
-      await connect('members', teams[i % teams.length], people[i]);
-      await connect('maintains', people[i], systems[i]);
+    const { series, product: products, stock, scenario: scenarios } = records;
+    for (let i = 0; i < products.length; i++) {
+      await connect('contains', series[Math.min(2, Math.floor(i / 2))], products[i]);
+      await connect('holds', stock[i], products[i]);
+      await connect('suits', products[i], scenarios[i % scenarios.length]);
+      await connect('suits', products[i], scenarios[(i + 1) % scenarios.length]);
     }
-    for (let i = 0; i < assets.length; i++) await connect('datasets', systems[i % systems.length], assets[i]);
-    for (let i = 1; i <= 7; i++) await connect('depends', assets[0], assets[i]);
-    await connect('owns', people[2], assets[0]);
-    await connect('depends', assets[9], assets[0]);
-    await connect('depends', assets[7], assets[8]);
-    await connect('depends', assets[8], assets[10]);
+    const allRelations = await request('get', `/relations?project_id=${project}&object_id=${products[0].id}`);
+    const featured = allRelations.items.find(edge => edge.type_key === 'suits' && edge.target_id === scenarios[0].id);
+    await request('patch', `/relations/${featured.id}`, { expected_revision: featured.revision, expected_model_release_id: model.release_id, properties: { condition: '室内干燥环境 · 合成演示', voltage: 24, verification: '已核对合成选型资料' }, evidence, reason: '为合成展示确认关系条件' });
     const count = Object.values(records).flat().length;
     await page.reload();
     await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('button', { name: '图谱探索', exact: true }).click();
@@ -122,10 +128,10 @@ async function main() {
     await settle();
     // Arrange this personal view with real drags. Business records/edges remain unchanged.
     const layout = {
-      department: [[.08, .18], [.08, .5], [.08, .82]],
-      person: [[.23, .12], [.23, .36], [.23, .62], [.23, .88]],
-      system: [[.4, .2], [.4, .4], [.4, .65], [.4, .85]],
-      asset: [[.62, .46], [.68, .12], [.84, .24], [.88, .44], [.84, .66], [.7, .79], [.6, .9], [.54, .12], [.9, .88], [.59, .67], [.94, .08]],
+      series: [[.09, .2], [.09, .5], [.09, .8]],
+      product: [[.35, .12], [.35, .27], [.35, .43], [.35, .58], [.35, .74], [.35, .9]],
+      stock: [[.58, .12], [.58, .27], [.58, .43], [.58, .58], [.58, .74], [.58, .9]],
+      scenario: [[.87, .16], [.87, .34], [.87, .51], [.87, .69], [.87, .87]],
     };
     const nodeList = page.locator('details.node-list').first();
     for (const [kind, names] of Object.entries(labels)) for (let i = 0; i < names.length; i++) {
@@ -149,26 +155,41 @@ async function main() {
     await settle();
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: path.join(output, 'graph-overview.png') });
-    await page.locator('details.node-list').first().getByRole('button', { name: '客户全景', exact: true }).click();
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.mouse.move(10, 10);
-    await settle();
+    const relationList = page.locator('details.node-list').last();
+    await relationList.locator('summary').click();
+    await relationList.getByRole('button', { name: 'SYN-04 · 4 芯 — 适用场景 → 室内传感采集', exact: true }).click();
+    await page.getByRole('region', { name: '关系条件与证据' }).getByText('已核对合成选型资料', { exact: true }).waitFor();
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.mouse.move(10, 10); await settle();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-    await page.locator('.graph-inspector').getByRole('heading', { name: '客户全景', exact: true }).waitFor();
     assert.deepEqual(errors, []);
     await page.screenshot({ path: path.join(output, 'graph-workbench.png') });
-    // Check the advertised edit entry opens the real form; do not stage a fake modal.
-    await page.getByRole('button', { name: '打开对象表单', exact: true }).click();
-    await page.getByRole('complementary', { name: '对象详情', exact: true }).getByLabel('名称', { exact: true }).waitFor();
+    const detailShot = await page.locator('.graph-workspace').screenshot();
+    const share = await context.newPage();
+    await share.setViewportSize({ width: 1280, height: 640 });
+    await share.setContent(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><style>
+      *{box-sizing:border-box}body{margin:0;width:1280px;height:640px;background:#18382f;color:#f7f8f4;font-family:"Segoe UI","Microsoft YaHei",sans-serif;display:grid;grid-template-columns:300px 1fr;gap:32px;padding:40px;align-items:center}
+      .brand{font-size:24px;font-weight:600;letter-spacing:.04em;color:#c5e4d3;margin-bottom:44px}h1{font-size:54px;line-height:1.35;font-weight:600;margin:0 0 24px}p{font-size:18px;line-height:1.8;color:#c5e4d3;margin:0}small{display:block;font-size:14px;line-height:1.7;margin-top:40px;color:#c5e4d3}.preview{background:#f2f5f4;border:1px solid #698c7b;border-radius:12px;overflow:hidden;box-shadow:0 20px 70px #051a1470}.preview img{display:block;width:100%;height:auto}.caption{padding:12px 16px;color:#18382f;font-size:14px;line-height:1.5}
+      </style><body><div><div class="brand">序枢 / ONTWEFT</div><h1>让知识<br>连接业务。</h1><p>企业本体 · 知识图谱<br>条件可编辑 · 证据可回查</p><small>Self-hosted · Apache-2.0<br>github.com/xiaohuihuiaijia/ontweft</small></div><div class="preview"><img alt="真实应用中的合成产品图谱" src="data:image/png;base64,${detailShot.toString('base64')}"><div class="caption">真实工作台 · 合成演示数据 · Enterprise Beta</div></div></body></html>`);
+    await share.screenshot({ path: path.join(output, 'social-preview.png') });
+    await share.close();
+    assert.ok(fs.statSync(path.join(output, 'social-preview.png')).size < 1000000, 'Social preview exceeds 1 MB');
+
+    // Exercise the real partial relation PATCH, then reopen its authorized source.
+    await page.getByRole('button', { name: '编辑条件与证据', exact: true }).click();
+    await page.getByLabel('适用条件', { exact: true }).fill('室内干燥环境 · 已人工复核');
+    await page.getByRole('button', { name: '保存关系条件', exact: true }).click();
+    await page.getByText('室内干燥环境 · 已人工复核', { exact: true }).waitFor();
+    await page.getByRole('button', { name: '查看固定来源版本', exact: true }).click();
+    await page.getByRole('complementary', { name: '固定历史解析版本', exact: true }).waitFor();
     assert.deepEqual(errors, []);
-    fs.writeFileSync(path.join(output, 'capture.json'), JSON.stringify({ source: 'Actual built frontend and authenticated local API', synthetic: true, objects: count, relations: edgeCount, viewport: { width: 1600, height: 1200 }, editEntryOpened: true, pageErrors: errors }, null, 2) + '\n');
+    fs.writeFileSync(path.join(output, 'capture.json'), JSON.stringify({ source: 'Actual built frontend and authenticated local API', synthetic: true, objects: count, relations: edgeCount, viewport: { width: 1600, height: 1200 }, relationEditSaved: true, fixedSourceOpened: true, sourceCommit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(), workingTree: 'capture includes current branch changes', pageErrors: errors }, null, 2) + '\n');
     console.log(`Captured ${count} synthetic objects / ${edgeCount} relationships to var/reports/showcase; no UI or response substitution.`);
   } finally {
     if (browser) await browser.close();
-    if (server.exitCode === null && server.pid) {
-      if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(server.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
-      else server.kill();
-      await Promise.race([new Promise(resolve => server.once('exit', resolve)), pause(5000)]);
+    for (const child of [worker, server].filter(Boolean)) if (child.exitCode === null && child.pid) {
+      if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+      else child.kill();
+      await Promise.race([new Promise(resolve => child.once('exit', resolve)), pause(5000)]);
     }
     log.end();
     // Keep this run's isolated synthetic database with its ignored report for reproducibility.

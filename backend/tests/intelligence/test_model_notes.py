@@ -1,5 +1,6 @@
 import copy
 from types import SimpleNamespace
+from typing import ClassVar
 
 import pytest
 from ontology.intelligence.model_notes import normalize_model_notes, notes_view
@@ -108,7 +109,7 @@ def test_worker_persists_grounded_reasons_in_existing_call_and_reuses_page_cache
 @pytest.mark.parametrize(("second_value", "selected"), [("12.500", True), ("24", False)])
 def test_cross_page_relation_conditions_compare_values_and_keep_conflicting_evidence(platform, monkeypatch, second_value, selected):
     class RelationModel(SyntheticModel):
-        texts = {1: "Product B belongs to Product A at 12.50 V.", 2: "Product B belongs to Product A at a stated voltage."}
+        texts: ClassVar = {1: "Product B belongs to Product A at 12.50 V.", 2: "Product B belongs to Product A at a stated voltage."}
 
         def generate(self, role, **kwargs):
             result = super().generate(role, **kwargs)

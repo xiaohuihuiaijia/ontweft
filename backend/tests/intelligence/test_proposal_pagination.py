@@ -46,7 +46,7 @@ def test_proposal_pagination_reaches_all_rows_with_stable_ties_and_scoped_total(
     first = first.json()
     assert (first["total"], first["limit"], first["offset"]) == (109, 100, 0)
     assert [item["id"] for item in first["items"]] == expected[:100]
-    assert all("candidates" not in item and "definition" not in item for item in first["items"])
+    assert all(not {"candidates", "definition", "model_notes"} & item.keys() for item in first["items"])
     last = client.get("/api/ai/proposals", params={**params, "offset": 100}).json()
     assert last["total"] == 109 and [item["id"] for item in last["items"]] == expected[100:]
     collected = []
@@ -86,7 +86,14 @@ def test_proposal_history_batches_progress_without_loading_unpaged_results(paged
             proposal = session.get(AIProposal, identity)
             proposal.candidates = [{"id": f"candidate-{index}", "evidence": "Synthetic evidence " * 2000}]
             proposal.relations = [{"evidence": "Synthetic relation evidence " * 1000}]
-            proposal.definition = {"types": [{"description": "Synthetic model " * 2000}]}
+            proposal.definition = {"types": [{
+                "key": f"Product{number}", "label": f"Synthetic product {number}",
+                "description": "Synthetic model " * 200,
+            } for number in range(10)], "mappings": []}
+            proposal.model_notes = [{
+                "target_kind": "type", "type_key": "Product0", "key": "", "question": "Synthetic business goal",
+                "reason": "Synthetic model rationale " * 2000, "change": "added", "evidence": [], "needs_review": True,
+            }]
             proposal.inputs = {"documents": [], "sources": [], "document_resources": {"private": []}}
             job = Job(
                 tenant_id=owner["tenant_id"], project_id=owner["project_id"], owner_id=owner["user_id"],
@@ -118,7 +125,7 @@ def test_proposal_history_batches_progress_without_loading_unpaged_results(paged
             counts.append(len(queries))
             for sql, columns in queries:
                 if "ai_proposals." in sql:
-                    assert not columns & {"candidates", "relations", "definition"}
+                    assert not columns & {"candidates", "relations", "definition", "model_notes"}
                 if "jobs." in sql:
                     assert not columns & {"checkpoint", "payload", "result"}
         assert counts[1] <= counts[0] + 1, counts
@@ -129,6 +136,7 @@ def test_proposal_history_batches_progress_without_loading_unpaged_results(paged
         assert item["candidate_count"] == 1
         assert item["status"] == ("failed" if status == "failed" else "pending")
         assert item["inputs"] == {"documents": [], "sources": []}
+        assert "model_notes" not in item
         assert item["job"] == {
             "id": job_id, "status": status, "error": error,
             "checkpoint": {"stage": "facts", "current_page": None, "pages_completed": 3,
@@ -137,4 +145,5 @@ def test_proposal_history_batches_progress_without_loading_unpaged_results(paged
     detail = client.get(f"/api/ai/proposals/{identities[0]}")
     assert detail.status_code == 200, detail.text
     assert detail.json()["candidates"][0]["evidence"].startswith("Synthetic evidence")
+    assert detail.json()["model_notes"][0]["reason"].startswith("Synthetic model rationale")
     assert detail.json()["job"]["checkpoint"] == response.json()["items"][0]["job"]["checkpoint"]

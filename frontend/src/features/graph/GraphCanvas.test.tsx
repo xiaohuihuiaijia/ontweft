@@ -43,6 +43,8 @@ it('refreshes selection and visible reducers without restarting layout and respe
   expect(sigma.settings.nodeReducer('a', { x: 7, y: 8 }).highlighted).toBe(true);
   expect(sigma.settings.nodeReducer('a', { x: 7, y: 8 }).x).toBe(7);
   expect(sigma.settings.nodeReducer('c', {}).label).toBe('');
+  view.rerender(<GraphCanvas {...props} selection={{ edge: 'ab' }} />);
+  expect(sigma.settings.nodeReducer('c', {}).label).toBe(data.nodes[2].label);
   expect(sigma.settings.edgeReducer('ab', {}).label).toBe('负责');
   expect(state.workers).toBe(1); expect(sigma.refresh).toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: '定位所选' }));
