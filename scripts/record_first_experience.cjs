@@ -102,10 +102,10 @@ async function recordExperience({ browser, context, base, project, initialized }
   fs.writeFileSync(subtitlePath, srt, 'utf8');
   fs.writeFileSync(path.join(output, 'ontweft-first-experience.zh-CN.vtt'), 'WEBVTT\n\n' + srt.replace(/(\d\d:\d\d:\d\d),/g, '$1.'), 'utf8');
   const target = path.join(output, 'ontweft-first-experience.mp4');
-  const ffmpeg = process.env.FFMPEG_BIN || (process.platform === 'win32' ? 'C:/ffmpeg/bin/ffmpeg.exe' : 'ffmpeg');
+  const ffmpeg = process.env.FFMPEG_BIN || 'ffmpeg';
   const converted = spawnSync(ffmpeg, ['-y', '-i', videoPath, '-i', subtitlePath, '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p', '-c:s', 'mov_text', '-metadata:s:s:0', 'language=zho', '-disposition:s:0', 'default', '-movflags', '+faststart', target], { windowsHide: true, encoding: 'utf8', maxBuffer: 1024 * 1024 });
   assert.equal(converted.status, 0, converted.stderr || String(converted.error));
-  const ffprobe = process.env.FFPROBE_BIN || (process.platform === 'win32' ? 'C:/ffmpeg/bin/ffprobe.exe' : 'ffprobe');
+  const ffprobe = process.env.FFPROBE_BIN || 'ffprobe';
   const probed = spawnSync(ffprobe, ['-v', 'error', '-show_entries', 'format=duration,size:stream=codec_name,width,height', '-of', 'json', target], { windowsHide: true, encoding: 'utf8' });
   assert.equal(probed.status, 0, probed.stderr || String(probed.error));
   const metadata = JSON.parse(probed.stdout);

@@ -23,8 +23,8 @@
     },
     {
       "path": ".github/ISSUE_TEMPLATE/first-experience.yml",
-      "bytes": 2443,
-      "sha256": "7da0ec9b312bbf39ec60f81ed70a19752ba622f333a26bcbd75866c93e06d322",
+      "bytes": 2738,
+      "sha256": "1615e07e27b99efe446bea763965ad077856785a8535814243adf30e288757e9",
       "source": "maintained-in-public-repository"
     },
     {
@@ -53,8 +53,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 8608,
-      "sha256": "00b8c31f0979a850856c316cffff37ae7578fedfcdd5102dc152b6582c91305d",
+      "bytes": 10304,
+      "sha256": "de22d8aa5fd300f14cd1e447aca682460b509fdf86a3363574820a461e4bc1ac",
       "source": "maintained-in-public-repository"
     },
     {
@@ -77,14 +77,14 @@
     },
     {
       "path": "README.en.md",
-      "bytes": 12423,
-      "sha256": "6751ed72f32490806cca9cb517050448d081f70f1283322321af9bfd496becf2",
+      "bytes": 13931,
+      "sha256": "4f1bc0053c0d1b4233d7784be6a67166b2c04089983c6158ea94da8b85e834de",
       "source": "maintained-in-public-repository"
     },
     {
       "path": "README.md",
-      "bytes": 11183,
-      "sha256": "95efe55a7ef9aeff3079520ea69a8f8a2808f4e084ad878b02212b019c08eb83",
+      "bytes": 11259,
+      "sha256": "2a2d7db3ca9a806c096c2f83d4ec2f01b559ddf97e748fa580dd7d15f2b31cda",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2165,8 +2165,8 @@
     },
     {
       "path": "docs/first-users.md",
-      "bytes": 7084,
-      "sha256": "a67f829bfba0b00b3392e8108b94983c4451fb070497fd59c25a750973e8a51e",
+      "bytes": 9409,
+      "sha256": "1e3faade899ff6e7ffeb91736ca399be659805cd2bd4b7a56e1780a54daf3722",
       "source": "maintained-in-public-repository"
     },
     {
@@ -2231,8 +2231,8 @@
     },
     {
       "path": "docs/project-audit.md",
-      "bytes": 17690,
-      "sha256": "0a248ddbea9859602b6dbfaadf1b55f4605c6325f06470483755ad917853baec",
+      "bytes": 19655,
+      "sha256": "12ec6b16811a8b600f3ade3f427bfea79de2fefd8d8dd47b166c64d7f8a2eae7",
       "source": "maintained-in-public-repository"
     },
     {
@@ -3239,8 +3239,8 @@
     },
     {
       "path": "scripts/record_first_experience.cjs",
-      "bytes": 9496,
-      "sha256": "4edad6955ca1c4b5860f272bb2f5eb500e18f9eabc888873cccc02273dc96d18",
+      "bytes": 9371,
+      "sha256": "a132c617904a9737e75b0448d48244d4553bf8a5dd4986cf46d434b5b231f94f",
       "source": "maintained-in-public-repository"
     },
     {
