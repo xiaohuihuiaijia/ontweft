@@ -2813,8 +2813,8 @@
     },
     {
       "path": "frontend/src/features/objects/contributions/ContributionDecisions.test.tsx",
-      "bytes": 20456,
-      "sha256": "96253ebdbb69eeb6203617ff3a740b22f38435eeee6e0baca3529d00c62e26dc",
+      "bytes": 20471,
+      "sha256": "58189de58686063b1f778e5cea8a4476c9c0271e2d4a8842219c27da1c4e15db",
       "source": "maintained-in-public-repository"
     },
     {
