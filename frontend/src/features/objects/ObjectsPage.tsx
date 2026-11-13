@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, request, scoped, write } from '../../shared/api/api';
 import { Drawer, Empty, ErrorNotice, Field, JsonView, Loading, Pager, PageTitle } from '../../shared/ui/components';
 import { useResource } from '../../shared/hooks/hooks';
+import { PropertyFields } from '../../shared/model/PropertyFields';
 import { parseProperties, propertyInputs, samePropertyValue } from '../../shared/model/model';
 import { ObjectRelations } from './ObjectRelations';
 import { ObjectDocumentEvidence } from './ObjectDocumentEvidence';
@@ -9,11 +10,7 @@ import { ObjectContributions } from './contributions/ObjectContributions';
 import { ObjectFulltext } from './ObjectFulltext';
 import { ObjectTable } from './ObjectTable';
 import { compileObjectQuery, newQueryDraft, ObjectQueryEditor, type ObjectQuery, type QueryDraft } from './ObjectQueryEditor';
-import type { BusinessObject, ListResult, PropertyDef, TypeDef, TypeList } from '../../shared/model/types';
-
-export function PropertyFields({ fields, values, onChange, disabled }: { fields: PropertyDef[]; values: Record<string, string>; onChange: (key: string, value: string) => void; disabled: boolean }) {
-  return <>{fields.map(field => <Field key={field.key} label={`${field.label}${field.required ? ' *' : ''}${field.unit ? `（${field.unit}）` : ''}`} hint={field.source_owned ? '来源系统管理的字段，此处只读；外部修改须通过 Action。' : field.data_type === 'datetime' ? '使用含时区的 ISO 时间，例如 2026-10-28T09:00:00+08:00。' : undefined}>{field.data_type === 'boolean' || field.data_type === 'enum' ? <select disabled={disabled || field.source_owned} required={field.required} value={values[field.key] ?? ''} onChange={e => onChange(field.key, e.target.value)}><option value="">请选择</option>{field.data_type === 'boolean' ? <><option value="true">是</option><option value="false">否</option></> : field.enum?.map(option => <option key={option}>{option}</option>)}</select> : field.data_type === 'json' ? <textarea className="code-input" rows={5} disabled={disabled || field.source_owned} required={field.required} value={values[field.key] ?? ''} onChange={e => onChange(field.key, e.target.value)} /> : <input disabled={disabled || field.source_owned} required={field.required} type={field.data_type === 'date' ? 'date' : field.data_type === 'datetime' ? 'text' : field.data_type === 'number' ? 'number' : 'text'} inputMode={field.data_type === 'integer' ? 'numeric' : undefined} step="any" value={values[field.key] ?? ''} onChange={e => onChange(field.key, e.target.value)} />}</Field>)}</>;
-}
+import type { BusinessObject, ListResult, TypeDef, TypeList } from '../../shared/model/types';
 
 export interface ObjectEditSession { object?: BusinessObject; types: TypeDef[]; modelReleaseId: string | null; modelVersion?: number }
 export async function loadObjectEditSession(projectId: string, id?: string): Promise<ObjectEditSession> {
@@ -33,19 +30,20 @@ export function ObjectEditor({ object, types: initialTypes, modelReleaseId, mode
   const [remote, setRemote] = useState<BusinessObject>();
   const [dirty, setDirty] = useState(false);
   const [decisionDirty, setDecisionDirty] = useState(false);
+  const [relationDirty, setRelationDirty] = useState(false);
   const [decisionSubmitting, setDecisionSubmitting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [saved, setSaved] = useState(false);
   const dataStatus = remote?.data_status ?? current?.data_status ?? 'active';
-  const canEdit = canWrite && dataStatus === 'active' && !decisionDirty;
+  const canEdit = canWrite && dataStatus === 'active' && !decisionDirty && !relationDirty;
   const dataReason = { conflict: '来源贡献存在冲突，可由有权限的人员在来源贡献面板核对并裁决。', incomplete: '必填数据不完整，需修复数据后重新物化。', withdrawn: '全部来源贡献已撤回，当前对象不能作为有效业务输入。' };
   const type = types.find(t => t.key === typeKey);
   // Type definitions are filtered by the server. Field write rules remain enforced there.
   const fields = type?.properties ?? [];
   const writable = fields.filter(f => !f.source_owned && (!f.write_roles?.length || (!!role && f.write_roles.includes(role))));
   const readOnly = fields.filter(f => !writable.includes(f));
-  useEffect(() => { onDirty(dirty || decisionDirty); return () => onDirty(false); }, [dirty, decisionDirty, onDirty]);
+  useEffect(() => { onDirty(dirty || decisionDirty || relationDirty); return () => onDirty(false); }, [dirty, decisionDirty, relationDirty, onDirty]);
   const save = async (event: React.FormEvent) => {
     event.preventDefault(); if (!type || !canEdit) return;
     setBusy(true); setError(undefined); setSaved(false);
@@ -58,20 +56,20 @@ export function ObjectEditor({ object, types: initialTypes, modelReleaseId, mode
       setCurrent(result); setValues(propertyInputs(result.properties)); setDirty(false); setSaved(true); onSaved();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
-  return <Drawer closeDisabled={decisionSubmitting} title={current ? '对象详情' : '新建业务对象'} onClose={() => { if ((!dirty && !decisionDirty) || window.confirm('放弃尚未保存的对象修改或字段裁决草稿？')) onClose(); }}><form onSubmit={save} className="drawer-form"><div className="drawer-body"><ErrorNotice error={error} />{saved && <div className="notice success" role="status">已保存至平台，未向外部系统写回。</div>}{current && <div className="resource-meta"><code>{current.id}</code><span>修订 {current.revision}</span></div>}<Field label="业务类型"><select disabled={!!current || busy || !canWrite} value={typeKey} onChange={e => { setTypeKey(e.target.value); setValues({}); setDirty(true); }}>{types.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}</select></Field>
+  return <Drawer closeDisabled={decisionSubmitting} title={current ? '对象详情' : '新建业务对象'} onClose={() => { if ((!dirty && !decisionDirty && !relationDirty) || window.confirm('放弃尚未保存的对象、关系或字段裁决修改？')) onClose(); }}><form onSubmit={save} className="drawer-form"><div className="drawer-body"><ErrorNotice error={error} />{saved && <div className="notice success" role="status">已保存至平台，未向外部系统写回。</div>}{current && <div className="resource-meta"><code>{current.id}</code><span>修订 {current.revision}</span></div>}<Field label="业务类型"><select disabled={!!current || busy || !canWrite} value={typeKey} onChange={e => { setTypeKey(e.target.value); setValues({}); setDirty(true); }}>{types.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}</select></Field>
       <p className="muted">编辑模型{baseline.version !== undefined ? ` v${baseline.version}` : ''}：<code>{baseline.releaseId ?? '尚未发布'}</code>。保存与关系修改固定使用此基线；模型发布变化后须重新打开并比较。</p>
       {dataStatus !== 'active' && <div className="notice warning" role="status"><strong>数据状态：{{ conflict: '来源冲突', incomplete: '数据不完整', withdrawn: '来源已撤回' }[dataStatus]}</strong><p>{dataReason[dataStatus]}</p><p>普通属性表单当前只读；已保留的人工字段仍可查看。普通对象修改不能恢复数据状态，默认查询、图谱、关系候选、函数与动作不会把该对象作为有效输入。</p></div>}
       {decisionDirty && <p className="notice warning">有尚未提交的字段裁决草稿，普通属性和关系修改暂时禁用，避免互相覆盖。</p>}
       {!type ? <Empty title="没有可用的已发布类型" /> : <><PropertyFields fields={writable} values={values} disabled={busy || !canEdit} onChange={(key, value) => { setValues(v => ({ ...v, [key]: value })); setDirty(true); setSaved(false); }} /><PropertyFields fields={readOnly} values={values} disabled onChange={() => {}} /></>}
       {current?.evidence && <details><summary>来源证据</summary><ObjectDocumentEvidence evidence={current.evidence} visibleFields={fields.map(field => field.key)} canReadContributions={canReadContributions} /><JsonView value={current.evidence} /></details>}
-      {current && <ObjectContributions objectId={current.id} objectRevision={current.revision} modelReleaseId={baseline.releaseId} canRead={canReadContributions} canDecide={canReadContributions && canWrite && !dirty && !busy} onDirty={setDecisionDirty} onSubmitting={setDecisionSubmitting} onDecided={result => {
+      {current && <ObjectContributions objectId={current.id} objectRevision={current.revision} modelReleaseId={baseline.releaseId} canRead={canReadContributions} canDecide={canReadContributions && canWrite && !dirty && !busy && !relationDirty} onDirty={setDecisionDirty} onSubmitting={setDecisionSubmitting} onDecided={result => {
         if (result.model_release_id !== baseline.releaseId) { setError(new ApiError(409, '裁决已提交，但当前编辑器模型与返回对象不同；请关闭并重新打开核对。')); onSaved(); return; }
         setCurrent(result); setValues(propertyInputs(result.properties)); setRemote(undefined); setError(undefined); setSaved(false); onSaved();
       }} />}
-      {current && type && <ObjectRelations initialRelationKey={initialRelationKey} key={`${current.id}:${current.revision}`} object={current} type={type} modelReleaseId={baseline.releaseId} canWrite={canEdit && !dirty} onChanged={onSaved} />}
+      {current && type && <ObjectRelations initialRelationKey={initialRelationKey} key={`${current.id}:${current.revision}`} object={current} type={type} modelReleaseId={baseline.releaseId} role={role} onDirty={setRelationDirty} canWrite={canWrite && dataStatus === 'active' && !decisionDirty && !dirty && !busy} onChanged={onSaved} />}
       {error && current ? <button type="button" className="secondary" onClick={async () => { try { setRemote(await request<BusinessObject>(scoped(`/objects/${encodeURIComponent(current.id)}`, projectId))); } catch (e) { setError(e); } }}>读取最新版本作比较</button> : null}
       {remote && <section><h3>远端修订 {remote.revision}</h3><JsonView value={remote.properties} /><p className="muted">本地输入保持不变。请对比后重新打开最新修订再修改。</p></section>}
-    </div><footer className="drawer-actions"><span className="muted">{dirty || decisionDirty ? '有未保存修改' : '当前版本'}</span>{canEdit && <button disabled={busy || !type || (!!current && !dirty)}>{busy ? '保存中…' : '保存对象'}</button>}</footer></form></Drawer>;
+    </div><footer className="drawer-actions"><span className="muted">{dirty || decisionDirty || relationDirty ? '有未保存修改' : '当前版本'}</span>{canEdit && <button disabled={busy || !type || (!!current && !dirty)}>{busy ? '保存中…' : '保存对象'}</button>}</footer></form></Drawer>;
 }
 
 interface QueryResult extends ListResult<BusinessObject> { release_id: string; version: number }

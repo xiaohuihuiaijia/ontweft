@@ -11,6 +11,7 @@ from ontology.core.errors import DomainError, conflict
 from ontology.core.schemas import RevisionInput
 from ontology.identity.models import Membership, Project, User
 from ontology.identity.security import ROLES, access, allowed_field, audit, authenticated
+from ontology.modeling.diff import definition_diff
 from ontology.modeling.models import ChangeSet, Release
 from ontology.modeling.schemas import ChangeSetInput, ChangeSetUpdate
 from ontology.modeling.templates import starter_templates
@@ -50,6 +51,17 @@ def types(request: Request, project_id: str, user=Depends(authenticated)):
             {
                 **t,
                 "properties": [p for p in t.get("properties", []) if allowed_field(p, ctx.role)],
+                "relations": [
+                    {
+                        **relation,
+                        "properties": [
+                            field
+                            for field in relation.get("properties", [])
+                            if allowed_field(field, ctx.role)
+                        ],
+                    }
+                    for relation in t.get("relations", [])
+                ],
                 "unique_keys": [
                     fields
                     for fields in t.get("unique_keys", [])
@@ -92,6 +104,16 @@ def definition_input(value, previous):
     return result
 
 
+def changeset_view(session, change):
+    baseline = session.get(Release, change.baseline_release_id) if change.baseline_release_id else None
+    return {
+        **row_dict(change),
+        "model_diff": definition_diff(
+            baseline.definition if baseline else {"types": [], "mappings": []}, change.definition
+        ),
+    }
+
+
 @router.post("/changesets", status_code=201)
 def create_changeset(data: ChangeSetInput, request: Request, user=Depends(authenticated)):
     with request.app.state.db.transaction(user.tenant_id) as session:
@@ -109,7 +131,7 @@ def create_changeset(data: ChangeSetInput, request: Request, user=Depends(authen
         session.add(change)
         session.flush()
         audit(session, user, data.project_id, "ontology.drafted", change.id)
-        return row_dict(change)
+        return changeset_view(session, change)
 
 
 @router.get("/changesets/{change_id}")
@@ -119,7 +141,7 @@ def get_changeset(change_id: str, request: Request, user=Depends(authenticated))
         ctx = access(session, user, change.project_id)
         if not ({"ontology:write", "ontology:approve", "ontology:publish"} & ctx.permissions):
             raise DomainError(403, "forbidden", "无权查看本体变更")
-        result = row_dict(change)
+        result = changeset_view(session, change)
         if change.validation.get("job_id"):
             from ontology.jobs.models import Job
 
@@ -150,7 +172,7 @@ def edit_changeset(change_id: str, data: ChangeSetUpdate, request: Request, user
             values["title"] = data.title
         compare_and_swap(session, change, data.expected_revision, values)
         audit(session, user, change.project_id, "ontology.edited", change.id, {"revision": change.revision})
-        return row_dict(change)
+        return changeset_view(session, change)
 
 
 @router.post("/changesets/{change_id}/{operation}")
@@ -284,7 +306,7 @@ def transition(
             change.id,
             {"revision": change.revision},
         )
-        return row_dict(change)
+        return changeset_view(session, change)
 
 
 @router.get("/releases")

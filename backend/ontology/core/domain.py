@@ -138,6 +138,15 @@ def validate_source_properties(type_def, values):
 
 def definition_errors(definition):
     errors = []
+
+    def property_errors(properties, prefix=""):
+        for prop in properties:
+            field = prefix + prop["key"]
+            if prop["data_type"] == "enum" and not prop.get("enum"):
+                errors.append({"field": field, "message": "枚举必须定义选项"})
+            if (set(prop.get("read_roles", [])) | set(prop.get("write_roles", []))) - set(ROLES):
+                errors.append({"field": field, "message": "存在未知角色"})
+
     keys = [item["key"] for item in definition["types"]]
     if len(set(keys)) != len(keys):
         errors.append({"field": "types", "message": "类型标识重复"})
@@ -146,11 +155,7 @@ def definition_errors(definition):
             names = [p["key"] for p in item.get(collection, [])]
             if len(set(names)) != len(names):
                 errors.append({"field": f"{item['key']}.{collection}", "message": "标识重复"})
-        for prop in item.get("properties", []):
-            if prop["data_type"] == "enum" and not prop.get("enum"):
-                errors.append({"field": prop["key"], "message": "枚举必须定义选项"})
-            if (set(prop.get("read_roles", [])) | set(prop.get("write_roles", []))) - set(ROLES):
-                errors.append({"field": prop["key"], "message": "存在未知角色"})
+        property_errors(item.get("properties", []))
         props = {p["key"]: p for p in item.get("properties", [])}
         seen_keys = set()
         for fields in item.get("unique_keys", []):
@@ -169,6 +174,12 @@ def definition_errors(definition):
         for relation in item.get("relations", []):
             if relation["target_type"] not in keys:
                 errors.append({"field": relation["key"], "message": "关系目标类型不存在"})
+            properties = relation.get("properties", [])
+            names = [prop["key"] for prop in properties]
+            path = f"{item['key']}.{relation['key']}"
+            if len(names) != len(set(names)):
+                errors.append({"field": path + ".properties", "message": "标识重复"})
+            property_errors(properties, path + ".")
     return errors
 
 
@@ -227,7 +238,9 @@ def entity_view(session, obj, access, *, definition=None):
     result["model_release_id"] = access.project.active_release_id
     result["model_version"] = access.project.version
     result["properties"] = wire_value({key: value for key, value in obj.properties.items() if key in visible})
-    result["evidence"] = visible_evidence(obj.evidence, visible)
+    from ontology.content_access.evidence import filter_evidence
+
+    result["evidence"] = filter_evidence(session, access, visible_evidence(obj.evidence, visible))
     return result
 
 

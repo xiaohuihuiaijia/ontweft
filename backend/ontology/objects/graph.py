@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
 from sqlalchemy import or_, select
 
-from ontology.core.domain import active_definition, entity_view, scoped_record
+from ontology.core.domain import active_definition, scoped_record, wire_value
 from ontology.core.errors import conflict, missing
 from ontology.core.schemas import StrictModel
-from ontology.identity.security import access, authenticated
+from ontology.identity.security import access, allowed_field, authenticated
 from ontology.objects.models import Entity, Relation
 
 router = APIRouter()
@@ -29,7 +29,10 @@ def graph_slice(session, ctx, rows, rels, *, truncated=False):
         definition = definitions.get(obj.type_key)
         if not definition:
             continue
-        props = entity_view(session, obj, ctx, definition=definition)["properties"]
+        # Canvas nodes do not carry evidence. Project only their visible fields,
+        # avoiding document permission lookups whose result would be discarded.
+        visible = {prop["key"] for prop in definition.get("properties", []) if allowed_field(prop, ctx.role)}
+        props = wire_value({key: value for key, value in obj.properties.items() if key in visible})
         nodes.append(
             {
                 "id": obj.id,
@@ -63,6 +66,8 @@ def graph_slice(session, ctx, rows, rels, *, truncated=False):
                 "type_key": rel.type_key,
                 "kind": "relation",
                 "cardinality": definition.get("cardinality"),
+                "revision": rel.revision,
+                "manual": rel.manual,
             }
         )
     return {

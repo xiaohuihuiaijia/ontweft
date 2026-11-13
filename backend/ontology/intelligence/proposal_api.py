@@ -92,6 +92,12 @@ def view(session, proposal):
 
     change = session.get(ChangeSet, proposal.changeset_id) if proposal.changeset_id else None
     result["review_definition"] = review_definition(session, proposal, change)
+    from ontology.intelligence.model_notes import notes_view
+    from ontology.modeling.diff import definition_diff
+
+    result["model_notes"] = notes_view(proposal.model_notes or [], result["review_definition"])
+    baseline = session.get(Release, proposal.baseline_release_id) if proposal.baseline_release_id else None
+    result["model_diff"] = definition_diff(baseline.definition if baseline else {"types": [], "mappings": []}, result["review_definition"])
     result["review_changeset_revision"] = change.revision if change else None
     try:
         import_preconditions(session, proposal, session.get(Project, proposal.project_id))
@@ -207,7 +213,7 @@ def proposals(
         access(session, user, project_id, "sources:write")
         conditions = (AIProposal.tenant_id == user.tenant_id, AIProposal.project_id == project_id)
         columns = [column for column in AIProposal.__table__.columns
-                   if column.name not in {"candidates", "relations", "definition"}]
+                   if column.name not in {"candidates", "relations", "definition", "model_notes"}]
         items = [dict(row) for row in session.execute(
             select(*columns, func.json_array_length(AIProposal.candidates).label("candidate_count"))
             .where(*conditions)
@@ -362,6 +368,7 @@ def check_candidates(definition, candidates, relations):
                 "invalid_ai_relation",
                 "关系须使用已声明的关系类型及匹配的候选端点，选中关系须同时选中端点",
             )
+        relation["properties"] = wire_value(validate_source_properties(declared, relation.get("properties", {})))
 
 
 @router.patch("/ai/proposals/{proposal_id}")

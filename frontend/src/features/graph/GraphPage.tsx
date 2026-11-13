@@ -1,9 +1,10 @@
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { request, scoped } from '../../shared/api/api';
 import { Empty, ErrorNotice, JsonView, Loading, PageTitle } from '../../shared/ui/components';
 import { useResource } from '../../shared/hooks/hooks';
 import { GraphCanvas } from './GraphCanvas';
 import { GraphIcon } from './GraphIcon';
+import { RelationDetails } from '../objects/RelationDetails';
 import './graph.css';
 import { useGraphExploration } from './useGraphExploration';
 import { boundedGraph, filterGraph, groupColor, groupKey, groupLabel, relationDefinition, type Position } from './graph-model';
@@ -23,6 +24,8 @@ export function GraphPage({ modelApproval, projectId, can, onDirty, role, knowle
   const [selection, setSelection] = useState<{ node?: string; edge?: string }>({});
   const [editor, setEditor] = useState<GraphEditor>();
   const [opening, setOpening] = useState(false);
+  const [relationDirty, setRelationDirty] = useState(false);
+  useEffect(() => { onDirty(relationDirty); return () => onDirty(false); }, [relationDirty, onDirty]);
   const [error, setError] = useState<unknown>();
   const [filter, setFilter] = useState('');
   const [hiddenTypes, setHiddenTypes] = useState<string[]>([]);
@@ -33,7 +36,7 @@ export function GraphPage({ modelApproval, projectId, can, onDirty, role, knowle
   // A later schema release must never silently explain an older graph response.
   const schemaMatches = !!graph.data && graph.data.release_id !== undefined && types.data?.release_id === graph.data.release_id;
   const matchedTypes = useMemo(() => schemaMatches ? types.data?.items ?? [] : [], [schemaMatches, types.data]);
-  const explore = useGraphExploration(projectId, userId, graph.data, kind === 'instances', nodeBudget, setError, opening || !!editor, graph.error);
+  const explore = useGraphExploration(projectId, userId, graph.data, kind === 'instances', nodeBudget, setError, opening || !!editor || relationDirty, graph.error);
   const base = useMemo(() => boundedGraph(explore.data), [explore.data]);
   const visible = useMemo(() => filterGraph(base, kind, matchedTypes, hiddenTypes, filter), [base, kind, matchedTypes, hiddenTypes, filter]);
   const groups = useMemo(() => { const values = new Map<string, { key: string; label: string; count: number }>(); for (const node of base.nodes) { const key = groupKey(node, kind); const existing = values.get(key); if (existing) existing.count++; else values.set(key, { key, label: groupLabel(node, kind, matchedTypes), count: 1 }); } return [...values.values()]; }, [base, kind, matchedTypes]);
@@ -43,7 +46,7 @@ export function GraphPage({ modelApproval, projectId, can, onDirty, role, knowle
   const selectedRelation = selectedEdge && relationDefinition(selectedEdge, base, matchedTypes);
   const cardinality = selectedEdge?.cardinality ?? selectedRelation?.cardinality;
   const samePair = selectedEdge ? visible.edges.filter(e => (e.source === selectedEdge.source && e.target === selectedEdge.target) || (e.source === selectedEdge.target && e.target === selectedEdge.source)) : [];
-  const locked = opening || !!editor || explore.busy;
+  const locked = opening || !!editor || explore.busy || relationDirty;
   const nodeLabels = useMemo(() => new Map(base.nodes.map(node => [node.id, node.label])), [base]);
   const nodeName = (id: string) => nodeLabels.get(id) ?? id;
   const resetFilters = () => { setHiddenTypes([]); setFilter(''); setSelection({}); };
@@ -115,7 +118,7 @@ export function GraphPage({ modelApproval, projectId, can, onDirty, role, knowle
           {samePair.length > 1 && <div className="graph-parallel-note"><p>{selectedEdge.source === selectedEdge.target ? '这个节点上' : '这两个节点间'}有 {samePair.length} 条具名关系。可在画布或此处逐条选择：</p>{samePair.map(edge => <button key={edge.id} disabled={locked} className={edge.id === selectedEdge.id ? 'selected' : 'secondary'} onClick={() => selectEdge(edge)}>{nodeName(edge.source)} — {edge.label} → {nodeName(edge.target)}</button>)}</div>}
           {kind === 'model' && <>{can('ontology:write') && <button disabled={locked} className="secondary" onClick={() => openEdge(selectedEdge)}>编辑关系定义（变更集）</button>}<p className="muted">编辑来源类型中的具名关系，包含业务角色、目标类型与基数。批准并发布后生效。</p></>}
           {kind === 'knowledge' && selectedEdge.kind === 'citation' && <><button disabled={locked} className="secondary" onClick={() => openKnowledge(selectedEdge.source)}>{can('knowledge:write') ? '编辑所属知识页与引用' : '查看所属知识页'}</button><p className="muted">增加或移除引用须保存知识页新修订并发布；不直接修改图中的边。</p></>}
-          {kind === 'instances' && <button disabled={locked} className="secondary" onClick={() => openEdge(selectedEdge)}>管理来源对象的关系</button>}
+          {kind === 'instances' && <><RelationDetails key={selectedEdge.id} relationId={selectedEdge.id} canWrite={can('objects:write')} role={role} onChanged={() => void explore.refresh()} onDirty={setRelationDirty} /><button disabled={locked} className="secondary" onClick={() => openEdge(selectedEdge)}>管理来源对象的关系</button></>}
         </> : <div className="graph-overview">
           <h2>让关系变得清晰</h2><p>选择节点查看属性，选择连线查看关系方向与业务含义。</p>
           <dl className="graph-summary"><div><dt>可见节点</dt><dd>{visible.nodes.length}</dd></div><div><dt>可见关系</dt><dd>{visible.edges.length}</dd></div><div><dt>节点类型</dt><dd>{new Set(visible.nodes.map(node => groupKey(node, kind))).size}</dd></div></dl>

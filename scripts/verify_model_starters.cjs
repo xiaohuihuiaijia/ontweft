@@ -90,6 +90,10 @@ async function main() {
     await addRelation(1, 'validated_for', '验证项目', 'project');
     await addRelation(1, 'self_reference', '自引用测试', 'task');
     await addRelation(1, 'self_review', '自检记录', 'task');
+    const taskEditor = page.locator('.type-editor').nth(1);
+    await taskEditor.getByRole('button', { name: '添加关系属性', exact: true }).last().click();
+    await taskEditor.getByLabel('关系字段标识', { exact: true }).fill('check_condition');
+    await taskEditor.getByLabel('关系字段名称', { exact: true }).fill('检查条件');
     await page.getByRole('button', { name: '保存草稿', exact: true }).click();
     await page.getByRole('button', { name: '验证', exact: true }).click();
     await page.getByRole('button', { name: '批准当前修订', exact: true }).click();
@@ -100,6 +104,10 @@ async function main() {
     const project = session.projects[0].id;
     const definition = await (await context.request.get(`${base}/api/ontology/definition?project_id=${project}`)).json();
     assert.equal(definition.definition.types[0].label, '交付项目');
+    const selfReviewDefinition = definition.definition.types[1].relations.find(relation => relation.key === 'self_review');
+    assert.deepEqual(selfReviewDefinition.properties.map(field => [field.key, field.label, field.data_type]), [['check_condition', '检查条件', 'string']]);
+    assert.equal(selfReviewDefinition.properties[0].required, false);
+    result.relationAttributeDefinitionPublished = true;
     const common = { project_id: project, expected_model_release_id: definition.release_id };
     const post = async (url, data) => {
       const response = await context.request.post(`${base}/api${url}`, { data });
@@ -194,7 +202,15 @@ async function main() {
     log.end();
     // Delete only the unique test directory created above, after the child stops.
     const parent = fs.realpathSync(os.tmpdir());
-    if ((server.exitCode !== null || server.signalCode !== null) && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-starter-')) fs.rmSync(temp, { recursive: true, force: true });
+    result.childrenStopped = server.exitCode !== null || server.signalCode !== null;
+    if (result.childrenStopped && path.dirname(fs.realpathSync(temp)) === parent && path.basename(temp).startsWith('ontweft-starter-')) {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try { fs.rmSync(temp, { recursive: true, force: true }); result.temporaryDataRemoved = true; break; }
+        catch (error) { result.cleanupError = String(error); await pause(250); }
+      }
+      if (result.temporaryDataRemoved) delete result.cleanupError;
+      else { result.passed = false; process.exitCode = 1; }
+    }
     fs.writeFileSync(path.join(output, 'starter-browser-result.json'), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result));
   }

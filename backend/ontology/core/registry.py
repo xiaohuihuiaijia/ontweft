@@ -8,6 +8,7 @@ IMMUTABLE_TABLES = frozenset(
     {
         "releases",
         "entity_revisions",
+        "relation_revisions",
         "knowledge_revisions",
         "document_sources",
         "knowledge_source_dependencies",

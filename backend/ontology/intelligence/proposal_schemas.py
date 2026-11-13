@@ -44,6 +44,7 @@ class CandidateRelation(StrictModel):
     source_candidate_id: str
     target_candidate_id: str
     key: str
+    properties: dict[str, Any] = Field(default_factory=dict)
     selected: bool = True
     evidence: list[Evidence] = Field(min_length=1)
 

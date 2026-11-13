@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from ontology.core.schemas import RevisionInput, StrictModel
 
@@ -22,16 +22,33 @@ class RelationDefinition(StrictModel):
     label: str = Field(min_length=1, max_length=120)
     target_type: str
     cardinality: Literal["one", "many"] = "many"
+    properties: list[PropertyDefinition] = Field(default_factory=list, max_length=200)
+
+    @field_validator("properties")
+    @classmethod
+    def optional_properties(cls, values):
+        if any(value.required or value.source_owned for value in values):
+            raise ValueError("关系属性目前仅支持可选字段，不支持必填或来源独占")
+        return values
 
 
 class TypeDefinition(StrictModel):
     key: str = Field(pattern=r"^[a-zA-Z][a-zA-Z0-9_.]{0,119}$")
     label: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=4000)
+    aliases: list[str] = Field(default_factory=list, max_length=32)
     properties: list[PropertyDefinition] = Field(default_factory=list, max_length=200)
     unique_keys: list[list[str]] = Field(default_factory=list, max_length=16)
     key_semantics: Literal["legacy", "canonical"] = "canonical"
     relations: list[RelationDefinition] = Field(default_factory=list, max_length=100)
+
+    @field_validator("aliases")
+    @classmethod
+    def clean_aliases(cls, values):
+        result = list(dict.fromkeys(value.strip() for value in values if value.strip()))
+        if any(len(value) > 120 for value in result):
+            raise ValueError("类型别名不得超过 120 个字符")
+        return result
 
 
 class FieldMapping(StrictModel):

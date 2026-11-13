@@ -326,9 +326,11 @@ def import_proposal(session, proposal, ctx):
             entity = session.get(Entity, identity.entity_id) if identity and identity.last_record_id == records[candidate["id"]].id else None
             if entity and entity.data_status == "active" and not entity.deleted:
                 candidates_to_entities[candidate["id"]] = entity
-    relation_count = _import_relations(session, proposal, ctx, definition, candidates_to_entities)
+    relation_count, relation_issues = _import_relations(session, proposal, ctx, definition, candidates_to_entities)
+    issues.extend(relation_issues[:max(0, 100 - len(issues))])
     result = {"imported": sum(counts[key] for key in ("created", "updated", "unchanged")),
-              "snapshots": snapshots, "counts": counts, "relations": relation_count, "issues": issues}
+              "snapshots": snapshots, "counts": counts, "relations": relation_count,
+              "relations_blocked": len(relation_issues), "issues": issues}
     proposal.imported = result
     proposal.status = "imported"
     proposal.revision += 1
@@ -336,47 +338,96 @@ def import_proposal(session, proposal, ctx):
 
 
 def _import_relations(session, proposal, ctx, definition, candidates):
+    from ontology.objects.relation_history import (
+        prepare_relation_properties,
+        record_relation_revision,
+        relation_values_equal,
+    )
+
     types = {item["key"]: item for item in definition["types"]}
-    count = 0
+    count, issues = 0, []
+
+    def blocked(candidate, code, message, relation_id=None):
+        issues.append({"candidate_id": candidate["id"], "kind": "relation", "code": code, "message": message,
+                       **({"relation_id": relation_id} if relation_id else {})})
+
     for candidate in proposal.relations:
         if not candidate.get("selected", True):
             continue
         source = candidates.get(candidate["source_candidate_id"])
         target = candidates.get(candidate["target_candidate_id"])
         if source is None or target is None:
-            continue  # An excluded or blocked object cannot introduce an active relation.
+            blocked(candidate, "relation_endpoint_unavailable", "关系端点未成功导入为有效对象，本次未导入此关系")
+            continue
         relation_def = next((item for item in types[source.type_key].get("relations", []) if item["key"] == candidate["key"]), None)
         if not relation_def or relation_def["target_type"] != target.type_key:
-            raise DomainError(422, "invalid_candidate_relation", "候选关系与已发布类型不匹配")
+            blocked(candidate, "invalid_candidate_relation", "候选关系与已发布类型不匹配")
+            continue
         fact_key = fingerprint([source.id, candidate["key"], target.id])
         contribution = session.scalar(select(DocumentRelationContribution).where(
             DocumentRelationContribution.source_id == proposal.source_id,
             DocumentRelationContribution.fact_key == fact_key,
         ))
-        if contribution:
-            count += 1
-            continue
-        if relation_def.get("cardinality") == "one" and session.scalar(select(Relation.id).where(
-            Relation.project_id == ctx.project.id, Relation.source_id == source.id,
-            Relation.type_key == candidate["key"], Relation.target_id != target.id,
-        ).limit(1)):
-            conflict("候选关系与现有唯一目标冲突，请先审阅关系")
+        if relation_def.get("cardinality") == "one":
+            other = session.scalar(select(Relation.id).where(
+                Relation.project_id == ctx.project.id, Relation.source_id == source.id,
+                Relation.type_key == candidate["key"], Relation.target_id != target.id,
+            ).limit(1))
+            if other:
+                blocked(candidate, "relation_cardinality_conflict", "候选关系与现有唯一目标冲突；已有关系保留，请在关系详情核对", other)
+                continue
         row = session.scalar(select(Relation).where(
             Relation.project_id == ctx.project.id, Relation.source_id == source.id,
             Relation.target_id == target.id, Relation.type_key == candidate["key"],
         ))
+        try:
+            properties = prepare_relation_properties(
+                relation_def, candidate.get("properties", {}), ctx, existing=row.properties if row else None,
+            )
+        except DomainError as exc:
+            blocked(candidate, exc.code, exc.message, row.id if row else None)
+            continue
+        fields = {field["key"]: field for field in relation_def.get("properties", [])}
+        if row and any(row.properties.get(key) is not None
+                       and not relation_values_equal(fields[key], row.properties[key], properties.get(key))
+                       for key in candidate.get("properties", {})):
+            blocked(candidate, "relation_property_conflict", "候选条件与已有关系属性不同；原值和候选证据均保留，请在关系详情核对", row.id)
+            continue
+        if row:
+            # Equivalent numbers preserve their existing representation and do not create a revision.
+            for key, value in row.properties.items():
+                if key in fields and relation_values_equal(fields[key], value, properties.get(key)):
+                    properties[key] = value
+        evidence = list(row.evidence) if row else []
+        evidence.extend(ref for ref in candidate["evidence"] if ref not in evidence)
         if row is None:
             row = Relation(
                 tenant_id=proposal.tenant_id, project_id=proposal.project_id,
                 source_id=source.id, target_id=target.id, type_key=candidate["key"],
-                properties={}, evidence=candidate["evidence"], manual=False,
+                properties=properties, evidence=evidence, manual=False,
             )
             session.add(row)
             touch_entity(session, source)
             session.flush()
-        session.add(DocumentRelationContribution(
-            tenant_id=proposal.tenant_id, project_id=proposal.project_id, source_id=proposal.source_id,
-            fact_key=fact_key, proposal_id=proposal.id, relation_id=row.id, evidence=candidate["evidence"],
-        ))
+            record_relation_revision(session, row, actor_id=ctx.user.id, model_release_id=ctx.project.active_release_id,
+                                     reason="确认文档关系候选", operation="created")
+        elif properties != row.properties or evidence != row.evidence:
+            record_relation_revision(session, row, actor_id=ctx.user.id, model_release_id=ctx.project.active_release_id,
+                                     reason="补充条件或证据前的关系")
+            row.properties = properties
+            row.evidence = evidence
+            row.revision += 1
+            record_relation_revision(session, row, actor_id=ctx.user.id, model_release_id=ctx.project.active_release_id,
+                                     reason="确认文档关系候选并补充条件或证据")
+            touch_entity(session, source)
+        if not contribution:
+            session.add(DocumentRelationContribution(
+                tenant_id=proposal.tenant_id, project_id=proposal.project_id, source_id=proposal.source_id,
+                fact_key=fact_key, proposal_id=proposal.id, relation_id=row.id, evidence=candidate["evidence"],
+            ))
+        else:
+            contribution.evidence = list(contribution.evidence) + [
+                ref for ref in candidate["evidence"] if ref not in contribution.evidence
+            ]
         count += 1
-    return count
+    return count, issues

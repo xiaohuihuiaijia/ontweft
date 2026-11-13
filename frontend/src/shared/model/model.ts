@@ -31,13 +31,13 @@ export function samePropertyValue(field: PropertyDef | undefined, left: unknown,
 }
 
 /** Parse only declared fields. Empty optional inputs are omitted; JSON is data, never code. */
-export function parseProperties(fields: PropertyDef[], values: Record<string, string>, base: RecordData = {}): RecordData {
+export function parseProperties(fields: PropertyDef[], values: Record<string, string>, base: RecordData = {}, mode: 'object' | 'candidate' = 'object'): RecordData {
   const result: RecordData = { ...base };
   for (const field of fields) {
-    if (field.source_owned) continue;
+    if (field.source_owned && mode === 'object') continue;
     const raw = values[field.key] ?? '';
     if (!raw.trim()) {
-      if (field.required) throw new Error(`请填写${field.label}`);
+      if (field.required && mode === 'object') throw new Error(`请填写${field.label}`);
       if (field.key in base) result[field.key] = null;
       continue;
     }

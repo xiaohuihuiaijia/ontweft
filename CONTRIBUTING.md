@@ -35,11 +35,11 @@ node var/browser-tools/node_modules/playwright/cli.js install chromium
 
 | 改动范围 | 选择脚本 | 独有覆盖 |
 | --- | --- | --- |
-| 模型编辑、关系定义与图谱命中 | `verify_model_starters.cjs` | 建模起步、自环关系、缩放及模型/实例切换 |
+| 模型编辑、关系定义与图谱命中 | `verify_model_starters.cjs` | 建模起步、关系属性定义发布、自环关系、缩放及模型/实例切换 |
 | 文件接入和持续更新 | `verify_table_intake.cjs` | 真实上传、业务键、映射发布、worker导入、未匹配分页、文件版本与持续规则 |
-| 图谱交互 | `verify_graph_workbench.cjs` | 拖动、固定/恢复、键盘/触摸、对象及人工关系管理 |
+| 图谱交互 | `verify_graph_workbench.cjs` | 拖动、固定/恢复、键盘/触摸、对象及人工关系管理、关系条件/修订历史与手机编辑 |
 | 图谱预算或渲染性能 | `verify_graph_scale.cjs` | 200/500节点预算、查询计数、布局与交互时延；不作为普通文案修改的必跑项 |
-| 文档与AI审阅 | `verify_ai_workbench.cjs` | 合成模型起草、候选编辑、发布导入和版本化证据回跳 |
+| 文档与AI审阅 | `verify_ai_workbench.cjs` | 合成模型建模依据、类型化候选编辑、发布导入和版本化证据回跳 |
 
 一次性设置环境后，只执行与本次改动相关的命令。测试失败先定位实际行为，不通过重复点击、延长等待或放松断言掩盖产品问题。
 
@@ -68,7 +68,7 @@ PLAYWRIGHT_MODULE="$PWD/var/browser-tools/node_modules/playwright" node scripts/
 
 AI 浏览器回归使用本机合成兼容服务，不发送外部请求或使用真实凭据。`scripts/probe_model_connection.py` 与 `scripts/evaluate_private_document.py` 是需明确授权的真实模型测试，使用不回显的密钥输入与本地忽略目录；不在 CI 自动运行。评估续跑只复用同一文档、相同页范围、相同目标与质量档的提案；换页范围建立新提案，并继续计入同一测试总账，不能重置历史花费或未知预留。私有材料不得加入截图、测试夹具或源码清单；模型一致性也不能替代独立原文标注。
 
-更新 GitHub 展示截图时，复用上面的 Playwright 环境运行 `node scripts/capture_showcase.cjs`。它通过真实 API 创建独立合成图，使用实际拖动和编辑入口，结果写入忽略目录 `var/reports/showcase/`。确认画面后只复制所选 PNG 到 `docs/images/graph-workbench.png`，并更新 [截图来源](docs/images/README.md)；不提交临时数据库或日志。中英文 README 共用这一张图。
+更新 GitHub 展示截图时，复用上面的 Playwright 环境运行 `node scripts/capture_showcase.cjs`。它通过真实 API 创建独立合成图，使用实际拖动和编辑入口，结果写入忽略目录 `var/reports/showcase/`。确认画面后将主图与分享图分别复制到 `docs/images/graph-workbench.png`、`docs/images/social-preview.png`，将 AI 脚本中的依据审阅截图复制到 `docs/images/ai-model-review.png`，并更新 [截图来源](docs/images/README.md)；不提交临时数据库或日志。中英文 README 共用这一张图。
 
 - 保留 `ontology.api:create_app`、CLI、worker 和 parse_task 入口。
 - 新 ORM 类加入 `core/registry.py`；历史 Alembic revision 不重写。

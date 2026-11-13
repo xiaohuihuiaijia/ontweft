@@ -440,7 +440,12 @@ async def prepare_content_access(request: Request, user=Depends(authenticated)):
             return  # The route's normal body validation reports malformed JSON.
         project_id = body.get("project_id") if isinstance(body, dict) else None
     if not project_id:
-        mapping = (("document_id", Document), ("page_id", KnowledgePage), ("job_id", Job))
+        from ontology.objects.models import Entity, Relation
+
+        mapping = (
+            ("document_id", Document), ("page_id", KnowledgePage), ("job_id", Job),
+            ("object_id", Entity), ("relation_id", Relation),
+        )
         with request.app.state.db.transaction(user.tenant_id) as session:
             for key, model in mapping:
                 if key in request.path_params:

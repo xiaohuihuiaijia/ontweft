@@ -11,6 +11,7 @@ from alembic import command
 from alembic.config import Config
 from ontology.core.config import Settings
 from ontology.core.db import Database
+from ontology.core.models import now
 from ontology.intelligence.models import ModelConnection
 from ontology.intelligence.proposal_models import AIPage, AIProposal, DocumentRelationContribution
 from ontology.objects.models import Entity, Relation
@@ -23,7 +24,7 @@ from tests.support.content_search_migration import seed_legacy_content
 
 MODELS = (ModelConnection, AIProposal, AIPage, DocumentRelationContribution)
 OLD = "ef311029a700"
-NEW = "ef311111a100"
+NEW = "ef311113a200"
 
 
 @contextmanager
@@ -194,3 +195,28 @@ def test_ai_upgrade_preserves_history_and_enforces_cache_identity_and_rls(tmp_pa
                 assert denied.value.orig.args[0]["C"] == "42501"
             finally:
                 runtime.engine.dispose()
+
+
+@pytest.mark.parametrize("dialect", ["sqlite", "postgresql"])
+def test_existing_proposal_gets_empty_notes_without_changing_checkpoint_or_output(tmp_path, dialect):
+    with migration_database(tmp_path, dialect) as (db, migrate, _runtime_url):
+        legacy = seed_old(db)
+        migrate("ef311113a100")
+        owner = legacy["owner"]
+        with db.transaction(owner["tenant_id"]) as session:
+            connection = ModelConnection(tenant_id=owner["tenant_id"], name="Synthetic", base_url="https://example.test/v1",
+                                         secret="", models=[], roles={})
+            session.add(connection)
+            session.flush()
+            table = Table("ai_proposals", MetaData(), autoload_with=session.connection())
+            old = {**legacy["scope"], "id": str(uuid4()), "created_at": now(), "revision": 7, "status": "ready",
+                   "owner_id": owner["user_id"], "connection_id": connection.id, "connection_revision": 1,
+                   "inputs": {"instructions": "Synthetic historical goal"}, "definition": {"types": [], "mappings": []},
+                   "candidates": [{"id": "retained-candidate"}], "relations": [], "gaps": [], "imported": {}}
+            session.execute(table.insert().values(**old))
+        migrate(NEW)
+        with db.transaction(owner["tenant_id"]) as session:
+            proposal = session.get(AIProposal, old["id"])
+            assert proposal.model_notes == []
+            assert proposal.revision == 7 and proposal.candidates == old["candidates"]
+            assert proposal.inputs == old["inputs"] and proposal.status == "ready"
