@@ -3239,8 +3239,8 @@
     },
     {
       "path": "scripts/record_first_experience.cjs",
-      "bytes": 9496,
-      "sha256": "4edad6955ca1c4b5860f272bb2f5eb500e18f9eabc888873cccc02273dc96d18",
+      "bytes": 9371,
+      "sha256": "a132c617904a9737e75b0448d48244d4553bf8a5dd4986cf46d434b5b231f94f",
       "source": "maintained-in-public-repository"
     },
     {
