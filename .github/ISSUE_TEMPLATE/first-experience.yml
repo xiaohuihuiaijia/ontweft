@@ -22,7 +22,7 @@ body:
     attributes:
       label: 版本与运行方式 / Version and setup
       description: Release 标签或提交、Docker/源码、操作系统与 CPU 架构；无需粘贴完整配置。
-      placeholder: v0.1.0-beta.1-demo / Docker / Windows + Linux containers / amd64
+      placeholder: v0.1.0-beta.1 / Docker / Windows + Linux containers / amd64
     validations:
       required: true
   - type: dropdown
